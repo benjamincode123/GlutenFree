@@ -1,0 +1,8 @@
+# Build output
+bin/
+obj/
+
+# Local secrets / connection strings - do NOT commit these
+appsettings.Development.json
+appsettings.*.Local.json
+*.user
