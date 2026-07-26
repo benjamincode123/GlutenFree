@@ -1,22 +1,33 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
+  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../src/auth/AuthContext';
+import { AppTextInput } from '../src/components/KeyboardDismissBar';
+import { ErrorText } from '../src/components/ErrorText';
+import {
+  darkenHex,
+  GroceryPatternBackground,
+} from '../src/components/GroceryPatternBackground';
+import { userFacingError } from '../src/errors/userFacingError';
+import { useSmoothKeyboardShift } from '../src/hooks/useSmoothKeyboardShift';
+import { useI18n } from '../src/i18n/I18nContext';
+import { useTheme } from '../src/theme/ThemeContext';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { signIn, signUp } = useAuth();
+  const { t } = useI18n();
+  const { colors } = useTheme();
+  const keyboardShift = useSmoothKeyboardShift(200);
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
@@ -25,16 +36,18 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const isRegister = mode === 'register';
+  const patternLine = darkenHex(colors.primary, 0.32);
+  const year = new Date().getFullYear();
 
   async function handleSubmit() {
     setError(null);
 
     if (username.trim().length < 3) {
-      setError('Username must be at least 3 characters.');
+      setError(t('login.usernameShort'));
       return;
     }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      setError(t('login.passwordShort'));
       return;
     }
 
@@ -45,154 +58,168 @@ export default function LoginScreen() {
       } else {
         await signIn(username, password);
       }
-      // On success, the root navigator redirects away from this screen.
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      setError(userFacingError(err, t, isRegister ? 'register_failed' : 'login_failed'));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 24 },
+    <View style={[styles.flex, { backgroundColor: colors.primary }]}>
+      <GroceryPatternBackground
+        backgroundColor={colors.primary}
+        lineColor={patternLine}
+      />
+      <Animated.View
+        style={[
+          styles.flex,
+          {
+            transform: [{ translateY: keyboardShift }],
+          },
         ]}
-        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.logo}>Gluten Scanner</Text>
-        <Text style={styles.subtitle}>
-          {isRegister ? 'Create an account to get started' : 'Sign in to continue'}
-        </Text>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Username</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Your username"
-            placeholderTextColor="#9AA0A6"
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={username}
-            onChangeText={setUsername}
-          />
-
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Your password"
-            placeholderTextColor="#9AA0A6"
-            secureTextEntry
-            autoCapitalize="none"
-            value={password}
-            onChangeText={setPassword}
-            onSubmitEditing={handleSubmit}
-            returnKeyType="go"
-          />
-
-          {error && <Text style={styles.error}>{error}</Text>}
-
-          <Pressable
-            style={[styles.button, submitting && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>
-                {isRegister ? 'Create account' : 'Sign in'}
-              </Text>
-            )}
-          </Pressable>
-        </View>
-
-        <Pressable
-          style={styles.switchRow}
-          onPress={() => {
-            setMode(isRegister ? 'login' : 'register');
-            setError(null);
-          }}
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 16 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
         >
-          <Text style={styles.switchText}>
-            {isRegister
-              ? 'Already have an account? '
-              : "Don't have an account? "}
-            <Text style={styles.switchLink}>
-              {isRegister ? 'Sign in' : 'Register'}
-            </Text>
-          </Text>
-        </Pressable>
+          <View style={styles.main}>
+            <View style={[styles.card, { backgroundColor: colors.background }]}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                {t('login.username')}
+              </Text>
+              <AppTextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
+                placeholder={t('login.usernamePlaceholder')}
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={username}
+                onChangeText={setUsername}
+              />
 
-        <Text style={styles.note}>
-          New accounts are standard users. Ask an admin to upgrade you if you need
-          to add products.
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                {t('login.password')}
+              </Text>
+              <AppTextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
+                placeholder={t('login.passwordPlaceholder')}
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry
+                autoCapitalize="none"
+                value={password}
+                onChangeText={setPassword}
+                onSubmitEditing={handleSubmit}
+                returnKeyType="go"
+              />
+
+              {error && <ErrorText style={styles.error}>{error}</ErrorText>}
+
+              <Pressable
+                style={[
+                  styles.button,
+                  { backgroundColor: colors.primary },
+                  submitting && styles.buttonDisabled,
+                ]}
+                onPress={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>
+                    {isRegister ? t('login.createAccount') : t('login.signIn')}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={styles.switchRow}
+              onPress={() => {
+                setMode(isRegister ? 'login' : 'register');
+                setError(null);
+              }}
+            >
+              <Text style={styles.switchText}>
+                {isRegister ? t('login.haveAccount') : t('login.noAccount')}
+                <Text style={styles.switchLink}>
+                  {isRegister ? t('login.signIn') : t('login.register')}
+                </Text>
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.footer}>
+            <Text style={styles.poweredBy}>{t('login.poweredBy')}</Text>
+            <Text style={styles.copyright}>© {year} Uten Gluten</Text>
+          </View>
+        </ScrollView>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#1B7F3B' },
+  flex: { flex: 1 },
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
+    justifyContent: 'space-between',
   },
-  logo: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#DDF3E4',
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 28,
+  main: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   card: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 20,
   },
   label: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#3C4043',
     marginBottom: 6,
     marginTop: 12,
   },
   input: {
-    backgroundColor: '#F5F6F8',
     borderWidth: 1,
-    borderColor: '#DADCE0',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#202124',
   },
   error: {
-    color: '#B3261E',
     fontSize: 14,
     marginTop: 14,
   },
   button: {
     marginTop: 20,
-    backgroundColor: '#1B7F3B',
     paddingVertical: 15,
     borderRadius: 12,
     alignItems: 'center',
   },
   buttonDisabled: {
-    backgroundColor: '#7FB894',
+    opacity: 0.7,
   },
   buttonText: {
     color: '#fff',
@@ -211,11 +238,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '800',
   },
-  note: {
+  footer: {
+    alignItems: 'center',
+    paddingTop: 28,
+    paddingBottom: 8,
+  },
+  poweredBy: {
+    color: '#EAF7EF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  copyright: {
     color: '#CDEAD6',
     fontSize: 12,
-    textAlign: 'center',
-    marginTop: 24,
-    lineHeight: 18,
+    marginTop: 4,
   },
 });

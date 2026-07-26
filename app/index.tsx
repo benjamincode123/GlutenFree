@@ -1,22 +1,24 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   BarcodeScanningResult,
   BarcodeType,
   CameraView,
   useCameraPermissions,
 } from 'expo-camera';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { Link, useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../src/auth/AuthContext';
+import { useI18n } from '../src/i18n/I18nContext';
+import { useTheme } from '../src/theme/ThemeContext';
 
 const BARCODE_TYPES: BarcodeType[] = [
   'ean13',
@@ -24,28 +26,81 @@ const BARCODE_TYPES: BarcodeType[] = [
   'upc_a',
   'upc_e',
   'code128',
+  'code39',
+  'code93',
+  'itf14',
+  'codabar',
   'qr',
+  'pdf417',
+  'aztec',
+  'datamatrix',
 ];
+
+/** Isolated so hold-to-scan UI re-renders do not restart the native camera session. */
+const ScannerCamera = memo(function ScannerCamera({
+  active,
+  onBarcodeScanned,
+  onCameraReady,
+}: {
+  active: boolean;
+  onBarcodeScanned?: (result: BarcodeScanningResult) => void;
+  onCameraReady: () => void;
+}) {
+  return (
+    <CameraView
+      style={StyleSheet.absoluteFill}
+      facing="back"
+      active={active}
+      zoom={0}
+      // Expo naming is inverted vs intuition: "off" = continuous autofocus;
+      // "on" = focus once then lock (bad for barcode scanning).
+      autofocus="off"
+      barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
+      onBarcodeScanned={onBarcodeScanned}
+      onCameraReady={onCameraReady}
+      // Let overlay controls receive taps above the native preview.
+      pointerEvents="none"
+    />
+  );
+});
 
 export default function ScannerScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { user, isAdmin, authEnabled, signOut } = useAuth();
+  const { user, authEnabled } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useI18n();
   const [permission, requestPermission] = useCameraPermissions();
 
   const [lastBarcode, setLastBarcode] = useState<string | null>(null);
-  const [lastType, setLastType] = useState<string | null>(null);
-  const [manualBarcode, setManualBarcode] = useState('');
+  const [holdingToScan, setHoldingToScan] = useState(false);
+  const [isFocused, setIsFocused] = useState(true);
+  const [cameraReady, setCameraReady] = useState(false);
 
   // Prevents the camera from firing many navigations for one physical scan.
   const lockRef = useRef(false);
+  const holdingRef = useRef(false);
+  const isFocusedRef = useRef(true);
 
-  // Re-arm scanning whenever the screen regains focus (e.g. after going to result).
+  useLayoutEffect(() => {
+    navigation.setOptions({ title: t('nav.scanner') });
+  }, [navigation, t]);
+
+  // Keep CameraView mounted; only pause the session while another screen is open.
   useFocusEffect(
     useCallback(() => {
       lockRef.current = false;
+      holdingRef.current = false;
+      isFocusedRef.current = true;
+      setHoldingToScan(false);
+      setIsFocused(true);
       return () => {
         lockRef.current = true;
+        holdingRef.current = false;
+        isFocusedRef.current = false;
+        setHoldingToScan(false);
+        setIsFocused(false);
       };
     }, [])
   );
@@ -61,19 +116,39 @@ export default function ScannerScreen() {
 
   const handleBarcodeScanned = useCallback(
     (result: BarcodeScanningResult) => {
-      if (lockRef.current) return;
+      if (!isFocusedRef.current || !holdingRef.current || lockRef.current) return;
+      const value = result.data?.trim();
+      if (!value) return;
       lockRef.current = true;
-      setLastBarcode(result.data);
-      setLastType(result.type);
-      goToResult(result.data);
+      holdingRef.current = false;
+      setHoldingToScan(false);
+      setLastBarcode(value);
+      goToResult(value);
     },
     [goToResult]
   );
 
+  const handleCameraReady = useCallback(() => {
+    setCameraReady(true);
+  }, []);
+
+  const startHolding = useCallback(() => {
+    if (lockRef.current || !isFocusedRef.current) return;
+    holdingRef.current = true;
+    setHoldingToScan(true);
+  }, []);
+
+  const stopHolding = useCallback(() => {
+    holdingRef.current = false;
+    setHoldingToScan(false);
+  }, []);
+
   if (!permission) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.infoText}>Checking camera permission...</Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+          {t('scanner.checkingPermission')}
+        </Text>
       </View>
     );
   }
@@ -82,90 +157,198 @@ export default function ScannerScreen() {
     <View style={styles.container}>
       {permission.granted ? (
         <View style={styles.cameraWrapper}>
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            facing="back"
-            barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
-            onBarcodeScanned={handleBarcodeScanned}
+          <ScannerCamera
+            active={isFocused}
+            onCameraReady={handleCameraReady}
+            // Keep scanning attached after ready — toggling this prop blacks the preview.
+            onBarcodeScanned={cameraReady ? handleBarcodeScanned : undefined}
           />
-          <View style={styles.overlay} pointerEvents="none">
-            <View style={styles.reticle} />
-            <Text style={styles.overlayHint}>Point the camera at a barcode</Text>
+          <View style={styles.overlay} pointerEvents="box-none">
+            <View
+              style={[styles.hintWrap, { top: Math.max(insets.top, 8) + 10 }]}
+              pointerEvents="none"
+            >
+              <View
+                style={[
+                  styles.hintPill,
+                  holdingToScan && styles.hintPillActive,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={holdingToScan ? 'line-scan' : 'gesture-tap-hold'}
+                  size={16}
+                  color={holdingToScan ? '#E4F6E9' : 'rgba(255,255,255,0.92)'}
+                />
+                <Text
+                  style={[
+                    styles.hintText,
+                    holdingToScan && styles.hintTextActive,
+                  ]}
+                >
+                  {holdingToScan ? t('scanner.scanning') : t('scanner.holdToScan')}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.scanFrame} pointerEvents="none">
+              <View
+                style={[
+                  styles.scanCorner,
+                  styles.scanCornerTL,
+                  holdingToScan && styles.scanCornerActive,
+                ]}
+              />
+              <View
+                style={[
+                  styles.scanCorner,
+                  styles.scanCornerTR,
+                  holdingToScan && styles.scanCornerActive,
+                ]}
+              />
+              <View
+                style={[
+                  styles.scanCorner,
+                  styles.scanCornerBL,
+                  holdingToScan && styles.scanCornerActive,
+                ]}
+              />
+              <View
+                style={[
+                  styles.scanCorner,
+                  styles.scanCornerBR,
+                  holdingToScan && styles.scanCornerActive,
+                ]}
+              />
+            </View>
+
+            <View style={styles.scanButtonWrap}>
+              <Pressable
+                onPressIn={startHolding}
+                onPressOut={stopHolding}
+                accessibilityRole="button"
+                accessibilityLabel={t('scanner.holdA11y')}
+                style={({ pressed }) => [
+                  styles.scanButton,
+                  (pressed || holdingToScan) && styles.scanButtonActive,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="barcode-scan"
+                  size={36}
+                  color="#fff"
+                />
+              </Pressable>
+            </View>
           </View>
         </View>
       ) : (
         <View style={styles.cameraWrapper}>
           <View style={[styles.centered, styles.noCamera]}>
-            <Text style={styles.noCameraTitle}>Camera access needed</Text>
-            <Text style={styles.infoText}>
-              Grant camera access to scan grocery barcodes.
-            </Text>
+            <Text style={styles.noCameraTitle}>{t('scanner.cameraNeeded')}</Text>
+            <Text style={styles.infoText}>{t('scanner.cameraHint')}</Text>
             <Pressable style={styles.primaryButton} onPress={requestPermission}>
-              <Text style={styles.primaryButtonText}>Grant camera access</Text>
+              <Text style={styles.primaryButtonText}>{t('scanner.grantCamera')}</Text>
             </Pressable>
             {Platform.OS === 'ios' && (
-              <Text style={styles.simulatorNote}>
-                The iOS Simulator has no camera. Use the manual entry below to test.
-              </Text>
+              <Text style={styles.simulatorNote}>{t('scanner.simulatorNote')}</Text>
             )}
           </View>
         </View>
       )}
 
-      {/* Dev readout: always show the last barcode the camera saw. */}
       <View style={styles.devPanel}>
-        <Text style={styles.devLabel}>Last scanned barcode (dev)</Text>
+        <Text style={styles.devLabel}>{t('scanner.lastScanned')}</Text>
         <Text style={styles.devValue}>{lastBarcode ?? '—'}</Text>
-        {lastType && <Text style={styles.devType}>type: {lastType}</Text>}
       </View>
 
-      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 16 }]}>
-        <Text style={styles.manualLabel}>Manual entry (fallback)</Text>
-        <View style={styles.manualRow}>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter barcode digits"
-            placeholderTextColor="#9AA0A6"
-            keyboardType="number-pad"
-            value={manualBarcode}
-            onChangeText={setManualBarcode}
-            onSubmitEditing={() => goToResult(manualBarcode)}
-            returnKeyType="search"
-          />
-          <Pressable
-            style={[
-              styles.lookupButton,
-              !manualBarcode.trim() && styles.lookupButtonDisabled,
-            ]}
-            disabled={!manualBarcode.trim()}
-            onPress={() => goToResult(manualBarcode)}
-          >
-            <Text style={styles.lookupButtonText}>Look up</Text>
-          </Pressable>
-        </View>
-
+      <View
+        style={[
+          styles.bottomPanel,
+          {
+            paddingBottom: insets.bottom + 16,
+            backgroundColor: colors.background,
+            borderTopColor: colors.border,
+          },
+        ]}
+      >
         <View style={styles.linksRow}>
-          {isAdmin && (
-            <Link href="/add" style={styles.linkButton}>
-              <Text style={styles.linkButtonText}>+ Add product</Text>
+          {authEnabled && user && (
+            <Link
+              href="/add"
+              style={[styles.linkButton, { borderColor: colors.primary }]}
+            >
+              <Text style={[styles.linkButtonText, { color: colors.primary }]}>
+                {t('scanner.addProduct')}
+              </Text>
             </Link>
           )}
-          <Link href="/products" style={styles.linkButton}>
-            <Text style={styles.linkButtonText}>All products</Text>
+          <Link
+            href="/products"
+            style={[styles.linkButton, { borderColor: colors.primary }]}
+          >
+            <Text style={[styles.linkButtonText, { color: colors.primary }]}>
+              {t('scanner.searchProducts')}
+            </Text>
           </Link>
         </View>
 
-        {authEnabled && (
-          <View style={styles.accountRow}>
-            <Text style={styles.accountText}>
-              Signed in as {user?.username ?? 'user'}
-              {isAdmin ? ' · Admin' : ''}
-            </Text>
-            <Pressable onPress={signOut} hitSlop={8}>
-              <Text style={styles.logoutText}>Log out</Text>
+        <View style={[styles.iconNavRow, { borderTopColor: colors.border }]}>
+          <Link href="/user" asChild>
+            <Pressable
+              style={styles.iconNavButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('scanner.profile')}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons
+                name="account-circle-outline"
+                size={28}
+                color={colors.primary}
+              />
+              <Text style={[styles.iconNavLabel, { color: colors.textSecondary }]}>
+                {t('scanner.profile')}
+              </Text>
             </Pressable>
-          </View>
-        )}
+          </Link>
+          <Link href="/leaderboard" asChild>
+            <Pressable
+              style={styles.iconNavButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('scanner.leaderboard')}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons
+                name="trophy-outline"
+                size={28}
+                color={colors.primary}
+              />
+              <Text style={[styles.iconNavLabel, { color: colors.textSecondary }]}>
+                {t('scanner.leaderboard')}
+              </Text>
+            </Pressable>
+          </Link>
+          <Link href="/settings" asChild>
+            <Pressable
+              style={styles.iconNavButton}
+              accessibilityRole="button"
+              accessibilityLabel={t('scanner.settings')}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons
+                name="cog-outline"
+                size={28}
+                color={colors.primary}
+              />
+              <Text style={[styles.iconNavLabel, { color: colors.textSecondary }]}>
+                {t('scanner.settings')}
+              </Text>
+            </Pressable>
+          </Link>
+        </View>
+
+        <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>
+          {t('scanner.disclaimer')}
+        </Text>
       </View>
     </View>
   );
@@ -185,32 +368,116 @@ const styles = StyleSheet.create({
   cameraWrapper: {
     flex: 1,
     overflow: 'hidden',
+    backgroundColor: '#0F1115',
   },
   overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  reticle: {
-    width: 240,
-    height: 150,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 16,
+  hintWrap: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    zIndex: 5,
   },
-  overlayHint: {
-    marginTop: 16,
-    color: '#fff',
-    fontSize: 14,
+  hintPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    maxWidth: '100%',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 17, 21, 0.62)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  hintPillActive: {
+    backgroundColor: 'rgba(27, 127, 59, 0.82)',
+    borderColor: 'rgba(228, 246, 233, 0.55)',
+  },
+  hintText: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 13,
     fontWeight: '600',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    letterSpacing: 0.2,
+  },
+  hintTextActive: {
+    color: '#E4F6E9',
+  },
+  // Large guide — scanning uses the full camera frame, not only this box.
+  scanFrame: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    top: '14%',
+    bottom: '24%',
+  },
+  scanCorner: {
+    position: 'absolute',
+    width: 26,
+    height: 26,
+    borderColor: 'rgba(255,255,255,0.88)',
+  },
+  scanCornerActive: {
+    borderColor: '#4CD787',
+  },
+  scanCornerTL: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderTopLeftRadius: 10,
+  },
+  scanCornerTR: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderTopRightRadius: 10,
+  },
+  scanCornerBL: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderBottomLeftRadius: 10,
+  },
+  scanCornerBR: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderBottomRightRadius: 10,
+  },
+  scanButtonWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 28,
+    alignItems: 'center',
+  },
+  scanButton: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: 'rgba(27, 127, 59, 0.92)',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  scanButtonActive: {
+    backgroundColor: '#149A45',
+    transform: [{ scale: 0.94 }],
+    borderColor: '#fff',
   },
   noCamera: {
     backgroundColor: '#1A1D22',
@@ -263,93 +530,55 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
   },
-  devType: {
-    color: '#8A9099',
-    fontSize: 12,
-    marginTop: 2,
-  },
   bottomPanel: {
-    backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingTop: 16,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  manualLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#5F6368',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  manualRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  input: {
-    flex: 1,
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#DADCE0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    color: '#202124',
-    marginRight: 10,
-  },
-  lookupButton: {
-    backgroundColor: '#1B7F3B',
-    height: 48,
-    paddingHorizontal: 18,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lookupButtonDisabled: {
-    backgroundColor: '#A8C7B4',
-  },
-  lookupButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
   linksRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 16,
+    marginTop: 0,
   },
   linkButton: {
     flex: 1,
     marginHorizontal: 4,
     borderWidth: 1,
-    borderColor: '#1B7F3B',
     borderRadius: 10,
     paddingVertical: 12,
     textAlign: 'center',
-    color: '#1B7F3B',
     fontWeight: '700',
     overflow: 'hidden',
   },
   linkButtonText: {
-    color: '#1B7F3B',
     fontWeight: '700',
     textAlign: 'center',
   },
-  accountRow: {
+  iconNavRow: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 14,
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  accountText: {
-    fontSize: 13,
-    color: '#5F6368',
-    flex: 1,
+  iconNavButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 88,
+    paddingVertical: 4,
   },
-  logoutText: {
-    fontSize: 14,
-    color: '#B3261E',
-    fontWeight: '700',
+  iconNavLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  disclaimer: {
+    marginTop: 12,
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: 'center',
+    opacity: 0.9,
   },
 });

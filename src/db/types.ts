@@ -62,6 +62,9 @@ export function isGlutenRating(value: string): value is GlutenRating {
   return ALL_GLUTEN_RATINGS.includes(value as GlutenRating);
 }
 
+/** Which catalog table a product came from (API). */
+export type ProductCatalog = 'glutenfri' | 'gluten';
+
 export interface Product {
   id: number;
   barcode: string;
@@ -70,6 +73,16 @@ export interface Product {
   glutenRating: GlutenRating;
   createdAt: string;
   updatedAt: string;
+  /** Present when loaded from the catalog API. */
+  catalog?: ProductCatalog;
+  /** True when queued for admin review (not in live catalog yet). */
+  pending?: boolean;
+  /** Optional product image as base64 (may include data-URI prefix). */
+  imageBase64?: string | null;
+}
+
+export function isUnknownBarcode(barcode: string | null | undefined): boolean {
+  return (barcode ?? '').trim().toLowerCase() === 'unknown';
 }
 
 /** Shape used when creating a new product (no id/timestamps yet). */
@@ -78,4 +91,5 @@ export interface NewProduct {
   name: string;
   ingredients?: string | null;
   glutenRating: GlutenRating;
+  imageBase64?: string | null;
 }

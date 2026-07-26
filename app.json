@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "GlutenFree",
-    "slug": "GlutenFree",
+    "name": "Uten Gluten",
+    "slug": "uten-gluten",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,18 +11,22 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.glutenfree.scanner",
       "infoPlist": {
-        "NSCameraUsageDescription": "This app uses the camera to scan grocery barcodes so it can check products for gluten."
+        "NSCameraUsageDescription": "This app uses the camera to scan grocery barcodes and photograph products for review.",
+        "NSPhotoLibraryUsageDescription": "This app lets you attach a product photo when reporting a barcode."
       }
     },
     "android": {
       "package": "com.glutenfree.scanner",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,7 +37,14 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "This app uses the camera to scan grocery barcodes so it can check products for gluten."
+          "cameraPermission": "This app uses the camera to scan grocery barcodes and photograph products for review."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "This app lets you attach a product photo when reporting a barcode.",
+          "cameraPermission": "This app uses the camera to photograph products for barcode reports."
         }
       ],
       "expo-secure-store"

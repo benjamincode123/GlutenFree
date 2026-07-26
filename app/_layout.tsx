@@ -6,8 +6,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
+import { KeyboardDismissAccessory } from '../src/components/KeyboardDismissBar';
 import { config } from '../src/config';
+import { I18nProvider, useI18n } from '../src/i18n/I18nContext';
 import { initDatabase } from '../src/db/database';
+import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -31,7 +34,7 @@ export default function RootLayout() {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to initialize database.');
+          setError('startup');
         }
       });
     return () => {
@@ -42,8 +45,10 @@ export default function RootLayout() {
   if (error) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorTitle}>Database error</Text>
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorTitle}>Something went wrong</Text>
+        <Text style={styles.errorText}>
+          The app could not start. Please try again.
+        </Text>
       </View>
     );
   }
@@ -52,7 +57,7 @@ export default function RootLayout() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#1B7F3B" />
-        <Text style={styles.loadingText}>Preparing gluten database...</Text>
+        <Text style={styles.loadingText}>Preparing Uten Gluten...</Text>
       </View>
     );
   }
@@ -60,10 +65,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <AuthProvider>
-          <RootNavigator />
-        </AuthProvider>
+        <ThemeProvider>
+          <I18nProvider>
+            <AuthProvider>
+              <RootNavigator />
+            </AuthProvider>
+          </I18nProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -71,6 +79,8 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { user, initializing, authEnabled } = useAuth();
+  const { colors, isDark } = useTheme();
+  const { t } = useI18n();
   const segments = useSegments();
   const router = useRouter();
 
@@ -88,27 +98,41 @@ function RootNavigator() {
 
   if (initializing) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1B7F3B" />
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+          {t('common.loading')}
+        </Text>
       </View>
     );
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: '#1B7F3B' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '700' },
-      }}
-    >
-      <Stack.Screen name="login" options={{ title: 'Sign In', headerShown: false }} />
-      <Stack.Screen name="index" options={{ title: 'Gluten Scanner' }} />
-      <Stack.Screen name="result" options={{ title: 'Scan Result' }} />
-      <Stack.Screen name="add" options={{ title: 'Add Product' }} />
-      <Stack.Screen name="products" options={{ title: 'All Products' }} />
-    </Stack>
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.primary },
+          headerTintColor: colors.onPrimary,
+          headerTitleStyle: { fontWeight: '700' },
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="login" options={{ title: t('nav.signIn'), headerShown: false }} />
+        <Stack.Screen name="index" options={{ title: t('nav.scanner') }} />
+        <Stack.Screen name="result" options={{ title: t('nav.result') }} />
+        <Stack.Screen name="add" options={{ title: t('nav.add') }} />
+        <Stack.Screen name="products" options={{ title: t('nav.products') }} />
+        <Stack.Screen name="user" options={{ title: t('nav.profile') }} />
+        <Stack.Screen name="favorites" options={{ title: t('favorites.title') }} />
+        <Stack.Screen name="lists" options={{ title: t('lists.title') }} />
+        <Stack.Screen name="list-detail" options={{ title: t('lists.title') }} />
+        <Stack.Screen name="leaderboard" options={{ title: t('nav.leaderboard') }} />
+        <Stack.Screen name="admin" options={{ title: t('nav.admin') }} />
+        <Stack.Screen name="settings" options={{ title: t('nav.settings') }} />
+      </Stack>
+      <KeyboardDismissAccessory />
+    </>
   );
 }
 
@@ -134,7 +158,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: '#444',
+    color: '#B3261E',
     textAlign: 'center',
+    fontWeight: '600',
   },
 });

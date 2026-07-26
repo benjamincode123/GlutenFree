@@ -1,21 +1,80 @@
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
+const DEFAULT_API_PORT = 5178;
+
+/**
+ * Host running Metro (same machine as the local .NET API in typical setup).
+ * Expo updates this when your network/IP changes, so you don't hardcode a LAN IP.
+ */
+function getExpoDevHost(): string | null {
+  const candidates = [
+    Constants.expoConfig?.hostUri,
+    Constants.manifest2?.extra?.expoGo?.debuggerHost,
+    // Legacy Expo manifest (SDK < 49 / older Expo Go).
+    (Constants as { manifest?: { debuggerHost?: string } }).manifest?.debuggerHost,
+  ];
+
+  for (const value of candidates) {
+    if (typeof value !== 'string' || !value.trim()) continue;
+    const host = value.trim().split(':')[0]?.trim();
+    if (host) return host;
+  }
+  return null;
+}
+
+function resolveDevApiBaseUrl(): string {
+  const override = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (override) {
+    return override.replace(/\/+$/, '');
+  }
+
+  const port = Number.parseInt(process.env.EXPO_PUBLIC_API_PORT ?? '', 10);
+  const apiPort = Number.isFinite(port) && port > 0 ? port : DEFAULT_API_PORT;
+
+  const expoHost = getExpoDevHost();
+  if (expoHost) {
+    // Physical device / Expo Go: use the packager machine's current IP.
+    // iOS Simulator / web often report localhost — that is correct there.
+    if (Platform.OS === 'android' && (expoHost === 'localhost' || expoHost === '127.0.0.1')) {
+      // Android emulator loopback to the host machine.
+      return `http://10.0.2.2:${apiPort}`;
+    }
+    return `http://${expoHost}:${apiPort}`;
+  }
+
+  if (Platform.OS === 'android') {
+    return `http://10.0.2.2:${apiPort}`;
+  }
+
+  return `http://localhost:${apiPort}`;
+}
+
+function resolveApiBaseUrl(): string {
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    return resolveDevApiBaseUrl();
+  }
+
+  const production = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (production) {
+    return production.replace(/\/+$/, '');
+  }
+
+  return `http://localhost:${DEFAULT_API_PORT}`;
+}
+
 /**
  * App runtime configuration.
  *
- * Values come from Expo public environment variables (any variable prefixed with
- * EXPO_PUBLIC_ is inlined into the app at build time). Set them before starting
- * Expo, for example:
- *
- *   $env:EXPO_PUBLIC_API_URL = "http://192.168.1.183:5178"
- *   npm run start
+ * In development the API host is taken from Expo's Metro host (or localhost /
+ * Android emulator loopback). You only need EXPO_PUBLIC_API_URL to force a
+ * specific URL; otherwise leave it unset so network changes don't break the app.
  */
 export const config = {
   /**
    * Base URL of the .NET backend API.
-   *
-   * On a physical device this must be your computer's LAN IP (not localhost),
-   * because "localhost" on the phone refers to the phone itself.
    */
-  apiBaseUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:5178',
+  apiBaseUrl: resolveApiBaseUrl(),
 
   /**
    * When true, the app talks to the backend API (MSSQL via .NET). When false,
