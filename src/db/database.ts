@@ -33,6 +33,7 @@ export async function initDatabase(): Promise<void> {
     CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       barcode TEXT NOT NULL UNIQUE,
+      produsent TEXT,
       name TEXT NOT NULL,
       ingredients TEXT,
       gluten_rating TEXT NOT NULL CHECK (gluten_rating IN ('gluten_free', 'gluten_trace', 'gluten_content')),
@@ -40,6 +41,12 @@ export async function initDatabase(): Promise<void> {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  try {
+    await db.execAsync(`ALTER TABLE products ADD COLUMN produsent TEXT;`);
+  } catch {
+    // Column already exists on upgraded installs.
+  }
 
   await seedIfEmpty();
 }

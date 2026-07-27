@@ -1,12 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   BarcodeScanningResult,
-  BarcodeType,
-  CameraView,
   useCameraPermissions,
 } from 'expo-camera';
 import { Link, useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -17,52 +15,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../src/auth/AuthContext';
+import { ScannerCamera } from '../src/components/ScannerCamera';
 import { useI18n } from '../src/i18n/I18nContext';
 import { useTheme } from '../src/theme/ThemeContext';
-
-const BARCODE_TYPES: BarcodeType[] = [
-  'ean13',
-  'ean8',
-  'upc_a',
-  'upc_e',
-  'code128',
-  'code39',
-  'code93',
-  'itf14',
-  'codabar',
-  'qr',
-  'pdf417',
-  'aztec',
-  'datamatrix',
-];
-
-/** Isolated so hold-to-scan UI re-renders do not restart the native camera session. */
-const ScannerCamera = memo(function ScannerCamera({
-  active,
-  onBarcodeScanned,
-  onCameraReady,
-}: {
-  active: boolean;
-  onBarcodeScanned?: (result: BarcodeScanningResult) => void;
-  onCameraReady: () => void;
-}) {
-  return (
-    <CameraView
-      style={StyleSheet.absoluteFill}
-      facing="back"
-      active={active}
-      zoom={0}
-      // Expo naming is inverted vs intuition: "off" = continuous autofocus;
-      // "on" = focus once then lock (bad for barcode scanning).
-      autofocus="off"
-      barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
-      onBarcodeScanned={onBarcodeScanned}
-      onCameraReady={onCameraReady}
-      // Let overlay controls receive taps above the native preview.
-      pointerEvents="none"
-    />
-  );
-});
 
 export default function ScannerScreen() {
   const router = useRouter();

@@ -226,12 +226,22 @@ export default function ProductsScreen() {
                 onPress={() => openProduct(item)}
               >
                 <View style={styles.rowLine}>
-                  <Text
-                    style={[styles.name, { color: colors.text }]}
-                    numberOfLines={2}
-                  >
-                    {item.name}
-                  </Text>
+                  <View style={styles.rowMain}>
+                    {item.produsent?.trim() ? (
+                      <Text
+                        style={[styles.produsent, { color: colors.textSecondary }]}
+                        numberOfLines={1}
+                      >
+                        {item.produsent.trim()}
+                      </Text>
+                    ) : null}
+                    <Text
+                      style={[styles.name, { color: colors.text }]}
+                      numberOfLines={2}
+                    >
+                      {item.name}
+                    </Text>
+                  </View>
                   <GlutenBadge rating={item.glutenRating} />
                 </View>
                 <View style={styles.rowLine}>
@@ -371,6 +381,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
+  rowMain: {
+    flex: 1,
+    gap: 2,
+  },
+  produsent: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   actionsCol: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -384,7 +402,6 @@ const styles = StyleSheet.create({
     height: 22,
   },
   name: {
-    flex: 1,
     fontSize: 16,
     fontWeight: '700',
   },

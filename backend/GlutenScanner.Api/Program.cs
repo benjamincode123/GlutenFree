@@ -725,10 +725,10 @@ products.MapGet("/search", async (string? q, int? limit, bool? unknownOnly, Meny
     var merged = fri
         .Select(p => ToCatalogResponse(
             p.Id, p.Barcode, p.Name, GlutenRatings.GlutenFree, p.CreatedAt, MenyCatalogDbContext.CatalogFri,
-            p.ImageBase64, ingredients: p.Ingredients))
+            p.ImageBase64, ingredients: p.Ingredients, produsent: p.Produsent))
         .Concat(gluten.Select(p => ToCatalogResponse(
             p.Id, p.Barcode, p.Name, GlutenRatings.GlutenContent, p.CreatedAt, MenyCatalogDbContext.CatalogGluten,
-            p.ImageBase64, ingredients: p.Ingredients)))
+            p.ImageBase64, ingredients: p.Ingredients, produsent: p.Produsent)))
         .OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)
         .Take(take)
         .ToList();
@@ -744,7 +744,7 @@ products.MapGet("/{catalog}/{id:int}", async (string catalog, int id, MenyCatalo
             ? Results.NotFound()
             : Results.Ok(ToCatalogResponse(
                 fri.Id, fri.Barcode, fri.Name, GlutenRatings.GlutenFree, fri.CreatedAt, MenyCatalogDbContext.CatalogFri,
-                fri.ImageBase64, ingredients: fri.Ingredients));
+                fri.ImageBase64, ingredients: fri.Ingredients, produsent: fri.Produsent));
     }
     if (key is MenyCatalogDbContext.CatalogGluten or "glutenholdig")
     {
@@ -753,7 +753,7 @@ products.MapGet("/{catalog}/{id:int}", async (string catalog, int id, MenyCatalo
             ? Results.NotFound()
             : Results.Ok(ToCatalogResponse(
                 gluten.Id, gluten.Barcode, gluten.Name, GlutenRatings.GlutenContent, gluten.CreatedAt, MenyCatalogDbContext.CatalogGluten,
-                gluten.ImageBase64, ingredients: gluten.Ingredients));
+                gluten.ImageBase64, ingredients: gluten.Ingredients, produsent: gluten.Produsent));
     }
     return Results.BadRequest(new { error = "catalog must be glutenfri or gluten." });
 });
@@ -770,14 +770,14 @@ products.MapGet("/{barcode}", async (string barcode, MenyCatalogDbContext catalo
     {
         return Results.Ok(ToCatalogResponse(
             fri.Id, fri.Barcode, fri.Name, GlutenRatings.GlutenFree, fri.CreatedAt, MenyCatalogDbContext.CatalogFri,
-            fri.ImageBase64, ingredients: fri.Ingredients));
+            fri.ImageBase64, ingredients: fri.Ingredients, produsent: fri.Produsent));
     }
     var gluten = await catalog.GlutenProducts.FirstOrDefaultAsync(p => p.Barcode == trimmed);
     if (gluten is not null)
     {
         return Results.Ok(ToCatalogResponse(
             gluten.Id, gluten.Barcode, gluten.Name, GlutenRatings.GlutenContent, gluten.CreatedAt, MenyCatalogDbContext.CatalogGluten,
-            gluten.ImageBase64, ingredients: gluten.Ingredients));
+            gluten.ImageBase64, ingredients: gluten.Ingredients, produsent: gluten.Produsent));
     }
     return Results.NotFound();
 });
@@ -845,9 +845,33 @@ products.MapPost("/{catalog}/{id:int}/report-barcode", async (
     // combined privilege levels reach the crowd-approve threshold (>= 100).
     var applyNow = user.IsAdmin;
     var reportImage = string.IsNullOrWhiteSpace(request.ImageBase64) ? null : request.ImageBase64.Trim();
+    // Non-admins may not replace an existing catalog product photo.
+    if (!user.IsAdmin && !string.IsNullOrWhiteSpace(imageBase64))
+    {
+        reportImage = null;
+    }
     if (reportImage is not null && !TryNormalizeImageBase64(reportImage, out reportImage, out var imageError))
     {
         return Results.BadRequest(new { error = imageError });
+    }
+
+    // Non-admin photos go to product_image_validations; they never auto-apply
+    // when a barcode report is crowd-approved.
+    string? adminApplyImage = null;
+    var imageQueuedForValidation = false;
+    if (reportImage is not null)
+    {
+        if (user.IsAdmin)
+        {
+            adminApplyImage = reportImage;
+        }
+        else
+        {
+            await QueueOrUpdateProductImageValidationAsync(
+                appDb, key, id, productName, reportImage, user.Id);
+            imageQueuedForValidation = true;
+            reportImage = null;
+        }
     }
 
     var existingSameReport = await catalogDb.BarcodeReports
@@ -862,10 +886,10 @@ products.MapPost("/{catalog}/{id:int}/report-barcode", async (
     BarcodeReport reportEntity;
     if (existingSameReport is not null)
     {
-        // Same user reporting the same link again: refresh image if provided.
-        if (reportImage is not null)
+        // Same user reporting the same link again: refresh image if admin provided one.
+        if (adminApplyImage is not null)
         {
-            existingSameReport.ImageBase64 = reportImage;
+            existingSameReport.ImageBase64 = adminApplyImage;
         }
         reportEntity = existingSameReport;
     }
@@ -877,7 +901,7 @@ products.MapPost("/{catalog}/{id:int}/report-barcode", async (
             ProductId = id,
             ProductName = productName,
             SuggestedBarcode = suggested,
-            ImageBase64 = reportImage,
+            ImageBase64 = adminApplyImage,
             ReportedByUserId = user.Id,
             Applied = false,
             CreatedAt = DateTime.UtcNow,
@@ -889,6 +913,10 @@ products.MapPost("/{catalog}/{id:int}/report-barcode", async (
     {
         // Persist the report first so it is included in the crowd tally.
         await catalogDb.SaveChangesAsync();
+        if (imageQueuedForValidation)
+        {
+            await appDb.SaveChangesAsync();
+        }
 
         var matchingReports = await catalogDb.BarcodeReports
             .Where(r =>
@@ -914,30 +942,17 @@ products.MapPost("/{catalog}/{id:int}/report-barcode", async (
         if (cumulativeLevel >= User.AdminLevel)
         {
             applyNow = true;
-            var crowdImage = matchingReports
-                .Where(r => !string.IsNullOrWhiteSpace(r.ImageBase64))
-                .OrderByDescending(r => r.Id)
-                .Select(r => r.ImageBase64)
-                .FirstOrDefault();
 
             if (key == MenyCatalogDbContext.CatalogFri)
             {
                 var fri = await catalogDb.GlutenFriProducts.FirstAsync(p => p.Id == id);
                 fri.Barcode = suggested;
-                if (string.IsNullOrWhiteSpace(fri.ImageBase64) && !string.IsNullOrWhiteSpace(crowdImage))
-                {
-                    fri.ImageBase64 = crowdImage;
-                }
                 imageBase64 = fri.ImageBase64;
             }
             else
             {
                 var gluten = await catalogDb.GlutenProducts.FirstAsync(p => p.Id == id);
                 gluten.Barcode = suggested;
-                if (string.IsNullOrWhiteSpace(gluten.ImageBase64) && !string.IsNullOrWhiteSpace(crowdImage))
-                {
-                    gluten.ImageBase64 = crowdImage;
-                }
                 imageBase64 = gluten.ImageBase64;
             }
 
@@ -957,9 +972,9 @@ products.MapPost("/{catalog}/{id:int}/report-barcode", async (
         {
             var fri = await catalogDb.GlutenFriProducts.FirstAsync(p => p.Id == id);
             fri.Barcode = suggested;
-            if (reportImage is not null && string.IsNullOrWhiteSpace(fri.ImageBase64))
+            if (adminApplyImage is not null && string.IsNullOrWhiteSpace(fri.ImageBase64))
             {
-                fri.ImageBase64 = reportImage;
+                fri.ImageBase64 = adminApplyImage;
             }
             imageBase64 = fri.ImageBase64;
         }
@@ -967,9 +982,9 @@ products.MapPost("/{catalog}/{id:int}/report-barcode", async (
         {
             var gluten = await catalogDb.GlutenProducts.FirstAsync(p => p.Id == id);
             gluten.Barcode = suggested;
-            if (reportImage is not null && string.IsNullOrWhiteSpace(gluten.ImageBase64))
+            if (adminApplyImage is not null && string.IsNullOrWhiteSpace(gluten.ImageBase64))
             {
-                gluten.ImageBase64 = reportImage;
+                gluten.ImageBase64 = adminApplyImage;
             }
             imageBase64 = gluten.ImageBase64;
         }
@@ -1002,6 +1017,10 @@ products.MapPost("/{catalog}/{id:int}/report-barcode", async (
         // Pending report already saved above when tallying; keep a final save for
         // the duplicate-report image refresh path that never entered the tally block.
         await catalogDb.SaveChangesAsync();
+        if (imageQueuedForValidation)
+        {
+            await appDb.SaveChangesAsync();
+        }
     }
 
     var rating = key == MenyCatalogDbContext.CatalogFri
@@ -1015,7 +1034,7 @@ products.MapPost("/{catalog}/{id:int}/report-barcode", async (
         rating,
         DateTime.UtcNow,
         key,
-        applyNow ? imageBase64 : reportImage ?? imageBase64,
+        imageBase64,
         pending: !applyNow));
 });
 
@@ -1069,6 +1088,7 @@ products.MapPost("/barcode-reports/{reportId:int}/approve", async (
             return Results.Conflict(new { error = "This product already has a barcode." });
         }
         fri.Barcode = suggested;
+        // Admin barcode approval may apply a photo that was attached by an admin report.
         if (!string.IsNullOrWhiteSpace(report.ImageBase64) && string.IsNullOrWhiteSpace(fri.ImageBase64))
         {
             fri.ImageBase64 = report.ImageBase64;
@@ -1120,6 +1140,96 @@ products.MapPost("/barcode-reports/{reportId:int}/approve", async (
     return Results.Ok(ToCatalogResponse(
         report.ProductId, suggested, productName, rating, DateTime.UtcNow, key, imageBase64));
 });
+
+products.MapPost("/{catalog}/{id:int}/image-validations", async (
+    string catalog,
+    int id,
+    SubmitProductImageRequest request,
+    HttpContext ctx,
+    AppDbContext appDb,
+    MenyCatalogDbContext catalogDb) =>
+{
+    var user = await AuthHelper.ResolveUserAsync(ctx, appDb);
+    if (user is null)
+    {
+        return Results.Json(new { error = "You must be logged in to submit a product image." }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    var key = catalog.Trim().ToLowerInvariant();
+    if (key is "fri") key = MenyCatalogDbContext.CatalogFri;
+    if (key is "glutenholdig") key = MenyCatalogDbContext.CatalogGluten;
+
+    string productName;
+    string? existingImage;
+    if (key == MenyCatalogDbContext.CatalogFri)
+    {
+        var fri = await catalogDb.GlutenFriProducts.FirstOrDefaultAsync(p => p.Id == id);
+        if (fri is null) return Results.NotFound(new { error = "Product not found." });
+        productName = fri.Name;
+        existingImage = fri.ImageBase64;
+    }
+    else if (key == MenyCatalogDbContext.CatalogGluten)
+    {
+        var gluten = await catalogDb.GlutenProducts.FirstOrDefaultAsync(p => p.Id == id);
+        if (gluten is null) return Results.NotFound(new { error = "Product not found." });
+        productName = gluten.Name;
+        existingImage = gluten.ImageBase64;
+    }
+    else
+    {
+        return Results.BadRequest(new { error = "catalog must be glutenfri or gluten." });
+    }
+
+    if (!user.IsAdmin && !string.IsNullOrWhiteSpace(existingImage))
+    {
+        return Results.Conflict(new { error = "This product already has an image." });
+    }
+
+    var image = string.IsNullOrWhiteSpace(request.ImageBase64) ? null : request.ImageBase64.Trim();
+    if (image is null)
+    {
+        return Results.BadRequest(new { error = "imageBase64 is required." });
+    }
+    if (!TryNormalizeImageBase64(image, out image, out var imageError) || image is null)
+    {
+        return Results.BadRequest(new { error = imageError });
+    }
+
+    // Admins may set the catalog image immediately.
+    if (user.IsAdmin)
+    {
+        if (key == MenyCatalogDbContext.CatalogFri)
+        {
+            var fri = await catalogDb.GlutenFriProducts.FirstAsync(p => p.Id == id);
+            fri.ImageBase64 = image;
+            await catalogDb.SaveChangesAsync();
+            return Results.Ok(ToCatalogResponse(
+                fri.Id, fri.Barcode, fri.Name, GlutenRatings.GlutenFree, fri.CreatedAt, key,
+                fri.ImageBase64, ingredients: fri.Ingredients, produsent: fri.Produsent));
+        }
+
+        var glutenRow = await catalogDb.GlutenProducts.FirstAsync(p => p.Id == id);
+        glutenRow.ImageBase64 = image;
+        await catalogDb.SaveChangesAsync();
+        return Results.Ok(ToCatalogResponse(
+            glutenRow.Id, glutenRow.Barcode, glutenRow.Name, GlutenRatings.GlutenContent,
+            glutenRow.CreatedAt, key, glutenRow.ImageBase64,
+            ingredients: glutenRow.Ingredients, produsent: glutenRow.Produsent));
+    }
+
+    await QueueOrUpdateProductImageValidationAsync(
+        appDb, key, id, productName, image, user.Id);
+    await appDb.SaveChangesAsync();
+
+    return Results.Ok(new
+    {
+        pending = true,
+        catalog = key,
+        productId = id,
+        message = "Image submitted for admin validation.",
+    });
+});
+
 products.MapPost("/", async (
     NewProductRequest request,
     HttpContext ctx,
@@ -1135,6 +1245,8 @@ products.MapPost("/", async (
     var barcode = request.Barcode?.Trim();
     var name = request.Name?.Trim();
     var ingredients = request.Ingredients?.Trim();
+    var produsentRaw = request.Produsent?.Trim();
+    var produsent = string.IsNullOrEmpty(produsentRaw) ? null : produsentRaw;
     var rating = request.GlutenRating?.Trim();
     var imageBase64 = string.IsNullOrWhiteSpace(request.ImageBase64) ? null : request.ImageBase64.Trim();
     if (imageBase64 is not null && !TryNormalizeImageBase64(imageBase64, out imageBase64, out var imageError))
@@ -1143,7 +1255,20 @@ products.MapPost("/", async (
     }
     if (string.IsNullOrEmpty(barcode))
     {
-        return Results.BadRequest(new { error = "Barcode is required." });
+        // Admins clearing a barcode on edit store it as the catalog "unknown" sentinel.
+        var isAdminEdit =
+            user.IsAdmin &&
+            request.Id is int clearId &&
+            clearId > 0 &&
+            !string.IsNullOrWhiteSpace(request.Catalog);
+        if (isAdminEdit)
+        {
+            barcode = MenyCatalogDbContext.UnknownBarcode;
+        }
+        else
+        {
+            return Results.BadRequest(new { error = "Barcode is required." });
+        }
     }
     if (string.IsNullOrEmpty(name))
     {
@@ -1169,6 +1294,7 @@ products.MapPost("/", async (
         var submission = new ProductSubmission
         {
             Barcode = barcode,
+            Produsent = produsent,
             Name = name,
             Ingredients = string.IsNullOrEmpty(ingredients) ? null : ingredients,
             GlutenRating = rating!,
@@ -1189,13 +1315,136 @@ products.MapPost("/", async (
             submission.CreatedAt,
             "pending",
             Pending: true,
-            ImageBase64: submission.ImageBase64));
+            ImageBase64: submission.ImageBase64,
+            Produsent: submission.Produsent));
     }
 
     var isFree = rating == GlutenRatings.GlutenFree;
     var now = DateTime.UtcNow;
-    var isUnknown = string.Equals(barcode, MenyCatalogDbContext.UnknownBarcode, StringComparison.OrdinalIgnoreCase);
-    if (!isUnknown)
+    var targetCatalog = isFree ? MenyCatalogDbContext.CatalogFri : MenyCatalogDbContext.CatalogGluten;
+
+    // Admin edit of an existing product (by catalog + id) — allows changing barcode.
+    if (request.Id is int editId && editId > 0 && !string.IsNullOrWhiteSpace(request.Catalog))
+    {
+        var sourceKey = request.Catalog.Trim().ToLowerInvariant();
+        if (sourceKey is "fri") sourceKey = MenyCatalogDbContext.CatalogFri;
+        if (sourceKey is "glutenholdig") sourceKey = MenyCatalogDbContext.CatalogGluten;
+        if (sourceKey is not (MenyCatalogDbContext.CatalogFri or MenyCatalogDbContext.CatalogGluten))
+        {
+            return Results.BadRequest(new { error = "catalog must be glutenfri or gluten." });
+        }
+
+        var isUnknownEdit = string.Equals(barcode, MenyCatalogDbContext.UnknownBarcode, StringComparison.OrdinalIgnoreCase);
+        if (!isUnknownEdit)
+        {
+            var takenFri = await catalog.GlutenFriProducts.AnyAsync(p =>
+                p.Barcode == barcode && !(sourceKey == MenyCatalogDbContext.CatalogFri && p.Id == editId));
+            var takenGluten = await catalog.GlutenProducts.AnyAsync(p =>
+                p.Barcode == barcode && !(sourceKey == MenyCatalogDbContext.CatalogGluten && p.Id == editId));
+            if (takenFri || takenGluten)
+            {
+                return Results.Conflict(new { error = "That barcode is already linked to another product." });
+            }
+        }
+
+        var finalIngredients = string.IsNullOrEmpty(ingredients) ? null : ingredients;
+
+        // Same catalog: update in place (keeps id stable for favorites/lists).
+        if (sourceKey == targetCatalog)
+        {
+            if (isFree)
+            {
+                var fri = await catalog.GlutenFriProducts.FirstOrDefaultAsync(p => p.Id == editId);
+                if (fri is null) return Results.NotFound(new { error = "Product not found." });
+                fri.Barcode = barcode;
+                fri.Name = name;
+                fri.Produsent = produsent;
+                fri.Ingredients = finalIngredients;
+                if (imageBase64 is not null)
+                {
+                    fri.ImageBase64 = imageBase64;
+                }
+                await catalog.SaveChangesAsync();
+                return Results.Ok(ToCatalogResponse(
+                    fri.Id, fri.Barcode, fri.Name, rating!, fri.CreatedAt, targetCatalog,
+                    fri.ImageBase64, ingredients: fri.Ingredients, produsent: fri.Produsent));
+            }
+
+            var gluten = await catalog.GlutenProducts.FirstOrDefaultAsync(p => p.Id == editId);
+            if (gluten is null) return Results.NotFound(new { error = "Product not found." });
+            gluten.Barcode = barcode;
+            gluten.Name = name;
+            gluten.Produsent = produsent;
+            gluten.Ingredients = finalIngredients;
+            if (imageBase64 is not null)
+            {
+                gluten.ImageBase64 = imageBase64;
+            }
+            await catalog.SaveChangesAsync();
+            return Results.Ok(ToCatalogResponse(
+                gluten.Id, gluten.Barcode, gluten.Name, rating!, gluten.CreatedAt, targetCatalog,
+                gluten.ImageBase64, ingredients: gluten.Ingredients, produsent: gluten.Produsent));
+        }
+
+        // Rating moved the product to the other catalog — copy then delete.
+        string? existingImage;
+        DateTime existingCreatedAt;
+        if (sourceKey == MenyCatalogDbContext.CatalogFri)
+        {
+            var fri = await catalog.GlutenFriProducts.FirstOrDefaultAsync(p => p.Id == editId);
+            if (fri is null) return Results.NotFound(new { error = "Product not found." });
+            existingImage = fri.ImageBase64;
+            existingCreatedAt = fri.CreatedAt;
+            catalog.GlutenFriProducts.Remove(fri);
+        }
+        else
+        {
+            var gluten = await catalog.GlutenProducts.FirstOrDefaultAsync(p => p.Id == editId);
+            if (gluten is null) return Results.NotFound(new { error = "Product not found." });
+            existingImage = gluten.ImageBase64;
+            existingCreatedAt = gluten.CreatedAt;
+            catalog.GlutenProducts.Remove(gluten);
+        }
+
+        var movedImage = imageBase64 ?? existingImage;
+        if (isFree)
+        {
+            var row = new GlutenFriItem
+            {
+                Barcode = barcode,
+                Produsent = produsent,
+                Name = name,
+                Ingredients = finalIngredients,
+                ImageBase64 = movedImage,
+                CreatedAt = existingCreatedAt,
+            };
+            catalog.GlutenFriProducts.Add(row);
+            await catalog.SaveChangesAsync();
+            return Results.Ok(ToCatalogResponse(
+                row.Id, row.Barcode, row.Name, rating!, row.CreatedAt, targetCatalog,
+                row.ImageBase64, ingredients: row.Ingredients, produsent: row.Produsent));
+        }
+
+        {
+            var row = new GlutenItem
+            {
+                Barcode = barcode,
+                Produsent = produsent,
+                Name = name,
+                Ingredients = finalIngredients,
+                ImageBase64 = movedImage,
+                CreatedAt = existingCreatedAt,
+            };
+            catalog.GlutenProducts.Add(row);
+            await catalog.SaveChangesAsync();
+            return Results.Ok(ToCatalogResponse(
+                row.Id, row.Barcode, row.Name, rating!, row.CreatedAt, targetCatalog,
+                row.ImageBase64, ingredients: row.Ingredients, produsent: row.Produsent));
+        }
+    }
+
+    var isUnknownBarcode = string.Equals(barcode, MenyCatalogDbContext.UnknownBarcode, StringComparison.OrdinalIgnoreCase);
+    if (!isUnknownBarcode)
     {
         if (isFree)
         {
@@ -1209,9 +1458,17 @@ products.MapPost("/", async (
     if (isFree)
     {
         GlutenFriItem row;
-        if (isUnknown)
+        if (isUnknownBarcode)
         {
-            row = new GlutenFriItem { Barcode = barcode, Name = name, ImageBase64 = imageBase64, CreatedAt = now };
+            row = new GlutenFriItem
+            {
+                Barcode = barcode,
+                Produsent = produsent,
+                Name = name,
+                Ingredients = string.IsNullOrEmpty(ingredients) ? null : ingredients,
+                ImageBase64 = imageBase64,
+                CreatedAt = now,
+            };
             catalog.GlutenFriProducts.Add(row);
         }
         else
@@ -1219,12 +1476,22 @@ products.MapPost("/", async (
             var existing = await catalog.GlutenFriProducts.FirstOrDefaultAsync(p => p.Barcode == barcode);
             if (existing is null)
             {
-                row = new GlutenFriItem { Barcode = barcode, Name = name, ImageBase64 = imageBase64, CreatedAt = now };
+                row = new GlutenFriItem
+                {
+                    Barcode = barcode,
+                    Produsent = produsent,
+                    Name = name,
+                    Ingredients = string.IsNullOrEmpty(ingredients) ? null : ingredients,
+                    ImageBase64 = imageBase64,
+                    CreatedAt = now,
+                };
                 catalog.GlutenFriProducts.Add(row);
             }
             else
             {
                 existing.Name = name;
+                existing.Produsent = produsent;
+                existing.Ingredients = string.IsNullOrEmpty(ingredients) ? null : ingredients;
                 if (imageBase64 is not null)
                 {
                     existing.ImageBase64 = imageBase64;
@@ -1234,14 +1501,23 @@ products.MapPost("/", async (
         }
         await catalog.SaveChangesAsync();
         return Results.Ok(ToCatalogResponse(
-            row.Id, row.Barcode, row.Name, rating!, row.CreatedAt, MenyCatalogDbContext.CatalogFri, row.ImageBase64));
+            row.Id, row.Barcode, row.Name, rating!, row.CreatedAt, MenyCatalogDbContext.CatalogFri,
+            row.ImageBase64, ingredients: row.Ingredients, produsent: row.Produsent));
     }
     else
     {
         GlutenItem row;
-        if (isUnknown)
+        if (isUnknownBarcode)
         {
-            row = new GlutenItem { Barcode = barcode, Name = name, ImageBase64 = imageBase64, CreatedAt = now };
+            row = new GlutenItem
+            {
+                Barcode = barcode,
+                Produsent = produsent,
+                Name = name,
+                Ingredients = string.IsNullOrEmpty(ingredients) ? null : ingredients,
+                ImageBase64 = imageBase64,
+                CreatedAt = now,
+            };
             catalog.GlutenProducts.Add(row);
         }
         else
@@ -1249,12 +1525,22 @@ products.MapPost("/", async (
             var existing = await catalog.GlutenProducts.FirstOrDefaultAsync(p => p.Barcode == barcode);
             if (existing is null)
             {
-                row = new GlutenItem { Barcode = barcode, Name = name, ImageBase64 = imageBase64, CreatedAt = now };
+                row = new GlutenItem
+                {
+                    Barcode = barcode,
+                    Produsent = produsent,
+                    Name = name,
+                    Ingredients = string.IsNullOrEmpty(ingredients) ? null : ingredients,
+                    ImageBase64 = imageBase64,
+                    CreatedAt = now,
+                };
                 catalog.GlutenProducts.Add(row);
             }
             else
             {
                 existing.Name = name;
+                existing.Produsent = produsent;
+                existing.Ingredients = string.IsNullOrEmpty(ingredients) ? null : ingredients;
                 if (imageBase64 is not null)
                 {
                     existing.ImageBase64 = imageBase64;
@@ -1264,7 +1550,8 @@ products.MapPost("/", async (
         }
         await catalog.SaveChangesAsync();
         return Results.Ok(ToCatalogResponse(
-            row.Id, row.Barcode, row.Name, rating!, row.CreatedAt, MenyCatalogDbContext.CatalogGluten, row.ImageBase64));
+            row.Id, row.Barcode, row.Name, rating!, row.CreatedAt, MenyCatalogDbContext.CatalogGluten,
+            row.ImageBase64, ingredients: row.Ingredients, produsent: row.Produsent));
     }
 });
 
@@ -1317,7 +1604,8 @@ admin.MapGet("/product-submissions", async (
         s.SubmittedByUserId,
         usernames.GetValueOrDefault(s.SubmittedByUserId),
         s.Status,
-        s.CreatedAt)).ToList();
+        s.CreatedAt,
+        s.Produsent)).ToList();
 
     return Results.Ok(new ProductSubmissionListResponse(
         items, pageNumber, ProductSubmissionsPageSize, totalCount));
@@ -1372,6 +1660,18 @@ admin.MapPost("/product-submissions/{id:int}/approve", async (
             ? null
             : submission.Ingredients.Trim();
     }
+    string? produsent;
+    if (request?.Produsent is not null)
+    {
+        var trimmedProdusent = request.Produsent.Trim();
+        produsent = trimmedProdusent.Length == 0 ? null : trimmedProdusent;
+    }
+    else
+    {
+        produsent = string.IsNullOrWhiteSpace(submission.Produsent)
+            ? null
+            : submission.Produsent.Trim();
+    }
 
     if (name.Length == 0)
     {
@@ -1399,6 +1699,7 @@ admin.MapPost("/product-submissions/{id:int}/approve", async (
     // Persist admin edits on the submission before applying to the catalog.
     submission.Barcode = barcode;
     submission.Name = name;
+    submission.Produsent = produsent;
     submission.Ingredients = ingredients;
     submission.GlutenRating = rating;
 
@@ -1411,6 +1712,7 @@ admin.MapPost("/product-submissions/{id:int}/approve", async (
         var row = new GlutenFriItem
         {
             Barcode = barcode,
+            Produsent = produsent,
             Name = name,
             Ingredients = ingredients,
             ImageBase64 = submissionImage,
@@ -1426,6 +1728,7 @@ admin.MapPost("/product-submissions/{id:int}/approve", async (
         var row = new GlutenItem
         {
             Barcode = barcode,
+            Produsent = produsent,
             Name = name,
             Ingredients = ingredients,
             ImageBase64 = submissionImage,
@@ -1440,7 +1743,9 @@ admin.MapPost("/product-submissions/{id:int}/approve", async (
     await appDb.SaveChangesAsync();
     await XpRewardService.AwardForApprovedProductSubmissionAsync(appDb, levelProgress, submission);
 
-    return Results.Ok(ToCatalogResponse(productId, barcode, name, rating, now, catalogKey, submissionImage, ingredients: ingredients));
+    return Results.Ok(ToCatalogResponse(
+        productId, barcode, name, rating, now, catalogKey, submissionImage,
+        ingredients: ingredients, produsent: produsent));
 });
 
 admin.MapPost("/product-submissions/{id:int}/deny", async (
@@ -1473,6 +1778,188 @@ admin.MapPost("/product-submissions/{id:int}/deny", async (
     return Results.Ok(new { id = submission.Id, status = submission.Status });
 });
 
+const int ProductImageValidationsPageSize = 10;
+
+admin.MapGet("/product-image-validations", async (
+    HttpContext ctx,
+    AppDbContext appDb,
+    int? page) =>
+{
+    var user = await AuthHelper.ResolveUserAsync(ctx, appDb);
+    if (user is null)
+    {
+        return Results.Json(new { error = "You must be logged in." }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+    if (!user.IsAdmin)
+    {
+        return Results.Json(new { error = "Admin access is required." }, statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var pageNumber = Math.Max(1, page ?? 1);
+    var query = appDb.ProductImageValidations
+        .AsNoTracking()
+        .Where(v => v.Status == ProductImageValidation.PendingStatus);
+
+    var totalCount = await query.CountAsync();
+    var rows = await query
+        .OrderBy(v => v.CreatedAt)
+        .ThenBy(v => v.Id)
+        .Skip((pageNumber - 1) * ProductImageValidationsPageSize)
+        .Take(ProductImageValidationsPageSize)
+        .ToListAsync();
+
+    var submitterIds = rows.Select(r => r.SubmittedByUserId).Distinct().ToList();
+    var usernames = submitterIds.Count == 0
+        ? new Dictionary<int, string>()
+        : await appDb.Users
+            .AsNoTracking()
+            .Where(u => submitterIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.Username);
+
+    var items = rows.Select(v => new ProductImageValidationResponse(
+        v.Id,
+        v.Catalog,
+        v.ProductId,
+        v.ProductName,
+        v.ImageBase64,
+        v.SubmittedByUserId,
+        usernames.GetValueOrDefault(v.SubmittedByUserId),
+        v.Status,
+        v.CreatedAt)).ToList();
+
+    return Results.Ok(new ProductImageValidationListResponse(
+        items, pageNumber, ProductImageValidationsPageSize, totalCount));
+});
+
+admin.MapPost("/product-image-validations/{id:int}/approve", async (
+    int id,
+    HttpContext ctx,
+    AppDbContext appDb,
+    MenyCatalogDbContext catalog,
+    LevelProgressTable levelProgress) =>
+{
+    var user = await AuthHelper.ResolveUserAsync(ctx, appDb);
+    if (user is null)
+    {
+        return Results.Json(new { error = "You must be logged in." }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+    if (!user.IsAdmin)
+    {
+        return Results.Json(new { error = "Admin access is required." }, statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var validation = await appDb.ProductImageValidations.FirstOrDefaultAsync(v => v.Id == id);
+    if (validation is null)
+    {
+        return Results.NotFound(new { error = "Image validation not found." });
+    }
+    if (validation.Status != ProductImageValidation.PendingStatus)
+    {
+        return Results.Conflict(new { error = "This image has already been reviewed." });
+    }
+
+    var key = validation.Catalog.Trim().ToLowerInvariant();
+    if (key is "fri") key = MenyCatalogDbContext.CatalogFri;
+    if (key is "glutenholdig") key = MenyCatalogDbContext.CatalogGluten;
+
+    string? imageBase64 = validation.ImageBase64;
+    string productName = validation.ProductName;
+    string barcode;
+    string rating;
+    string? ingredients;
+    string? produsent;
+    DateTime createdAt;
+
+    if (key == MenyCatalogDbContext.CatalogFri)
+    {
+        var fri = await catalog.GlutenFriProducts.FirstOrDefaultAsync(p => p.Id == validation.ProductId);
+        if (fri is null)
+        {
+            return Results.NotFound(new { error = "Product not found." });
+        }
+        fri.ImageBase64 = imageBase64;
+        barcode = fri.Barcode;
+        productName = fri.Name;
+        ingredients = fri.Ingredients;
+        produsent = fri.Produsent;
+        createdAt = fri.CreatedAt;
+        rating = GlutenRatings.GlutenFree;
+    }
+    else if (key == MenyCatalogDbContext.CatalogGluten)
+    {
+        var gluten = await catalog.GlutenProducts.FirstOrDefaultAsync(p => p.Id == validation.ProductId);
+        if (gluten is null)
+        {
+            return Results.NotFound(new { error = "Product not found." });
+        }
+        gluten.ImageBase64 = imageBase64;
+        barcode = gluten.Barcode;
+        productName = gluten.Name;
+        ingredients = gluten.Ingredients;
+        produsent = gluten.Produsent;
+        createdAt = gluten.CreatedAt;
+        rating = GlutenRatings.GlutenContent;
+    }
+    else
+    {
+        return Results.BadRequest(new { error = "Invalid validation catalog." });
+    }
+
+    validation.Status = ProductImageValidation.ApprovedStatus;
+
+    // Auto-deny other pending photos for the same product.
+    var siblings = await appDb.ProductImageValidations
+        .Where(v =>
+            v.Id != validation.Id &&
+            v.Catalog == validation.Catalog &&
+            v.ProductId == validation.ProductId &&
+            v.Status == ProductImageValidation.PendingStatus)
+        .ToListAsync();
+    foreach (var sibling in siblings)
+    {
+        sibling.Status = ProductImageValidation.DeniedStatus;
+    }
+
+    await catalog.SaveChangesAsync();
+    await appDb.SaveChangesAsync();
+    await XpRewardService.AwardForApprovedProductImageValidationAsync(
+        appDb, levelProgress, validation);
+
+    return Results.Ok(ToCatalogResponse(
+        validation.ProductId, barcode, productName, rating, createdAt, key,
+        imageBase64, ingredients: ingredients, produsent: produsent));
+});
+
+admin.MapPost("/product-image-validations/{id:int}/deny", async (
+    int id,
+    HttpContext ctx,
+    AppDbContext appDb) =>
+{
+    var user = await AuthHelper.ResolveUserAsync(ctx, appDb);
+    if (user is null)
+    {
+        return Results.Json(new { error = "You must be logged in." }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+    if (!user.IsAdmin)
+    {
+        return Results.Json(new { error = "Admin access is required." }, statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var validation = await appDb.ProductImageValidations.FirstOrDefaultAsync(v => v.Id == id);
+    if (validation is null)
+    {
+        return Results.NotFound(new { error = "Image validation not found." });
+    }
+    if (validation.Status != ProductImageValidation.PendingStatus)
+    {
+        return Results.Conflict(new { error = "This image has already been reviewed." });
+    }
+
+    validation.Status = ProductImageValidation.DeniedStatus;
+    await appDb.SaveChangesAsync();
+    return Results.Ok(new { id = validation.Id, status = validation.Status });
+});
+
 app.Run();
 static ProductResponse ToCatalogResponse(
     int id,
@@ -1483,10 +1970,48 @@ static ProductResponse ToCatalogResponse(
     string catalog,
     string? imageBase64 = null,
     bool pending = false,
-    string? ingredients = null) =>
-    new(id, barcode, name, ingredients, rating, createdAt, createdAt, catalog, Pending: pending, ImageBase64: imageBase64);
+    string? ingredients = null,
+    string? produsent = null) =>
+    new(id, barcode, name, ingredients, rating, createdAt, createdAt, catalog, Pending: pending, ImageBase64: imageBase64, Produsent: produsent);
 
 const int MaxProductImageBytes = 5 * 1024 * 1024;
+
+static async Task QueueOrUpdateProductImageValidationAsync(
+    AppDbContext appDb,
+    string catalog,
+    int productId,
+    string productName,
+    string imageBase64,
+    int userId)
+{
+    var existing = await appDb.ProductImageValidations
+        .Where(v =>
+            v.Catalog == catalog &&
+            v.ProductId == productId &&
+            v.SubmittedByUserId == userId &&
+            v.Status == ProductImageValidation.PendingStatus)
+        .OrderByDescending(v => v.Id)
+        .FirstOrDefaultAsync();
+
+    if (existing is not null)
+    {
+        existing.ImageBase64 = imageBase64;
+        existing.ProductName = productName;
+        existing.CreatedAt = DateTime.UtcNow;
+        return;
+    }
+
+    appDb.ProductImageValidations.Add(new ProductImageValidation
+    {
+        Catalog = catalog,
+        ProductId = productId,
+        ProductName = productName,
+        ImageBase64 = imageBase64,
+        SubmittedByUserId = userId,
+        Status = ProductImageValidation.PendingStatus,
+        CreatedAt = DateTime.UtcNow,
+    });
+}
 
 static bool TryNormalizeImageBase64(string input, out string? normalized, out string error)
 {
@@ -1790,6 +2315,10 @@ IF COL_LENGTH(N'dbo.glutenfri', N'ingredients') IS NULL
   ALTER TABLE dbo.glutenfri ADD ingredients NVARCHAR(MAX) NULL;
 IF COL_LENGTH(N'dbo.gluten', N'ingredients') IS NULL
   ALTER TABLE dbo.gluten ADD ingredients NVARCHAR(MAX) NULL;
+IF COL_LENGTH(N'dbo.glutenfri', N'produsent') IS NULL
+  ALTER TABLE dbo.glutenfri ADD produsent NVARCHAR(256) NULL;
+IF COL_LENGTH(N'dbo.gluten', N'produsent') IS NULL
+  ALTER TABLE dbo.gluten ADD produsent NVARCHAR(256) NULL;
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_glutenfri_barcode_known' AND object_id = OBJECT_ID(N'dbo.glutenfri'))
   CREATE UNIQUE INDEX UX_glutenfri_barcode_known ON dbo.glutenfri(barcode) WHERE barcode <> N'unknown';

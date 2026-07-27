@@ -6,6 +6,7 @@ public class GlutenFriItem
 {
     public int Id { get; set; }
     public string Barcode { get; set; } = string.Empty;
+    public string? Produsent { get; set; }
     public string Name { get; set; } = string.Empty;
     /// <summary>Optional product image as a base64 string (may include data-URI prefix).</summary>
     public string? ImageBase64 { get; set; }
@@ -18,6 +19,7 @@ public class GlutenItem
 {
     public int Id { get; set; }
     public string Barcode { get; set; } = string.Empty;
+    public string? Produsent { get; set; }
     public string Name { get; set; } = string.Empty;
     /// <summary>Optional product image as a base64 string (may include data-URI prefix).</summary>
     public string? ImageBase64 { get; set; }
@@ -62,6 +64,7 @@ public class MenyCatalogDbContext : DbContext
         fri.HasKey(p => p.Id);
         fri.Property(p => p.Id).HasColumnName("id").ValueGeneratedOnAdd();
         fri.Property(p => p.Barcode).HasColumnName("barcode").HasMaxLength(64).IsRequired();
+        fri.Property(p => p.Produsent).HasColumnName("produsent").HasMaxLength(256);
         fri.Property(p => p.Name).HasColumnName("name").HasMaxLength(512).IsRequired();
         fri.Property(p => p.ImageBase64).HasColumnName("image_base64");
         fri.Property(p => p.Ingredients).HasColumnName("ingredients");
@@ -72,6 +75,7 @@ public class MenyCatalogDbContext : DbContext
         gluten.HasKey(p => p.Id);
         gluten.Property(p => p.Id).HasColumnName("id").ValueGeneratedOnAdd();
         gluten.Property(p => p.Barcode).HasColumnName("barcode").HasMaxLength(64).IsRequired();
+        gluten.Property(p => p.Produsent).HasColumnName("produsent").HasMaxLength(256);
         gluten.Property(p => p.Name).HasColumnName("name").HasMaxLength(512).IsRequired();
         gluten.Property(p => p.ImageBase64).HasColumnName("image_base64");
         gluten.Property(p => p.Ingredients).HasColumnName("ingredients");

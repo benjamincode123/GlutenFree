@@ -1,17 +1,15 @@
 namespace GlutenScanner.Api.Models;
 
 /// <summary>
-/// Product suggestion from a non-admin user. Not applied to the live catalog
-/// until an admin reviews/approves it.
+/// User-submitted product photo awaiting admin validation before it is
+/// written to the live catalog (glutenfri / gluten).
 /// </summary>
-public class ProductSubmission
+public class ProductImageValidation
 {
     public int Id { get; set; }
-    public string Barcode { get; set; } = string.Empty;
-    public string? Produsent { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? Ingredients { get; set; }
-    public string GlutenRating { get; set; } = string.Empty;
+    public string Catalog { get; set; } = string.Empty;
+    public int ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
     public string ImageBase64 { get; set; } = string.Empty;
     public int SubmittedByUserId { get; set; }
     public string Status { get; set; } = PendingStatus;

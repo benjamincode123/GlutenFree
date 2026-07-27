@@ -148,7 +148,13 @@ type TranslationKey =
   | 'result.removeFavorite'
   | 'admin.subtitle'
   | 'admin.empty'
+  | 'admin.tabProducts'
+  | 'admin.tabImages'
+  | 'admin.imagesSubtitle'
+  | 'admin.imagesEmpty'
+  | 'admin.catalog'
   | 'admin.name'
+  | 'admin.produsent'
   | 'admin.barcode'
   | 'admin.submittedBy'
   | 'admin.submittedAt'
@@ -202,9 +208,15 @@ type TranslationKey =
   | 'result.enterBarcode'
   | 'result.scanBarcode'
   | 'result.photoOptional'
+  | 'result.photoLocked'
   | 'result.addPhoto'
   | 'result.changePhoto'
   | 'result.removePhoto'
+  | 'result.submitPhoto'
+  | 'result.photoPending'
+  | 'result.photoSaved'
+  | 'result.addPhotoHint'
+  | 'result.signInToAddPhoto'
   | 'result.submitBarcode'
   | 'result.reportPending'
   | 'result.reportSaved'
@@ -238,6 +250,7 @@ type TranslationKey =
   | 'add.photoOptional'
   | 'add.photoRequired'
   | 'add.photoRequiredBody'
+  | 'add.photoLocked'
   | 'add.noPhoto'
   | 'add.addPhoto'
   | 'add.changePhoto'
@@ -246,6 +259,8 @@ type TranslationKey =
   | 'add.linkButton'
   | 'add.orCreate'
   | 'add.newSubmission'
+  | 'add.produsent'
+  | 'add.produsentPlaceholder'
   | 'add.productName'
   | 'add.namePlaceholder'
   | 'add.ingredients'
@@ -428,7 +443,14 @@ const en: Record<TranslationKey, string> = {
   'result.removeFavorite': 'Remove from favorites',
   'admin.subtitle': 'Review pending product submissions. Approve adds them to the catalog.',
   'admin.empty': 'No pending product submissions.',
+  'admin.tabProducts': 'Products',
+  'admin.tabImages': 'Images',
+  'admin.imagesSubtitle':
+    'Review user-submitted product photos. Approve sets the image on the catalog product.',
+  'admin.imagesEmpty': 'No pending product images.',
+  'admin.catalog': 'Catalog',
   'admin.name': 'Name',
+  'admin.produsent': 'Producer',
   'admin.barcode': 'Barcode',
   'admin.submittedBy': 'Submitted by',
   'admin.submittedAt': 'Submitted',
@@ -480,14 +502,21 @@ const en: Record<TranslationKey, string> = {
   'result.noIngredients': 'No ingredients recorded.',
   'result.reportBarcode': 'Report barcode',
   'result.reportHint':
-    'This product has no barcode yet. Scan the EAN/UPC or type it below so scans can find it next time.',
+    'This product is missing a barcode. Enter the code below or scan the barcode so we can find the product next time.',
   'result.signInToReport': 'Sign in to report a barcode for this product.',
   'result.enterBarcode': 'Enter barcode digits',
   'result.scanBarcode': 'Scan barcode',
   'result.photoOptional': 'Product photo (optional)',
+  'result.photoLocked': 'This product already has a photo.',
   'result.addPhoto': 'Add photo',
   'result.changePhoto': 'Change photo',
   'result.removePhoto': 'Remove',
+  'result.submitPhoto': 'Submit photo',
+  'result.photoPending': 'Thanks — photo sent for admin review.',
+  'result.photoSaved': 'Thanks — photo saved on this product.',
+  'result.addPhotoHint':
+    'This product has no photo yet. Add one and an admin will review it before it goes live.',
+  'result.signInToAddPhoto': 'Sign in to submit a photo for this product.',
   'result.submitBarcode': 'Submit barcode',
   'result.reportPending':
     'Thanks — suggestion recorded. It applies when reporters’ combined levels reach 100, or an admin approves it.',
@@ -529,6 +558,7 @@ const en: Record<TranslationKey, string> = {
   'add.photoOptional': 'Product photo (optional)',
   'add.photoRequired': 'Product photo (required)',
   'add.photoRequiredBody': 'Add a photo of the product to submit it for review.',
+  'add.photoLocked': 'This product already has a photo.',
   'add.noPhoto': 'No photo attached yet.',
   'add.addPhoto': 'Add photo',
   'add.changePhoto': 'Change photo',
@@ -537,6 +567,8 @@ const en: Record<TranslationKey, string> = {
   'add.linkButton': 'Link barcode to selected product',
   'add.orCreate': 'Or create a new product',
   'add.newSubmission': 'New product submission',
+  'add.produsent': 'Producer',
+  'add.produsentPlaceholder': 'e.g. Schär',
   'add.productName': 'Product name',
   'add.namePlaceholder': 'e.g. Gluten Free Bread',
   'add.ingredients': 'Ingredients / contents',
@@ -723,7 +755,14 @@ const nb: Record<TranslationKey, string> = {
   'result.removeFavorite': 'Fjern fra favoritter',
   'admin.subtitle': 'Gå gjennom ventende produktforslag. Godkjenn for å legge dem til i katalogen.',
   'admin.empty': 'Ingen ventende produktforslag.',
+  'admin.tabProducts': 'Produkter',
+  'admin.tabImages': 'Bilder',
+  'admin.imagesSubtitle':
+    'Gå gjennom brukerinnsente produktbilder. Godkjenn for å sette bildet på produktet i katalogen.',
+  'admin.imagesEmpty': 'Ingen ventende produktbilder.',
+  'admin.catalog': 'Katalog',
   'admin.name': 'Navn',
+  'admin.produsent': 'Produsent',
   'admin.barcode': 'Strekkode',
   'admin.submittedBy': 'Sendt inn av',
   'admin.submittedAt': 'Sendt inn',
@@ -775,14 +814,21 @@ const nb: Record<TranslationKey, string> = {
   'result.noIngredients': 'Ingen ingredienser registrert.',
   'result.reportBarcode': 'Rapporter strekkode',
   'result.reportHint':
-    'Dette produktet har ingen strekkode ennå. Skann EAN/UPC eller skriv den inn under slik at skanninger finner den neste gang.',
+    'Dette produktet mangler strekkode. Skriv inn koden under eller skann strekkode så vi finner produktet neste gang.',
   'result.signInToReport': 'Logg inn for å rapportere strekkode for dette produktet.',
   'result.enterBarcode': 'Skriv inn strekkodesifre',
   'result.scanBarcode': 'Skann strekkode',
   'result.photoOptional': 'Produktbilde (valgfritt)',
+  'result.photoLocked': 'Dette produktet har allerede et bilde.',
   'result.addPhoto': 'Legg til bilde',
   'result.changePhoto': 'Bytt bilde',
   'result.removePhoto': 'Fjern',
+  'result.submitPhoto': 'Send bilde',
+  'result.photoPending': 'Bilde er sendt til vurdering.',
+  'result.photoSaved': 'Takk — bildet er lagret på produktet.',
+  'result.addPhotoHint':
+    'Dette produktet har ikke bilde ennå. Legg til ett, så vurderer en admin det før det blir synlig.',
+  'result.signInToAddPhoto': 'Logg inn for å sende inn bilde til dette produktet.',
   'result.submitBarcode': 'Send strekkode',
   'result.reportPending':
     'Takk — forslaget er lagret. Det brukes når rapportørers samlede nivå når 100, eller en admin godkjenner det.',
@@ -824,6 +870,7 @@ const nb: Record<TranslationKey, string> = {
   'add.photoOptional': 'Produktbilde (valgfritt)',
   'add.photoRequired': 'Produktbilde (påkrevd)',
   'add.photoRequiredBody': 'Legg til et bilde av produktet for å sende inn til vurdering.',
+  'add.photoLocked': 'Dette produktet har allerede et bilde.',
   'add.noPhoto': 'Ingen bilde lagt ved ennå.',
   'add.addPhoto': 'Legg til bilde',
   'add.changePhoto': 'Bytt bilde',
@@ -832,6 +879,8 @@ const nb: Record<TranslationKey, string> = {
   'add.linkButton': 'Knytt strekkode til valgt produkt',
   'add.orCreate': 'Eller opprett et nytt produkt',
   'add.newSubmission': 'Ny produktinnsending',
+  'add.produsent': 'Produsent',
+  'add.produsentPlaceholder': 'f.eks. Schär',
   'add.productName': 'Produktnavn',
   'add.namePlaceholder': 'f.eks. Glutenfritt brød',
   'add.ingredients': 'Ingredienser / innhold',

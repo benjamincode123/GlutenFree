@@ -8,7 +8,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from 'react-native';
@@ -21,6 +20,7 @@ import {
 } from '../src/auth/profileCache';
 import { getAuthToken } from '../src/auth/session';
 import { ErrorText } from '../src/components/ErrorText';
+import { SmoothSwitch } from '../src/components/SmoothSwitch';
 import * as authApi from '../src/data/authApi';
 import type { XpHistoryItem, XpProfile } from '../src/data/authApi';
 import { isAppError } from '../src/errors/appError';
@@ -314,12 +314,10 @@ export default function UserScreen() {
                 {t('profile.anonymousHint')}
               </Text>
             </View>
-            <Switch
+            <SmoothSwitch
               value={user.publicUser !== true}
               onValueChange={(value) => void handleAnonymousToggle(value)}
               disabled={privacyBusy}
-              trackColor={{ false: colors.primaryMuted, true: colors.primary }}
-              thumbColor="#FFFFFF"
             />
           </View>
           {privacyError ? (

@@ -69,6 +69,8 @@ export interface Product {
   id: number;
   barcode: string;
   name: string;
+  /** Manufacturer / brand name when available. */
+  produsent?: string | null;
   ingredients: string | null;
   glutenRating: GlutenRating;
   createdAt: string;
@@ -89,7 +91,11 @@ export function isUnknownBarcode(barcode: string | null | undefined): boolean {
 export interface NewProduct {
   barcode: string;
   name: string;
+  produsent?: string | null;
   ingredients?: string | null;
   glutenRating: GlutenRating;
   imageBase64?: string | null;
+  /** When set with catalog, admin update of an existing catalog row. */
+  id?: number;
+  catalog?: ProductCatalog;
 }

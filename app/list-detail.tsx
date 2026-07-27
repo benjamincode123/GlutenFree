@@ -212,6 +212,11 @@ export default function ListDetailScreen() {
             }}
           >
             <View style={styles.rowMain}>
+              {item.product?.produsent?.trim() ? (
+                <Text style={[styles.produsent, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {item.product.produsent.trim()}
+                </Text>
+              ) : null}
               <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
                 {item.product?.name?.trim() || `${item.catalog} #${item.id}`}
               </Text>
@@ -293,7 +298,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  rowMain: { flex: 1, gap: 8 },
+  rowMain: { flex: 1, gap: 4 },
+  produsent: { fontSize: 12, fontWeight: '600' },
   name: { fontSize: 16, fontWeight: '600' },
   modalBackdrop: {
     flex: 1,

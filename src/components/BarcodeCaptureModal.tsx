@@ -1,8 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   BarcodeScanningResult,
-  BarcodeType,
-  CameraView,
   useCameraPermissions,
 } from 'expo-camera';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,24 +14,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ScannerCamera } from './ScannerCamera';
 import { useI18n } from '../i18n/I18nContext';
 import { useTheme } from '../theme/ThemeContext';
-
-const BARCODE_TYPES: BarcodeType[] = [
-  'ean13',
-  'ean8',
-  'upc_a',
-  'upc_e',
-  'code128',
-  'code39',
-  'code93',
-  'itf14',
-  'codabar',
-  'qr',
-  'pdf417',
-  'aztec',
-  'datamatrix',
-];
 
 interface BarcodeCaptureModalProps {
   visible: boolean;
@@ -51,6 +34,7 @@ export function BarcodeCaptureModal({
   const { t } = useI18n();
   const [permission, requestPermission] = useCameraPermissions();
   const [holding, setHolding] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const lockRef = useRef(false);
   const holdingRef = useRef(false);
 
@@ -59,11 +43,13 @@ export function BarcodeCaptureModal({
       lockRef.current = false;
       holdingRef.current = false;
       setHolding(false);
+      setCameraReady(false);
       return;
     }
     lockRef.current = false;
     holdingRef.current = false;
     setHolding(false);
+    setCameraReady(false);
   }, [visible]);
 
   const handleScanned = useCallback(
@@ -79,6 +65,10 @@ export function BarcodeCaptureModal({
     },
     [onCaptured, onClose]
   );
+
+  const handleCameraReady = useCallback(() => {
+    setCameraReady(true);
+  }, []);
 
   const startHold = useCallback(() => {
     if (lockRef.current) return;
@@ -101,15 +91,11 @@ export function BarcodeCaptureModal({
       <View style={[styles.root, { backgroundColor: '#0F1115' }]}>
         {permission?.granted && visible ? (
           <View style={styles.cameraWrap}>
-            <CameraView
-              style={StyleSheet.absoluteFill}
-              facing="back"
-              zoom={0}
-              // "off" = continuous autofocus; "on" locks after first focus.
-              autofocus="off"
-              barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
-              onBarcodeScanned={handleScanned}
-              pointerEvents="none"
+            <ScannerCamera
+              active={visible}
+              onCameraReady={handleCameraReady}
+              // Keep scanning attached after ready — toggling this prop blacks the preview.
+              onBarcodeScanned={cameraReady ? handleScanned : undefined}
             />
             <View style={styles.overlay} pointerEvents="box-none">
               <View style={styles.reticle} pointerEvents="none" />

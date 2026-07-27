@@ -12,6 +12,7 @@ public static class XpRewardService
 {
     public const int BarcodeReportXpAmount = 10;
     public const int ProductSubmissionXpAmount = 20;
+    public const int ProductImageValidationXpAmount = 5;
 
     /// <summary>
     /// Awards <see cref="BarcodeReportXpAmount"/> XP to every distinct reporter whose
@@ -84,6 +85,7 @@ public static class XpRewardService
                 XpAmount = BarcodeReportXpAmount,
                 BarcodeReportId = report.Id,
                 ProductSubmissionId = null,
+                ProductImageValidationId = null,
                 CreatedAt = now,
             });
         }
@@ -140,6 +142,63 @@ public static class XpRewardService
             XpAmount = ProductSubmissionXpAmount,
             BarcodeReportId = null,
             ProductSubmissionId = submission.Id,
+            ProductImageValidationId = null,
+            CreatedAt = now,
+        });
+
+        await appDb.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Awards XP when an admin approves a user-submitted product image.
+    /// </summary>
+    public static async Task AwardForApprovedProductImageValidationAsync(
+        AppDbContext appDb,
+        LevelProgressTable levelProgress,
+        ProductImageValidation validation,
+        CancellationToken cancellationToken = default)
+    {
+        if (validation.Id <= 0 || validation.SubmittedByUserId <= 0)
+        {
+            return;
+        }
+
+        var alreadyAwarded = await appDb.XpProgress.AnyAsync(
+            x => x.ProductImageValidationId == validation.Id,
+            cancellationToken);
+        if (alreadyAwarded)
+        {
+            return;
+        }
+
+        var user = await appDb.Users.FirstOrDefaultAsync(
+            u => u.Id == validation.SubmittedByUserId,
+            cancellationToken);
+        if (user is null)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        user.Xp += ProductImageValidationXpAmount;
+        user.UpdatedAt = now;
+
+        if (user.Level < User.AdminLevel)
+        {
+            var xpLevel = levelProgress.GetLevelForXp(user.Xp);
+            if (xpLevel > user.Level)
+            {
+                user.Level = xpLevel;
+            }
+        }
+
+        appDb.XpProgress.Add(new XpProgress
+        {
+            UserId = user.Id,
+            XpAmount = ProductImageValidationXpAmount,
+            BarcodeReportId = null,
+            ProductSubmissionId = null,
+            ProductImageValidationId = validation.Id,
             CreatedAt = now,
         });
 

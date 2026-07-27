@@ -208,6 +208,14 @@ export default function FavoritesScreen() {
               onPress={() => openProduct(item)}
             >
               <View style={styles.rowMain}>
+                {item.product?.produsent?.trim() ? (
+                  <Text
+                    style={[styles.produsent, { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                  >
+                    {item.product.produsent.trim()}
+                  </Text>
+                ) : null}
                 <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
                   {item.product?.name?.trim() ||
                     `${item.ref.catalog} #${item.ref.id}`}
@@ -273,6 +281,11 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  produsent: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   badgeWrap: {
     alignSelf: 'flex-start',

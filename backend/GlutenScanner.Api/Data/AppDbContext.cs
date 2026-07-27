@@ -9,27 +9,15 @@ public class AppDbContext : DbContext
     {
     }
 
-    public DbSet<Product> Products => Set<Product>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserSession> Sessions => Set<UserSession>();
     public DbSet<ProductSubmission> ProductSubmissions => Set<ProductSubmission>();
+    public DbSet<ProductImageValidation> ProductImageValidations => Set<ProductImageValidation>();
     public DbSet<XpProgress> XpProgress => Set<XpProgress>();
     public DbSet<ProductList> Lists => Set<ProductList>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        var product = modelBuilder.Entity<Product>();
-        product.ToTable("products");
-        product.HasKey(p => p.Id);
-        product.Property(p => p.Id).HasColumnName("id").ValueGeneratedOnAdd();
-        product.Property(p => p.Barcode).HasColumnName("barcode").HasMaxLength(64).IsRequired();
-        product.HasIndex(p => p.Barcode).IsUnique();
-        product.Property(p => p.Name).HasColumnName("name").HasMaxLength(256).IsRequired();
-        product.Property(p => p.Ingredients).HasColumnName("ingredients");
-        product.Property(p => p.GlutenRating).HasColumnName("gluten_rating").HasMaxLength(32).IsRequired();
-        product.Property(p => p.CreatedAt).HasColumnName("created_at");
-        product.Property(p => p.UpdatedAt).HasColumnName("updated_at");
-
         var user = modelBuilder.Entity<User>();
         user.ToTable("users");
         user.Ignore(u => u.IsAdmin);
@@ -65,6 +53,7 @@ public class AppDbContext : DbContext
         submission.HasKey(s => s.Id);
         submission.Property(s => s.Id).HasColumnName("id").ValueGeneratedOnAdd();
         submission.Property(s => s.Barcode).HasColumnName("barcode").HasMaxLength(64).IsRequired();
+        submission.Property(s => s.Produsent).HasColumnName("produsent").HasMaxLength(256);
         submission.Property(s => s.Name).HasColumnName("name").HasMaxLength(512).IsRequired();
         submission.Property(s => s.Ingredients).HasColumnName("ingredients");
         submission.Property(s => s.GlutenRating).HasColumnName("gluten_rating").HasMaxLength(32).IsRequired();
@@ -74,6 +63,20 @@ public class AppDbContext : DbContext
         submission.Property(s => s.CreatedAt).HasColumnName("created_at");
         submission.HasIndex(s => s.Status);
 
+        var imageValidation = modelBuilder.Entity<ProductImageValidation>();
+        imageValidation.ToTable("product_image_validations");
+        imageValidation.HasKey(v => v.Id);
+        imageValidation.Property(v => v.Id).HasColumnName("id").ValueGeneratedOnAdd();
+        imageValidation.Property(v => v.Catalog).HasColumnName("catalog").HasMaxLength(16).IsRequired();
+        imageValidation.Property(v => v.ProductId).HasColumnName("product_id");
+        imageValidation.Property(v => v.ProductName).HasColumnName("product_name").HasMaxLength(512).IsRequired();
+        imageValidation.Property(v => v.ImageBase64).HasColumnName("image_base64").IsRequired();
+        imageValidation.Property(v => v.SubmittedByUserId).HasColumnName("submitted_by_user_id");
+        imageValidation.Property(v => v.Status).HasColumnName("status").HasMaxLength(32).IsRequired();
+        imageValidation.Property(v => v.CreatedAt).HasColumnName("created_at");
+        imageValidation.HasIndex(v => v.Status);
+        imageValidation.HasIndex(v => new { v.Catalog, v.ProductId });
+
         var xp = modelBuilder.Entity<XpProgress>();
         xp.ToTable("xp_progress");
         xp.HasKey(x => x.Id);
@@ -82,6 +85,7 @@ public class AppDbContext : DbContext
         xp.Property(x => x.XpAmount).HasColumnName("xp_amount");
         xp.Property(x => x.BarcodeReportId).HasColumnName("barcode_report_id");
         xp.Property(x => x.ProductSubmissionId).HasColumnName("product_submission_id");
+        xp.Property(x => x.ProductImageValidationId).HasColumnName("product_image_validation_id");
         xp.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("SYSUTCDATETIME()");
         xp.HasOne(x => x.User)
             .WithMany()
@@ -91,6 +95,10 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(x => x.ProductSubmissionId)
             .OnDelete(DeleteBehavior.SetNull);
+        xp.HasOne(x => x.ProductImageValidation)
+            .WithMany()
+            .HasForeignKey(x => x.ProductImageValidationId)
+            .OnDelete(DeleteBehavior.NoAction);
         xp.HasIndex(x => x.UserId);
 
         var list = modelBuilder.Entity<ProductList>();

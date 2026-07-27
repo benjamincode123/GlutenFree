@@ -29,10 +29,16 @@ import {
   GlutenRating,
   isUnknownBarcode,
   Product,
+  ProductCatalog,
 } from '../src/db/types';
 import { askPickProductImage } from '../src/media/pickProductImage';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useTheme } from '../src/theme/ThemeContext';
+function parseCatalog(value: string | undefined): ProductCatalog | null {
+  if (value === 'glutenfri' || value === 'gluten') return value;
+  return null;
+}
+
 function ratingLabelKey(rating: GlutenRating): TranslationKey {
   switch (rating) {
     case GlutenRating.GlutenFree:
@@ -61,16 +67,31 @@ export default function AddProductScreen() {
   const { user, isAdmin } = useAuth();
   const { colors } = useTheme();
   const { t, tf } = useI18n();
-  const params = useLocalSearchParams<{ barcode?: string }>();
+  const params = useLocalSearchParams<{
+    barcode?: string;
+    id?: string;
+    catalog?: string;
+  }>();
   const initialBarcode = (params.barcode ?? '').toString();
+  const editCatalog = parseCatalog((params.catalog ?? '').toString());
+  const editId = Number.parseInt((params.id ?? '').toString(), 10);
+  const hasEditTarget =
+    editCatalog != null && Number.isFinite(editId) && editId > 0;
 
   const [barcode, setBarcode] = useState(initialBarcode);
   const [name, setName] = useState('');
+  const [produsent, setProdusent] = useState('');
   const [ingredients, setIngredients] = useState('');
   const [rating, setRating] = useState<GlutenRating | null>(null);
-  const [loading, setLoading] = useState(Boolean(initialBarcode));
+  const [loading, setLoading] = useState(Boolean(initialBarcode) || hasEditTarget);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(
+    hasEditTarget ? editId : null
+  );
+  const [editingCatalog, setEditingCatalog] = useState<ProductCatalog | null>(
+    hasEditTarget ? editCatalog : null
+  );
   const [scanModalVisible, setScanModalVisible] = useState(false);
   const [linkSectionOpen, setLinkSectionOpen] = useState(false);
 
@@ -88,31 +109,45 @@ export default function AddProductScreen() {
     navigation.setOptions({ title: t('nav.add') });
   }, [navigation, t]);
 
-  // If a barcode was passed in, prefill the form when it already exists.
+  // Prefill when editing an existing catalog product.
   useEffect(() => {
     let cancelled = false;
-    if (!initialBarcode) {
+    if (!initialBarcode && !hasEditTarget) {
       setLoading(false);
       return;
     }
-    getProductRepository()
-      .getByBarcode(initialBarcode)
-      .then((existing) => {
+    (async () => {
+      try {
+        const repo = getProductRepository();
+        let existing: Product | null = null;
+        if (hasEditTarget && editCatalog) {
+          existing = await repo.getById(editCatalog, editId);
+        }
+        if (!existing && initialBarcode) {
+          existing = await repo.getByBarcode(initialBarcode);
+        }
         if (cancelled) return;
         if (existing) {
+          setBarcode(existing.barcode);
           setName(existing.name);
+          setProdusent(existing.produsent ?? '');
           setIngredients(existing.ingredients ?? '');
           setRating(existing.glutenRating);
+          setSubmissionImageBase64(existing.imageBase64?.trim() || null);
           setIsEditing(true);
+          if (existing.id > 0 && existing.catalog) {
+            setEditingId(existing.id);
+            setEditingCatalog(existing.catalog);
+          }
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [initialBarcode]);
+  }, [initialBarcode, hasEditTarget, editCatalog, editId]);
 
   useEffect(() => {
     if (isEditing) return;
@@ -165,7 +200,7 @@ export default function AddProductScreen() {
         selectedLink.catalog,
         selectedLink.id,
         scanned,
-        reportImageBase64
+        selectedLink.imageBase64?.trim() && !isAdmin ? null : reportImageBase64
       );
       if (updated.pending) {
         Alert.alert(
@@ -203,7 +238,8 @@ export default function AddProductScreen() {
 
   async function handleSave() {
     setFormError(null);
-    if (!barcode.trim()) {
+    const allowEmptyBarcode = isAdmin && isEditing;
+    if (!barcode.trim() && !allowEmptyBarcode) {
       setFormError(t('add.missingBarcodeBody'));
       return;
     }
@@ -225,11 +261,14 @@ export default function AddProductScreen() {
     setSaving(true);
     try {
       const saved = await getProductRepository().addProduct({
-        barcode: barcode.trim(),
+        barcode: barcode.trim() || (allowEmptyBarcode ? 'unknown' : ''),
         name: name.trim(),
+        produsent: produsent.trim() || null,
         ingredients: ingredients.trim() || null,
         glutenRating: rating,
         imageBase64: submissionImageBase64,
+        id: isEditing && editingId ? editingId : undefined,
+        catalog: isEditing && editingCatalog ? editingCatalog : undefined,
       });
       Alert.alert(
         saved.pending ? t('add.submittedTitle') : t('add.savedTitle'),
@@ -254,13 +293,25 @@ export default function AddProductScreen() {
     }
   }
 
+  const canEditBarcode = isAdmin && isEditing;
+  const barcodeLocked = Boolean(initialBarcode) && !canEditBarcode;
+
   if (!user) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.guardTitle}>{t('add.signInRequired')}</Text>
-        <Text style={styles.guardText}>{t('add.signInRequiredBody')}</Text>
-        <Pressable style={styles.guardButton} onPress={() => router.back()}>
-          <Text style={styles.guardButtonText}>{t('common.goBack')}</Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.guardTitle, { color: colors.text }]}>
+          {t('add.signInRequired')}
+        </Text>
+        <Text style={[styles.guardText, { color: colors.textSecondary }]}>
+          {t('add.signInRequiredBody')}
+        </Text>
+        <Pressable
+          style={[styles.guardButton, { borderColor: colors.primary }]}
+          onPress={() => router.back()}
+        >
+          <Text style={[styles.guardButtonText, { color: colors.primary }]}>
+            {t('common.goBack')}
+          </Text>
         </Pressable>
       </View>
     );
@@ -268,11 +319,20 @@ export default function AddProductScreen() {
 
   if (isEditing && !isAdmin) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.guardTitle}>{t('add.adminRequired')}</Text>
-        <Text style={styles.guardText}>{t('add.adminRequiredBody')}</Text>
-        <Pressable style={styles.guardButton} onPress={() => router.back()}>
-          <Text style={styles.guardButtonText}>{t('common.goBack')}</Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.guardTitle, { color: colors.text }]}>
+          {t('add.adminRequired')}
+        </Text>
+        <Text style={[styles.guardText, { color: colors.textSecondary }]}>
+          {t('add.adminRequiredBody')}
+        </Text>
+        <Pressable
+          style={[styles.guardButton, { borderColor: colors.primary }]}
+          onPress={() => router.back()}
+        >
+          <Text style={[styles.guardButtonText, { color: colors.primary }]}>
+            {t('common.goBack')}
+          </Text>
         </Pressable>
       </View>
     );
@@ -280,47 +340,51 @@ export default function AddProductScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#1B7F3B" />
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
+  const inputStyle = [
+    styles.input,
+    {
+      backgroundColor: colors.background,
+      borderColor: colors.border,
+      color: colors.text,
+    },
+  ];
+
   return (
     <KeyboardAvoidingView
-      style={styles.flex}
+      style={[styles.flex, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        style={styles.container}
+        style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.heading}>
+        <Text style={[styles.heading, { color: colors.text }]}>
           {isEditing ? t('add.editTitle') : t('add.addTitle')}
-        </Text>
-        <Text style={styles.subheading}>
-          {isEditing
-            ? t('add.editSubtitle')
-            : isAdmin
-              ? t('add.addSubtitleAdmin')
-              : t('add.addSubtitleUser')}
         </Text>
 
         {formError && <ErrorText style={styles.formError}>{formError}</ErrorText>}
 
-        <Text style={styles.label}>{t('add.barcode')}</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
+          {t('add.barcode')}
+        </Text>
         <View style={styles.barcodeInputRow}>
           <AppTextInput
-            style={[styles.input, styles.barcodeInput]}
+            style={[...inputStyle, styles.barcodeInput]}
             placeholder={t('add.barcodePlaceholder')}
-            placeholderTextColor="#9AA0A6"
+            placeholderTextColor={colors.textSecondary}
             keyboardType="number-pad"
             value={barcode}
             onChangeText={setBarcode}
-            editable={!initialBarcode}
+            editable={!barcodeLocked}
           />
-          {!initialBarcode ? (
+          {!barcodeLocked ? (
             <Pressable
               style={[
                 styles.barcodeScanButton,
@@ -337,9 +401,11 @@ export default function AddProductScreen() {
             </Pressable>
           ) : null}
         </View>
-        {Boolean(initialBarcode) && (
-          <Text style={styles.hint}>{t('add.barcodeFromScan')}</Text>
-        )}
+        {barcodeLocked ? (
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            {t('add.barcodeFromScan')}
+          </Text>
+        ) : null}
 
         <BarcodeCaptureModal
           visible={scanModalVisible}
@@ -350,7 +416,12 @@ export default function AddProductScreen() {
           }}
         />
         {!isEditing && (
-          <View style={styles.linkCard}>
+          <View
+            style={[
+              styles.linkCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             <Pressable
               style={styles.linkHeader}
               onPress={() => setLinkSectionOpen((open) => !open)}
@@ -358,24 +429,28 @@ export default function AddProductScreen() {
               accessibilityState={{ expanded: linkSectionOpen }}
               accessibilityLabel={t('add.linkTitle')}
             >
-              <Text style={styles.linkTitle}>{t('add.linkTitle')}</Text>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>
+                {t('add.linkTitle')}
+              </Text>
               <MaterialCommunityIcons
                 name={linkSectionOpen ? 'chevron-up' : 'chevron-down'}
                 size={24}
-                color="#3C4043"
+                color={colors.text}
               />
             </Pressable>
 
             {linkSectionOpen ? (
               <>
                 <View style={styles.linkHintWrap}>
-                  <Text style={styles.linkHint}>{t('add.linkHint')}</Text>
+                  <Text style={[styles.linkHint, { color: colors.textSecondary }]}>
+                    {t('add.linkHint')}
+                  </Text>
                 </View>
 
                 <AppTextInput
-                  style={styles.input}
+                  style={inputStyle}
                   placeholder={t('add.searchName')}
-                  placeholderTextColor="#9AA0A6"
+                  placeholderTextColor={colors.textSecondary}
                   value={linkQuery}
                   onChangeText={(text) => {
                     setLinkQuery(text);
@@ -386,7 +461,10 @@ export default function AddProductScreen() {
                 />
 
                 {linkSearching && (
-                  <ActivityIndicator style={styles.linkSpinner} color="#1B7F3B" />
+                  <ActivityIndicator
+                    style={styles.linkSpinner}
+                    color={colors.primary}
+                  />
                 )}
 
                 {linkResults.map((item) => {
@@ -396,13 +474,38 @@ export default function AddProductScreen() {
                   return (
                     <Pressable
                       key={`${item.catalog}-${item.id}`}
-                      style={[styles.linkRow, selected && styles.linkRowSelected]}
-                      onPress={() => setSelectedLink(item)}
+                      style={[
+                        styles.linkRow,
+                        {
+                          borderColor: selected ? colors.primary : colors.border,
+                          backgroundColor: selected
+                            ? colors.primaryMuted
+                            : colors.background,
+                        },
+                      ]}
+                      onPress={() => {
+                        setSelectedLink(item);
+                        if (item.imageBase64?.trim() && !isAdmin) {
+                          setReportImageBase64(null);
+                        }
+                      }}
                     >
                       <View style={styles.linkRowText}>
-                        <Text style={styles.linkName}>{item.name}</Text>
-                        <Text style={styles.linkMeta}>
-                          {item.catalog === 'glutenfri' ? t('add.glutenFree') : t('add.containsGluten')} · {t('add.unknownBarcode')}
+                        {item.produsent?.trim() ? (
+                          <Text
+                            style={[styles.linkProdusent, { color: colors.textSecondary }]}
+                          >
+                            {item.produsent.trim()}
+                          </Text>
+                        ) : null}
+                        <Text style={[styles.linkName, { color: colors.text }]}>
+                          {item.name}
+                        </Text>
+                        <Text style={[styles.linkMeta, { color: colors.textSecondary }]}>
+                          {item.catalog === 'glutenfri'
+                            ? t('add.glutenFree')
+                            : t('add.containsGluten')}{' '}
+                          · {t('add.unknownBarcode')}
                         </Text>
                       </View>
                       <GlutenBadge rating={item.glutenRating} />
@@ -410,52 +513,80 @@ export default function AddProductScreen() {
                   );
                 })}
 
-                {!linkSearching && linkQuery.trim().length >= MIN_PRODUCT_SEARCH_CHARS && linkResults.length === 0 && (
-                  <Text style={styles.linkEmpty}>{t('add.noMatch')}</Text>
-                )}
-
-                <Text style={styles.linkPhotoLabel}>{t('add.photoOptional')}</Text>
-                {reportImageBase64 ? (
-                  <Image
-                    source={{ uri: reportImageBase64 }}
-                    style={styles.linkPhotoPreview}
-                    resizeMode="contain"
-                  />
-                ) : (
-                  <Text style={styles.linkEmpty}>{t('add.noPhoto')}</Text>
-                )}
-                <View style={styles.linkPhotoRow}>
-                  <Pressable
-                    style={styles.linkPhotoButton}
-                    onPress={() => {
-                      void askPickProductImage().then((uri) => {
-                        if (uri) setReportImageBase64(uri);
-                      });
-                    }}
-                  >
-                    <Text style={styles.linkPhotoButtonText}>
-                      {reportImageBase64 ? t('add.changePhoto') : t('add.addPhoto')}
+                {!linkSearching &&
+                  linkQuery.trim().length >= MIN_PRODUCT_SEARCH_CHARS &&
+                  linkResults.length === 0 && (
+                    <Text style={[styles.linkEmpty, { color: colors.textSecondary }]}>
+                      {t('add.noMatch')}
                     </Text>
-                  </Pressable>
-                  {reportImageBase64 && (
-                    <Pressable
-                      style={styles.linkPhotoClear}
-                      onPress={() => setReportImageBase64(null)}
-                    >
-                      <Text style={styles.linkPhotoClearText}>{t('add.removePhoto')}</Text>
-                    </Pressable>
                   )}
-                </View>
+
+                <Text style={[styles.linkPhotoLabel, { color: colors.textSecondary }]}>
+                  {t('add.photoOptional')}
+                </Text>
+                {selectedLink?.imageBase64?.trim() && !isAdmin ? (
+                  <Text style={[styles.linkEmpty, { color: colors.textSecondary }]}>
+                    {t('add.photoLocked')}
+                  </Text>
+                ) : (
+                  <>
+                    {reportImageBase64 ? (
+                      <Image
+                        source={{ uri: reportImageBase64 }}
+                        style={[
+                          styles.linkPhotoPreview,
+                          { backgroundColor: colors.background },
+                        ]}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Text style={[styles.linkEmpty, { color: colors.textSecondary }]}>
+                        {t('add.noPhoto')}
+                      </Text>
+                    )}
+                    <View style={styles.linkPhotoRow}>
+                      <Pressable
+                        style={[styles.linkPhotoButton, { borderColor: colors.primary }]}
+                        onPress={() => {
+                          void askPickProductImage().then((uri) => {
+                            if (uri) setReportImageBase64(uri);
+                          });
+                        }}
+                      >
+                        <Text
+                          style={[styles.linkPhotoButtonText, { color: colors.primary }]}
+                        >
+                          {reportImageBase64 ? t('add.changePhoto') : t('add.addPhoto')}
+                        </Text>
+                      </Pressable>
+                      {reportImageBase64 && (
+                        <Pressable
+                          style={styles.linkPhotoClear}
+                          onPress={() => setReportImageBase64(null)}
+                        >
+                          <Text
+                            style={[styles.linkPhotoClearText, { color: colors.danger }]}
+                          >
+                            {t('add.removePhoto')}
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </>
+                )}
 
                 <Pressable
                   style={[
                     styles.linkButton,
-                    (!selectedLink || linking || !barcode.trim()) && styles.saveButtonDisabled,
+                    { backgroundColor: colors.primary },
+                    (!selectedLink || linking || !barcode.trim()) && {
+                      backgroundColor: colors.primaryMuted,
+                    },
                   ]}
                   disabled={!selectedLink || linking || !barcode.trim()}
                   onPress={() => void handleLinkExisting()}
                 >
-                  <Text style={styles.saveButtonText}>
+                  <Text style={[styles.saveButtonText, { color: colors.onPrimary }]}>
                     {linking ? t('add.linking') : t('add.linkButton')}
                   </Text>
                 </Pressable>
@@ -465,32 +596,49 @@ export default function AddProductScreen() {
         )}
 
         {!isEditing && (
-          <Text style={styles.orDivider}>
+          <Text style={[styles.orDivider, { color: colors.textSecondary }]}>
             {isAdmin ? t('add.orCreate') : t('add.newSubmission')}
           </Text>
         )}
 
-        <Text style={styles.label}>{t('add.productName')}</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
+          {t('add.produsent')}
+        </Text>
         <AppTextInput
-          style={styles.input}
+          style={inputStyle}
+          placeholder={t('add.produsentPlaceholder')}
+          placeholderTextColor={colors.textSecondary}
+          value={produsent}
+          onChangeText={setProdusent}
+        />
+
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
+          {t('add.productName')}
+        </Text>
+        <AppTextInput
+          style={inputStyle}
           placeholder={t('add.namePlaceholder')}
-          placeholderTextColor="#9AA0A6"
+          placeholderTextColor={colors.textSecondary}
           value={name}
           onChangeText={setName}
         />
 
-        <Text style={styles.label}>{t('add.ingredients')}</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
+          {t('add.ingredients')}
+        </Text>
         <AppTextInput
-          style={[styles.input, styles.multiline]}
+          style={[...inputStyle, styles.multiline]}
           placeholder={t('add.ingredientsPlaceholder')}
-          placeholderTextColor="#9AA0A6"
+          placeholderTextColor={colors.textSecondary}
           value={ingredients}
           onChangeText={setIngredients}
           multiline
           textAlignVertical="top"
         />
 
-        <Text style={styles.label}>{t('add.glutenRating')}</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
+          {t('add.glutenRating')}
+        </Text>
         {ALL_GLUTEN_RATINGS.map((option) => {
           const meta = getGlutenRatingMeta(option);
           const selected = rating === option;
@@ -500,8 +648,8 @@ export default function AddProductScreen() {
               style={[
                 styles.ratingOption,
                 {
-                  borderColor: selected ? meta.color : '#DADCE0',
-                  backgroundColor: selected ? meta.backgroundColor : '#fff',
+                  borderColor: selected ? meta.color : colors.border,
+                  backgroundColor: selected ? meta.backgroundColor : colors.surface,
                 },
               ]}
               onPress={() => setRating(option)}
@@ -511,12 +659,14 @@ export default function AddProductScreen() {
                 <Text style={[styles.ratingLabel, { color: meta.color }]}>
                   {t(ratingLabelKey(option))}
                 </Text>
-                <Text style={styles.ratingDesc}>{t(ratingDescKey(option))}</Text>
+                <Text style={[styles.ratingDesc, { color: colors.textSecondary }]}>
+                  {t(ratingDescKey(option))}
+                </Text>
               </View>
               <View
                 style={[
                   styles.radioOuter,
-                  { borderColor: selected ? meta.color : '#BDC1C6' },
+                  { borderColor: selected ? meta.color : colors.border },
                 ]}
               >
                 {selected && (
@@ -527,13 +677,17 @@ export default function AddProductScreen() {
           );
         })}
 
-        <Text style={styles.label}>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
           {!isAdmin ? t('add.photoRequired') : t('add.photoOptional')}
         </Text>
         <View
           style={[
             styles.photoSlot,
-            photoMissingError && styles.photoSlotError,
+            {
+              backgroundColor: colors.surface,
+              borderColor: photoMissingError ? colors.danger : colors.border,
+              borderWidth: photoMissingError ? 2 : 1,
+            },
           ]}
         >
           {submissionImageBase64 ? (
@@ -543,7 +697,13 @@ export default function AddProductScreen() {
               resizeMode="contain"
             />
           ) : (
-            <Text style={[styles.linkEmpty, styles.photoSlotEmpty]}>
+            <Text
+              style={[
+                styles.linkEmpty,
+                styles.photoSlotEmpty,
+                { color: colors.textSecondary },
+              ]}
+            >
               {!isAdmin ? t('add.photoRequiredBody') : t('add.noPhoto')}
             </Text>
           )}
@@ -552,7 +712,9 @@ export default function AddProductScreen() {
           <Pressable
             style={[
               styles.linkPhotoButton,
-              photoMissingError && styles.linkPhotoButtonError,
+              {
+                borderColor: photoMissingError ? colors.danger : colors.primary,
+              },
             ]}
             onPress={() => {
               void askPickProductImage().then((uri) => {
@@ -567,7 +729,7 @@ export default function AddProductScreen() {
             <Text
               style={[
                 styles.linkPhotoButtonText,
-                photoMissingError && styles.linkPhotoButtonTextError,
+                { color: photoMissingError ? colors.danger : colors.primary },
               ]}
             >
               {submissionImageBase64 ? t('add.changePhoto') : t('add.addPhoto')}
@@ -578,17 +740,23 @@ export default function AddProductScreen() {
               style={styles.linkPhotoClear}
               onPress={() => setSubmissionImageBase64(null)}
             >
-              <Text style={styles.linkPhotoClearText}>{t('add.removePhoto')}</Text>
+              <Text style={[styles.linkPhotoClearText, { color: colors.danger }]}>
+                {t('add.removePhoto')}
+              </Text>
             </Pressable>
           )}
         </View>
 
         <Pressable
-          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+          style={[
+            styles.saveButton,
+            { backgroundColor: colors.primary },
+            saving && { backgroundColor: colors.primaryMuted },
+          ]}
           onPress={handleSave}
           disabled={saving}
         >
-          <Text style={styles.saveButtonText}>
+          <Text style={[styles.saveButtonText, { color: colors.onPrimary }]}>
             {saving
               ? t('add.saving')
               : isEditing
@@ -609,11 +777,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F5F6F8',
   },
   container: {
     flex: 1,
-    backgroundColor: '#F5F6F8',
   },
   content: {
     padding: 16,
@@ -622,13 +788,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#202124',
-  },
-  subheading: {
-    fontSize: 14,
-    color: '#5F6368',
-    marginTop: 4,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   formError: {
     marginBottom: 8,
@@ -637,27 +797,26 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#3C4043',
     marginTop: 16,
     marginBottom: 6,
   },
   input: {
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#DADCE0',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#202124',
   },
   barcodeInputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: 8,
   },
   barcodeInput: {
     flex: 1,
+    height: 48,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
   },
   barcodeScanButton: {
     width: 48,
@@ -672,16 +831,13 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 12,
-    color: '#80868B',
     marginTop: 4,
   },
   linkCard: {
     marginTop: 20,
-    backgroundColor: '#fff',
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#DADCE0',
     alignSelf: 'stretch',
     width: '100%',
     overflow: 'visible',
@@ -696,7 +852,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: '#202124',
   },
   linkHintWrap: {
     width: '100%',
@@ -705,7 +860,6 @@ const styles = StyleSheet.create({
   },
   linkHint: {
     fontSize: 13,
-    color: '#5F6368',
     lineHeight: 20,
     flexShrink: 1,
     flexWrap: 'wrap',
@@ -716,15 +870,10 @@ const styles = StyleSheet.create({
   linkRow: {
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#E0E2E6',
     borderRadius: 10,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  linkRowSelected: {
-    borderColor: '#1B7F3B',
-    backgroundColor: '#E4F6E9',
   },
   linkRowText: {
     flex: 1,
@@ -733,46 +882,39 @@ const styles = StyleSheet.create({
   linkName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#202124',
+  },
+  linkProdusent: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   linkMeta: {
     fontSize: 12,
-    color: '#80868B',
     marginTop: 2,
   },
   linkEmpty: {
     marginTop: 12,
     fontSize: 13,
-    color: '#80868B',
   },
   linkPhotoLabel: {
     marginTop: 14,
     fontSize: 13,
     fontWeight: '700',
-    color: '#3C4043',
   },
   linkPhotoPreview: {
     marginTop: 10,
     width: '100%',
     height: 160,
     borderRadius: 10,
-    backgroundColor: '#F5F6F8',
   },
   photoSlot: {
     marginTop: 10,
     width: '100%',
     minHeight: 160,
     borderRadius: 10,
-    backgroundColor: '#F5F6F8',
     borderWidth: 1,
-    borderColor: '#DADCE0',
     overflow: 'hidden',
     justifyContent: 'center',
-  },
-  photoSlotError: {
-    borderColor: '#B3261E',
-    borderWidth: 2,
-    backgroundColor: '#FBE5E4',
   },
   photoSlotEmpty: {
     marginTop: 0,
@@ -794,22 +936,14 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 52,
     borderWidth: 1.5,
-    borderColor: '#1B7F3B',
     borderRadius: 12,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  linkPhotoButtonError: {
-    borderColor: '#B3261E',
-  },
   linkPhotoButtonText: {
-    color: '#1B7F3B',
     fontWeight: '700',
     fontSize: 16,
-  },
-  linkPhotoButtonTextError: {
-    color: '#B3261E',
   },
   linkPhotoClear: {
     height: 52,
@@ -817,13 +951,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   linkPhotoClearText: {
-    color: '#B3261E',
     fontWeight: '600',
     fontSize: 14,
   },
   linkButton: {
     marginTop: 14,
-    backgroundColor: '#1B7F3B',
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
@@ -833,7 +965,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     fontSize: 13,
     fontWeight: '700',
-    color: '#5F6368',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -860,7 +991,6 @@ const styles = StyleSheet.create({
   },
   ratingDesc: {
     fontSize: 13,
-    color: '#5F6368',
     marginTop: 2,
   },
   radioOuter: {
@@ -879,41 +1009,32 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: 24,
-    backgroundColor: '#1B7F3B',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
   },
-  saveButtonDisabled: {
-    backgroundColor: '#A8C7B4',
-  },
   saveButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '700',
   },
   guardTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#202124',
     marginBottom: 8,
   },
   guardText: {
     fontSize: 14,
-    color: '#5F6368',
     textAlign: 'center',
     paddingHorizontal: 24,
   },
   guardButton: {
     marginTop: 20,
     borderWidth: 1,
-    borderColor: '#1B7F3B',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 10,
   },
   guardButtonText: {
-    color: '#1B7F3B',
     fontWeight: '700',
     fontSize: 15,
   },

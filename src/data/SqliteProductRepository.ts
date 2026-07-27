@@ -8,6 +8,7 @@ import { MIN_PRODUCT_SEARCH_CHARS } from './searchLimits';
 interface ProductRow {
   id: number;
   barcode: string;
+  produsent: string | null;
   name: string;
   ingredients: string | null;
   gluten_rating: string;
@@ -23,6 +24,7 @@ function mapRow(row: ProductRow): Product {
   return {
     id: row.id,
     barcode: row.barcode,
+    produsent: row.produsent ?? null,
     name: row.name,
     ingredients: row.ingredients,
     glutenRating: row.gluten_rating,
@@ -92,6 +94,7 @@ export class SqliteProductRepository implements ProductRepository {
     const db = getDatabase();
     const barcode = product.barcode.trim();
     const name = product.name.trim();
+    const produsent = product.produsent?.trim() || null;
     const ingredients = product.ingredients?.trim() || null;
 
     if (!barcode) {
@@ -102,14 +105,16 @@ export class SqliteProductRepository implements ProductRepository {
     }
 
     await db.runAsync(
-      `INSERT INTO products (barcode, name, ingredients, gluten_rating)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO products (barcode, produsent, name, ingredients, gluten_rating)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(barcode) DO UPDATE SET
+         produsent = excluded.produsent,
          name = excluded.name,
          ingredients = excluded.ingredients,
          gluten_rating = excluded.gluten_rating,
          updated_at = datetime('now');`,
       barcode,
+      produsent,
       name,
       ingredients,
       product.glutenRating
@@ -165,5 +170,14 @@ export class SqliteProductRepository implements ProductRepository {
       throw new AppError('report_failed');
     }
     return saved;
+  }
+
+  async submitProductImage(
+    _catalog: ProductCatalog,
+    _id: number,
+    _imageBase64: string
+  ): Promise<{ pending: boolean; product?: Product }> {
+    // Local SQLite mode has no admin image-validation queue.
+    return { pending: true };
   }
 }

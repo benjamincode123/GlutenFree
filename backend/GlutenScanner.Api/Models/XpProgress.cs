@@ -1,8 +1,8 @@
 namespace GlutenScanner.Api.Models;
 
 /// <summary>
-/// A single XP credit awarded when a user's barcode report or product
-/// submission is applied to the live gluten / glutenfri catalog.
+/// A single XP credit awarded when a user's barcode report, product
+/// submission, or product image is applied to the live catalog.
 /// </summary>
 public class XpProgress
 {
@@ -16,8 +16,12 @@ public class XpProgress
     /// <summary>Set when the credit came from an applied product submission.</summary>
     public int? ProductSubmissionId { get; set; }
 
+    /// <summary>Set when the credit came from an approved product image.</summary>
+    public int? ProductImageValidationId { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public User? User { get; set; }
     public ProductSubmission? ProductSubmission { get; set; }
+    public ProductImageValidation? ProductImageValidation { get; set; }
 }

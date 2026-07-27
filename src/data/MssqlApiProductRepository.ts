@@ -14,6 +14,7 @@ interface ProductApiResponse {
   id: number;
   barcode: string;
   name: string;
+  produsent?: string | null;
   ingredients: string | null;
   glutenRating: string;
   createdAt: string;
@@ -36,6 +37,7 @@ function mapProduct(data: ProductApiResponse): Product {
     id: data.id,
     barcode: data.barcode,
     name: data.name,
+    produsent: data.produsent ?? null,
     ingredients: data.ingredients,
     glutenRating: data.glutenRating,
     createdAt: data.createdAt,
@@ -160,9 +162,12 @@ export class MssqlApiProductRepository implements ProductRepository {
         body: JSON.stringify({
           barcode: product.barcode.trim(),
           name: product.name.trim(),
+          produsent: product.produsent?.trim() || null,
           ingredients: product.ingredients?.trim() || null,
           glutenRating: product.glutenRating,
           imageBase64: product.imageBase64?.trim() || null,
+          id: product.id ?? null,
+          catalog: product.catalog ?? null,
         }),
       },
       'save_failed'
@@ -210,5 +215,46 @@ export class MssqlApiProductRepository implements ProductRepository {
 
     const data = (await response.json()) as ProductApiResponse;
     return mapProduct(data);
+  }
+
+  async submitProductImage(
+    catalog: ProductCatalog,
+    id: number,
+    imageBase64: string
+  ): Promise<{ pending: boolean; product?: Product }> {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await this.request(
+      this.productsUrl(
+        `/${encodeURIComponent(catalog)}/${id}/image-validations`
+      ),
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          imageBase64: imageBase64.trim(),
+        }),
+      },
+      'save_failed'
+    );
+
+    if (!response.ok) {
+      await this.throwHttpError(response, 'save_failed');
+    }
+
+    const data = (await response.json()) as ProductApiResponse & {
+      pending?: boolean;
+    };
+    if (data.pending) {
+      return { pending: true };
+    }
+    return { pending: false, product: mapProduct(data) };
   }
 }

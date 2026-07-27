@@ -24,9 +24,7 @@ import { GlutenBadge } from '../src/components/GlutenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { getProductRepository } from '../src/data/repository';
 import { useI18n } from '../src/i18n/I18nContext';
-import { TranslationKey } from '../src/i18n/translations';
 import {
-  GlutenRating,
   isUnknownBarcode,
   Product,
   ProductCatalog,
@@ -48,17 +46,6 @@ function productImageUri(imageBase64: string | null | undefined): string | null 
   if (raw.startsWith('data:image/')) return raw;
   if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
   return `data:image/jpeg;base64,${raw}`;
-}
-
-function ratingDescKey(rating: GlutenRating): TranslationKey {
-  switch (rating) {
-    case GlutenRating.GlutenFree:
-      return 'rating.glutenFreeDesc';
-    case GlutenRating.GlutenTrace:
-      return 'rating.glutenTraceDesc';
-    default:
-      return 'rating.glutenContentDesc';
-  }
 }
 
 export default function ResultScreen() {
@@ -143,7 +130,7 @@ export default function ResultScreen() {
         product.catalog,
         product.id,
         suggested,
-        reportImageBase64
+        productImageUri(product.imageBase64) && !isAdmin ? null : reportImageBase64
       );
       setProduct(updated);
       setReportBarcode('');
@@ -162,11 +149,47 @@ export default function ResultScreen() {
     }
   };
 
+  const submitProductPhoto = async () => {
+    if (!product?.catalog || !reportImageBase64) return;
+
+    setReporting(true);
+    setReportFeedback(null);
+    try {
+      const result = await getProductRepository().submitProductImage(
+        product.catalog,
+        product.id,
+        reportImageBase64
+      );
+      if (result.product) {
+        setProduct(result.product);
+      }
+      setReportImageBase64(null);
+      setReportFeedback({
+        kind: 'success',
+        text: result.pending ? t('result.photoPending') : t('result.photoSaved'),
+      });
+    } catch (err) {
+      setReportFeedback({
+        kind: 'error',
+        text: userFacingError(err, t, 'generic'),
+      });
+    } finally {
+      setReporting(false);
+    }
+  };
+
   const showReportForm =
     state === 'found' &&
     product &&
     isUnknownBarcode(product.barcode) &&
     !!product.catalog;
+
+  const showPhotoSubmit =
+    state === 'found' &&
+    product &&
+    !!product.catalog &&
+    !isUnknownBarcode(product.barcode) &&
+    (!productImageUri(product.imageBase64) || isAdmin);
 
   const canFavorite =
     !!user &&
@@ -240,11 +263,13 @@ export default function ResultScreen() {
               accessibilityLabel={`${product.name} ${t('result.productImageA11y')}`}
             />
           )}
+          {product.produsent?.trim() ? (
+            <Text style={[styles.produsent, { color: colors.textSecondary }]}>
+              {product.produsent.trim()}
+            </Text>
+          ) : null}
           <Text style={[styles.productName, { color: colors.text }]}>{product.name}</Text>
           <GlutenBadge rating={product.glutenRating} size="large" />
-          <Text style={[styles.ratingDescription, { color: colors.text }]}>
-            {t(ratingDescKey(product.glutenRating))}
-          </Text>
 
           {canFavorite ? (
             <>
@@ -376,6 +401,90 @@ export default function ResultScreen() {
                   >
                     {t('result.photoOptional')}
                   </Text>
+                  {productImageUri(product.imageBase64) && !isAdmin ? (
+                    <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
+                      {t('result.photoLocked')}
+                    </Text>
+                  ) : (
+                    <>
+                      {reportImageBase64 ? (
+                        <Image
+                          source={{ uri: reportImageBase64 }}
+                          style={[styles.reportPhoto, { backgroundColor: colors.surface }]}
+                          resizeMode="contain"
+                        />
+                      ) : null}
+                      <View style={styles.reportPhotoRow}>
+                        <Pressable
+                          style={[styles.photoButton, { borderColor: colors.primary }]}
+                          onPress={() => {
+                            void askPickProductImage().then((uri) => {
+                              if (uri) setReportImageBase64(uri);
+                            });
+                          }}
+                        >
+                          <Text style={[styles.photoButtonText, { color: colors.primary }]}>
+                            {reportImageBase64
+                              ? t('result.changePhoto')
+                              : t('result.addPhoto')}
+                          </Text>
+                        </Pressable>
+                        {reportImageBase64 && (
+                          <Pressable
+                            style={styles.clearPhotoButton}
+                            onPress={() => setReportImageBase64(null)}
+                          >
+                            <Text style={[styles.clearPhotoText, { color: colors.danger }]}>
+                              {t('result.removePhoto')}
+                            </Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    </>
+                  )}
+
+                  <Pressable
+                    style={[
+                      styles.primaryButton,
+                      { backgroundColor: colors.primary },
+                      (!reportBarcode.trim() || reporting) && {
+                        backgroundColor: colors.primaryMuted,
+                      },
+                    ]}
+                    disabled={!reportBarcode.trim() || reporting}
+                    onPress={() => void submitBarcodeReport()}
+                  >
+                    <Text style={styles.primaryButtonText}>
+                      {reporting ? t('common.saving') : t('result.submitBarcode')}
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+              {reportFeedback &&
+                (reportFeedback.kind === 'error' ? (
+                  <ErrorText style={styles.reportMessage}>{reportFeedback.text}</ErrorText>
+                ) : (
+                  <Text style={[styles.reportMessage, { color: colors.primary }]}>
+                    {reportFeedback.text}
+                  </Text>
+                ))}
+            </View>
+          )}
+
+          {showPhotoSubmit && (
+            <View style={[styles.reportBlock, { borderTopColor: colors.border }]}>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                {t('result.photoOptional')}
+              </Text>
+              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
+                {t('result.addPhotoHint')}
+              </Text>
+              {!user ? (
+                <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
+                  {t('result.signInToAddPhoto')}
+                </Text>
+              ) : (
+                <>
                   {reportImageBase64 ? (
                     <Image
                       source={{ uri: reportImageBase64 }}
@@ -409,25 +518,25 @@ export default function ResultScreen() {
                       </Pressable>
                     )}
                   </View>
-
                   <Pressable
                     style={[
                       styles.primaryButton,
                       { backgroundColor: colors.primary },
-                      (!reportBarcode.trim() || reporting) && {
+                      (!reportImageBase64 || reporting) && {
                         backgroundColor: colors.primaryMuted,
                       },
                     ]}
-                    disabled={!reportBarcode.trim() || reporting}
-                    onPress={() => void submitBarcodeReport()}
+                    disabled={!reportImageBase64 || reporting}
+                    onPress={() => void submitProductPhoto()}
                   >
                     <Text style={styles.primaryButtonText}>
-                      {reporting ? t('common.saving') : t('result.submitBarcode')}
+                      {reporting ? t('common.saving') : t('result.submitPhoto')}
                     </Text>
                   </Pressable>
                 </>
               )}
               {reportFeedback &&
+                !showReportForm &&
                 (reportFeedback.kind === 'error' ? (
                   <ErrorText style={styles.reportMessage}>{reportFeedback.text}</ErrorText>
                 ) : (
@@ -444,7 +553,11 @@ export default function ResultScreen() {
               onPress={() =>
                 router.push({
                   pathname: '/add',
-                  params: { barcode: product.barcode },
+                  params: {
+                    barcode: product.barcode,
+                    id: String(product.id),
+                    catalog: product.catalog ?? '',
+                  },
                 })
               }
             >
@@ -545,6 +658,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 12,
   },
+  produsent: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
   favoriteButton: {
     marginTop: 16,
     alignSelf: 'stretch',
@@ -560,10 +678,6 @@ const styles = StyleSheet.create({
   favoriteButtonText: {
     fontSize: 15,
     fontWeight: '700',
-  },
-  ratingDescription: {
-    marginTop: 12,
-    fontSize: 15,
   },
   divider: {
     height: StyleSheet.hairlineWidth,

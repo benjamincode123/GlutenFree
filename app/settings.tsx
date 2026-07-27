@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from 'expo-router';
 import { useLayoutEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { SmoothSwitch } from '../src/components/SmoothSwitch';
 import { useI18n } from '../src/i18n/I18nContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
@@ -45,11 +46,9 @@ export default function SettingsScreen() {
           <Text style={[styles.rowLabel, styles.themeLabel, { color: colors.text }]}>
             {isDark ? t('settings.dark') : t('settings.light')}
           </Text>
-          <Switch
+          <SmoothSwitch
             value={isDark}
             onValueChange={(dark) => setMode(dark ? 'dark' : 'light')}
-            trackColor={{ false: colors.primaryMuted, true: colors.primary }}
-            thumbColor="#FFFFFF"
           />
         </View>
       </View>
@@ -231,7 +230,7 @@ const styles = StyleSheet.create({
     minHeight: 32,
   },
   themeLabel: {
-    width: 72,
+    minWidth: 72,
   },
   rowLabel: {
     fontSize: 15,

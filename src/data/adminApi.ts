@@ -9,6 +9,7 @@ export interface ProductSubmissionItem {
   id: number;
   barcode: string;
   name: string;
+  produsent: string | null;
   ingredients: string | null;
   glutenRating: string;
   imageBase64: string;
@@ -28,6 +29,7 @@ export interface ProductSubmissionList {
 export interface ApproveSubmissionEdits {
   barcode: string;
   name: string;
+  produsent: string;
   ingredients: string;
   glutenRating: string;
 }
@@ -76,6 +78,7 @@ export async function approveSubmission(
       body: JSON.stringify({
         barcode: edits.barcode,
         name: edits.name,
+        produsent: edits.produsent,
         ingredients: edits.ingredients,
         glutenRating: edits.glutenRating,
       }),
@@ -92,6 +95,82 @@ export async function denySubmission(token: string, id: number): Promise<void> {
   let response: Response;
   try {
     response = await fetch(adminUrl(`/product-submissions/${id}/deny`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+}
+
+export interface ProductImageValidationItem {
+  id: number;
+  catalog: string;
+  productId: number;
+  productName: string;
+  imageBase64: string;
+  submittedByUserId: number;
+  submittedByUsername: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface ProductImageValidationList {
+  items: ProductImageValidationItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export async function fetchPendingImageValidations(
+  token: string,
+  page: number
+): Promise<ProductImageValidationList> {
+  let response: Response;
+  try {
+    response = await fetch(
+      adminUrl(`/product-image-validations?page=${page}`),
+      {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      }
+    );
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+  return (await response.json()) as ProductImageValidationList;
+}
+
+export async function approveImageValidation(
+  token: string,
+  id: number
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/product-image-validations/${id}/approve`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+}
+
+export async function denyImageValidation(
+  token: string,
+  id: number
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/product-image-validations/${id}/deny`), {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });

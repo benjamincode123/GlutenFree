@@ -38,4 +38,14 @@ export interface ProductRepository {
     barcode: string,
     imageBase64?: string | null
   ): Promise<Product>;
+
+  /**
+   * Submit a product photo for admin validation (non-admin), or apply it
+   * immediately when the caller is an admin.
+   */
+  submitProductImage(
+    catalog: ProductCatalog,
+    id: number,
+    imageBase64: string
+  ): Promise<{ pending: boolean; product?: Product }>;
 }
