@@ -3,6 +3,10 @@ import { Platform } from 'react-native';
 
 const DEFAULT_API_PORT = 5178;
 
+/** Default API for release / TestFlight builds (baked into the binary). */
+const PRODUCTION_API_URL =
+  'https://utengluten-cvg7h6fqgxhxd9cw.swedencentral-01.azurewebsites.net';
+
 /**
  * Host running Metro (same machine as the local .NET API in typical setup).
  * Expo updates this when your network/IP changes, so you don't hardcode a LAN IP.
@@ -51,24 +55,25 @@ function resolveDevApiBaseUrl(): string {
 }
 
 function resolveApiBaseUrl(): string {
+  const override = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (override) {
+    return override.replace(/\/+$/, '');
+  }
+
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
     return resolveDevApiBaseUrl();
   }
 
-  const production = process.env.EXPO_PUBLIC_API_URL?.trim();
-  if (production) {
-    return production.replace(/\/+$/, '');
-  }
-
-  return `http://localhost:${DEFAULT_API_PORT}`;
+  // Release / TestFlight: never fall back to localhost on device.
+  return PRODUCTION_API_URL;
 }
 
 /**
  * App runtime configuration.
  *
- * In development the API host is taken from Expo's Metro host (or localhost /
- * Android emulator loopback). You only need EXPO_PUBLIC_API_URL to force a
- * specific URL; otherwise leave it unset so network changes don't break the app.
+ * Release builds use the Azure App Service URL unless EXPO_PUBLIC_API_URL overrides it.
+ * In development, the API host is taken from Expo's Metro host (or localhost /
+ * Android emulator loopback) unless EXPO_PUBLIC_API_URL is set.
  */
 export const config = {
   /**
