@@ -21,8 +21,9 @@ can also add products they scan.
 - User accounts: register/login with a username and password (passwords are
   hashed on the server), persistent sessions, and logout.
 - Roles: standard users (level 1) can scan and look up products; only admins
-  (level 100) can add or edit products. See
-  [backend/README.md](backend/README.md) for how to promote an admin.
+  (level 100) can add or edit products. See the
+  [UtenGluten-Backend](https://github.com/benjamincode123/UtenGluten-Backend)
+  repo for how to promote an admin.
 
 ## Tech stack
 
@@ -85,8 +86,9 @@ All screens depend only on the `ProductRepository` interface
 implementations exist:
 
 - `SqliteProductRepository` - local on-device `.db` file (offline, no server).
-- `MssqlApiProductRepository` - calls the `.NET` Web API in `backend/`, which
-  stores data in **Azure SQL Server**.
+- `MssqlApiProductRepository` - calls the
+  [UtenGluten-Backend](https://github.com/benjamincode123/UtenGluten-Backend)
+  `.NET` Web API, which stores data in **Azure SQL Server**.
 
 Which one is used is decided in a single place, `src/data/repository.ts`, based
 on `src/config.ts`:
@@ -102,14 +104,17 @@ offline on SQLite instead, start Expo with `EXPO_PUBLIC_USE_BACKEND=false`.
 
 ### Running with the backend (Azure SQL)
 
-1. Configure and start the API - see [backend/README.md](backend/README.md)
-   (you provide your Azure SQL connection string via user-secrets).
+1. Configure and start the API from
+   [UtenGluten-Backend](https://github.com/benjamincode123/UtenGluten-Backend)
+   (sibling folder `../UtenGluten-Backend`, or the deployed App Service).
 2. Point the app at it and start Expo (use your computer's LAN IP, not localhost,
    when testing on a physical phone):
 
 ```bash
 # PowerShell, from the repo root
 $env:EXPO_PUBLIC_API_URL = "http://<your-computer-ip>:5178"
+# Or the Azure App Service:
+# $env:EXPO_PUBLIC_API_URL = "https://utengluten-cvg7h6fqgxhxd9cw.swedencentral-01.azurewebsites.net"
 npm run start
 ```
 
@@ -140,9 +145,11 @@ src/
   db/
     database.ts     SQLite init, schema, dev seed data
     types.ts        Product type + GlutenRating enum and UI metadata
-backend/
-  GlutenScanner.Api/   .NET 10 Web API over Azure SQL Server (see backend/README.md)
 ```
+
+The .NET API, product import `data/`, and download/import scripts live in a
+separate repo:
+[UtenGluten-Backend](https://github.com/benjamincode123/UtenGluten-Backend).
 
 ## Notes
 

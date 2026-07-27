@@ -59,13 +59,13 @@ def resolve_password(cli_password: str | None) -> str:
         val = os.environ.get(key)
         if val:
             return val
-    appsettings = (
-        Path(__file__).resolve().parents[1]
-        / "backend"
-        / "GlutenScanner.Api"
-        / "appsettings.json"
-    )
-    if appsettings.is_file():
+    appsettings_paths = [
+        Path(__file__).resolve().parents[2] / "UtenGluten-Backend" / "GlutenScanner.Api" / "appsettings.Development.json",
+        Path(__file__).resolve().parents[2] / "UtenGluten-Backend" / "GlutenScanner.Api" / "appsettings.json",
+    ]
+    for appsettings in appsettings_paths:
+        if not appsettings.is_file():
+            continue
         data = json.loads(appsettings.read_text(encoding="utf-8"))
         cs = (data.get("ConnectionStrings") or {}).get("Default") or ""
         if "Password=" in cs:
