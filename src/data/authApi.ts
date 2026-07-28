@@ -39,13 +39,83 @@ async function throwForAuthResponse(
   throw appErrorFromHttp(response.status, body.error, fallback, body.retryAfterSeconds);
 }
 
-export async function register(username: string, password: string): Promise<AuthResult> {
+export type MembershipPlan = 'monthly' | 'yearly';
+export type PaymentLinkChannel = 'email';
+
+export interface RegisterStartResult {
+  userId: number;
+  plan: string;
+  paymentLinkChannel: string;
+  message: string;
+}
+
+/** Creates pending user, Stripe Checkout link, and sends it via SMS and/or email. */
+export async function registerStart(
+  username: string,
+  password: string,
+  email: string,
+  phone: string,
+  plan: MembershipPlan,
+  smsVerificationId: string,
+  smsCode: string,
+  paymentLinkChannel: PaymentLinkChannel
+): Promise<RegisterStartResult> {
   let response: Response;
   try {
-    response = await fetch(authUrl('/register'), {
+    response = await fetch(authUrl('/register/start'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({
+        username,
+        password,
+        email,
+        phone,
+        plan,
+        smsVerificationId,
+        smsCode,
+        paymentLinkChannel,
+      }),
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAuthResponse(response, 'register_failed');
+  }
+  return (await response.json()) as RegisterStartResult;
+}
+
+export interface RegisterSmsCodeResult {
+  verificationId: string;
+  expiresInSeconds: number;
+}
+
+/** Sends a TeleSign SMS OTP for registration phone verification. */
+export async function registerSendSmsCode(phone: string): Promise<RegisterSmsCodeResult> {
+  let response: Response;
+  try {
+    response = await fetch(authUrl('/register/sms-code'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAuthResponse(response, 'register_failed');
+  }
+  return (await response.json()) as RegisterSmsCodeResult;
+}
+
+/** Completes registration after PaymentSheet success and returns a session. */
+export async function registerComplete(userId: number): Promise<AuthResult> {
+  let response: Response;
+  try {
+    response = await fetch(authUrl('/register/complete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ userId }),
     });
   } catch {
     throw new AppError('network');

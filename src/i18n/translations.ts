@@ -173,16 +173,40 @@ type TranslationKey =
   | 'login.subtitleRegister'
   | 'login.username'
   | 'login.password'
+  | 'login.email'
+  | 'login.phone'
+  | 'login.plan'
+  | 'login.planMonthly'
+  | 'login.planYearly'
+  | 'login.paymentLinkSent'
+  | 'login.sendPaymentLink'
+  | 'login.continue'
+  | 'login.back'
+  | 'login.step1Title'
+  | 'login.step2Title'
+  | 'login.stepOf'
   | 'login.usernamePlaceholder'
   | 'login.passwordPlaceholder'
+  | 'login.showPassword'
+  | 'login.hidePassword'
+  | 'login.emailPlaceholder'
+  | 'login.phonePlaceholder'
   | 'login.signIn'
   | 'login.createAccount'
   | 'login.haveAccount'
   | 'login.noAccount'
   | 'login.register'
+  | 'login.registerOpenFailed'
   | 'login.note'
   | 'login.usernameShort'
   | 'login.passwordShort'
+  | 'login.emailInvalid'
+  | 'login.phoneInvalid'
+  | 'login.smsCode'
+  | 'login.smsCodePlaceholder'
+  | 'login.sendSms'
+  | 'login.resendSms'
+  | 'login.smsCodeRequired'
   | 'login.genericError'
   | 'login.poweredBy'
   | 'products.searchLabel'
@@ -469,17 +493,42 @@ const en: Record<TranslationKey, string> = {
   'login.subtitleRegister': 'Create an account to get started',
   'login.username': 'Username',
   'login.password': 'Password',
+  'login.email': 'Email',
+  'login.phone': 'Phone',
+  'login.plan': 'Membership',
+  'login.planMonthly': 'Monthly 35 kr',
+  'login.planYearly': 'Yearly 350 kr',
+  'login.paymentLinkSent':
+    'A payment link was sent to your email. Pay there, then sign in.',
+  'login.sendPaymentLink': 'Send payment link',
+  'login.continue': 'Continue',
+  'login.back': 'Back',
+  'login.step1Title': 'Your details',
+  'login.step2Title': 'Verify & membership',
+  'login.stepOf': 'Step {step} of {total}',
   'login.usernamePlaceholder': 'Your username',
   'login.passwordPlaceholder': 'Your password',
+  'login.showPassword': 'Show password',
+  'login.hidePassword': 'Hide password',
+  'login.emailPlaceholder': 'you@example.com',
+  'login.phonePlaceholder': '+47 000 00 000',
   'login.signIn': 'Sign in',
   'login.createAccount': 'Create account',
   'login.haveAccount': 'Already have an account? ',
   'login.noAccount': "Don't have an account? ",
   'login.register': 'Register',
+  'login.registerOpenFailed': 'Could not open the registration page. Try again later.',
   'login.note':
-    'New accounts are standard users. Ask an admin to upgrade you if you need to add products.',
+    'Membership is required to create an account.',
   'login.usernameShort': 'Username must be at least 3 characters.',
   'login.passwordShort': 'Password must be at least 6 characters.',
+  'login.emailInvalid': 'Enter a valid email address.',
+  'login.phoneInvalid': 'Enter a valid phone number.',
+  'login.smsCode': 'SMS code',
+  'login.smsCodePlaceholder': '6-digit code',
+  'login.sendSms': 'Send SMS code',
+  'login.resendSms': 'Resend SMS code',
+  'login.smsCodeRequired': 'Request an SMS code and enter it before creating an account.',
   'login.genericError': 'Something went wrong.',
   'login.poweredBy': 'Powered by Uten Gluten',
   'products.searchLabel': 'Search by product name',
@@ -781,17 +830,42 @@ const nb: Record<TranslationKey, string> = {
   'login.subtitleRegister': 'Opprett en konto for å komme i gang',
   'login.username': 'Brukernavn',
   'login.password': 'Passord',
+  'login.email': 'E-post',
+  'login.phone': 'Telefon',
+  'login.plan': 'Medlemskap',
+  'login.planMonthly': 'Månedlig 35 kr',
+  'login.planYearly': 'Årlig 350 kr',
+  'login.paymentLinkSent':
+    'Betalingslenke er sendt på e-post. Betal der, deretter logg inn.',
+  'login.sendPaymentLink': 'Send betalingslenke',
+  'login.continue': 'Fortsett',
+  'login.back': 'Tilbake',
+  'login.step1Title': 'Dine opplysninger',
+  'login.step2Title': 'Bekreftelse og medlemskap',
+  'login.stepOf': 'Steg {step} av {total}',
   'login.usernamePlaceholder': 'Ditt brukernavn',
   'login.passwordPlaceholder': 'Ditt passord',
+  'login.showPassword': 'Vis passord',
+  'login.hidePassword': 'Skjul passord',
+  'login.emailPlaceholder': 'deg@eksempel.no',
+  'login.phonePlaceholder': '+47 000 00 000',
   'login.signIn': 'Logg inn',
   'login.createAccount': 'Opprett konto',
   'login.haveAccount': 'Har du allerede en konto? ',
   'login.noAccount': 'Har du ikke en konto? ',
   'login.register': 'Registrer',
+  'login.registerOpenFailed': 'Kunne ikke åpne registreringssiden. Prøv igjen senere.',
   'login.note':
-    'Nye kontoer er vanlige brukere. Be en admin om å oppgradere deg hvis du trenger å legge til produkter.',
+    'Medlemskap kreves for å opprette konto.',
   'login.usernameShort': 'Brukernavn må være minst 3 tegn.',
   'login.passwordShort': 'Passord må være minst 6 tegn.',
+  'login.emailInvalid': 'Skriv inn en gyldig e-postadresse.',
+  'login.phoneInvalid': 'Skriv inn et gyldig telefonnummer.',
+  'login.smsCode': 'SMS-kode',
+  'login.smsCodePlaceholder': '6-sifret kode',
+  'login.sendSms': 'Send SMS-kode',
+  'login.resendSms': 'Send SMS-kode på nytt',
+  'login.smsCodeRequired': 'Be om SMS-kode og skriv den inn før du oppretter konto.',
   'login.genericError': 'Noe gikk galt.',
   'login.poweredBy': 'Powered by Uten Gluten',
   'products.searchLabel': 'Søk etter produktnavn',

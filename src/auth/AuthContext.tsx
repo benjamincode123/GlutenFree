@@ -93,7 +93,6 @@ interface AuthContextValue {
   isAdmin: boolean;
   authEnabled: boolean;
   signIn: (username: string, password: string) => Promise<void>;
-  signUp: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   setPublicUser: (publicUser: boolean) => Promise<void>;
@@ -262,17 +261,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(profile);
   }, [rememberSyncedFavorites]);
 
-  const signUp = useCallback(async (username: string, password: string) => {
-    const result = await authApi.register(username.trim(), password);
-    await clearProfileCache();
-    clearCachedLeaderboard();
-    clearCachedLists();
-    await saveToken(result.token);
-    const profile = await fetchAndCacheProfile(result.token, result.user);
-    rememberSyncedFavorites(profile.favorites);
-    setUser(profile);
-  }, [rememberSyncedFavorites]);
-
   const signOut = useCallback(async () => {
     clearFavoritesSyncTimer();
     favoritesSyncGenerationRef.current += 1;
@@ -416,7 +404,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin: user?.isAdmin ?? false,
       authEnabled: config.useBackend,
       signIn,
-      signUp,
       signOut,
       refreshUser,
       setPublicUser,
@@ -428,7 +415,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       initializing,
       signIn,
-      signUp,
       signOut,
       refreshUser,
       setPublicUser,

@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Animated,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,31 +19,34 @@ import {
   darkenHex,
   GroceryPatternBackground,
 } from '../src/components/GroceryPatternBackground';
+import { config } from '../src/config';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useSmoothKeyboardShift } from '../src/hooks/useSmoothKeyboardShift';
 import { useI18n } from '../src/i18n/I18nContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
+function registerWebUrl(): string {
+  return config.registerUrl;
+}
+
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
   const { t } = useI18n();
   const { colors } = useTheme();
   const keyboardShift = useSmoothKeyboardShift(200);
 
-  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isRegister = mode === 'register';
   const patternLine = darkenHex(colors.primary, 0.32);
   const year = new Date().getFullYear();
 
   async function handleSubmit() {
     setError(null);
-
     if (username.trim().length < 3) {
       setError(t('login.usernameShort'));
       return;
@@ -50,18 +55,28 @@ export default function LoginScreen() {
       setError(t('login.passwordShort'));
       return;
     }
-
     setSubmitting(true);
     try {
-      if (isRegister) {
-        await signUp(username, password);
-      } else {
-        await signIn(username, password);
-      }
+      await signIn(username, password);
     } catch (err) {
-      setError(userFacingError(err, t, isRegister ? 'register_failed' : 'login_failed'));
+      setError(userFacingError(err, t, 'login_failed'));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function openRegisterWebsite() {
+    setError(null);
+    const url = registerWebUrl();
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        setError(t('login.registerOpenFailed'));
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      setError(t('login.registerOpenFailed'));
     }
   }
 
@@ -82,7 +97,7 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.content,
-            { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 16 },
+            { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 16 },
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
@@ -91,7 +106,7 @@ export default function LoginScreen() {
         >
           <View style={styles.main}>
             <View style={[styles.card, { backgroundColor: colors.background }]}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>
+              <Text style={[styles.label, styles.labelFirst, { color: colors.textSecondary }]}>
                 {t('login.username')}
               </Text>
               <AppTextInput
@@ -114,26 +129,44 @@ export default function LoginScreen() {
               <Text style={[styles.label, { color: colors.textSecondary }]}>
                 {t('login.password')}
               </Text>
-              <AppTextInput
+              <View
                 style={[
-                  styles.input,
+                  styles.passwordRow,
                   {
                     backgroundColor: colors.surface,
                     borderColor: colors.border,
-                    color: colors.text,
                   },
                 ]}
-                placeholder={t('login.passwordPlaceholder')}
-                placeholderTextColor={colors.textSecondary}
-                secureTextEntry
-                autoCapitalize="none"
-                value={password}
-                onChangeText={setPassword}
-                onSubmitEditing={handleSubmit}
-                returnKeyType="go"
-              />
+              >
+                <AppTextInput
+                  style={[styles.passwordInput, { color: colors.text }]}
+                  placeholder={t('login.passwordPlaceholder')}
+                  placeholderTextColor={colors.textSecondary}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  value={password}
+                  onChangeText={setPassword}
+                  onSubmitEditing={handleSubmit}
+                  returnKeyType="go"
+                />
+                <Pressable
+                  style={styles.passwordToggle}
+                  onPress={() => setShowPassword((prev) => !prev)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    showPassword ? t('login.hidePassword') : t('login.showPassword')
+                  }
+                  hitSlop={8}
+                >
+                  <MaterialCommunityIcons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color={colors.textSecondary}
+                  />
+                </Pressable>
+              </View>
 
-              {error && <ErrorText style={styles.error}>{error}</ErrorText>}
+              {error ? <ErrorText style={styles.error}>{error}</ErrorText> : null}
 
               <Pressable
                 style={[
@@ -147,25 +180,15 @@ export default function LoginScreen() {
                 {submitting ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.buttonText}>
-                    {isRegister ? t('login.createAccount') : t('login.signIn')}
-                  </Text>
+                  <Text style={styles.buttonText}>{t('login.signIn')}</Text>
                 )}
               </Pressable>
             </View>
 
-            <Pressable
-              style={styles.switchRow}
-              onPress={() => {
-                setMode(isRegister ? 'login' : 'register');
-                setError(null);
-              }}
-            >
+            <Pressable style={styles.switchRow} onPress={openRegisterWebsite}>
               <Text style={styles.switchText}>
-                {isRegister ? t('login.haveAccount') : t('login.noAccount')}
-                <Text style={styles.switchLink}>
-                  {isRegister ? t('login.signIn') : t('login.register')}
-                </Text>
+                {t('login.noAccount')}
+                <Text style={styles.switchLink}>{t('login.register')}</Text>
               </Text>
             </Pressable>
           </View>
@@ -193,13 +216,18 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 16,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
   label: {
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 6,
     marginTop: 12,
+  },
+  labelFirst: {
+    marginTop: 0,
   },
   input: {
     borderWidth: 1,
@@ -208,12 +236,30 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
   },
+  passwordRow: {
+    borderWidth: 1,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  passwordToggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   error: {
     fontSize: 14,
     marginTop: 14,
   },
   button: {
-    marginTop: 20,
+    marginTop: 16,
     paddingVertical: 15,
     borderRadius: 12,
     alignItems: 'center',

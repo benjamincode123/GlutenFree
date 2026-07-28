@@ -82,8 +82,20 @@ export const config = {
   apiBaseUrl: resolveApiBaseUrl(),
 
   /**
+   * Web registration page (opened in the system browser from the app).
+   */
+  get registerUrl() {
+    return `${this.apiBaseUrl.replace(/\/+$/, '')}/register`;
+  },
+
+  /**
    * When true, the app talks to the backend API (MSSQL via .NET). When false,
    * it uses the on-device SQLite database instead. Defaults to true.
    */
   useBackend: (process.env.EXPO_PUBLIC_USE_BACKEND ?? 'true').toLowerCase() !== 'false',
+
+  /**
+   * Stripe publishable key (optional bootstrap; register/start also returns one).
+   */
+  stripePublishableKey: (process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '').trim(),
 };
