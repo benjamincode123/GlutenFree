@@ -93,9 +93,4 @@ export const config = {
    * it uses the on-device SQLite database instead. Defaults to true.
    */
   useBackend: (process.env.EXPO_PUBLIC_USE_BACKEND ?? 'true').toLowerCase() !== 'false',
-
-  /**
-   * Stripe publishable key (optional bootstrap; register/start also returns one).
-   */
-  stripePublishableKey: (process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '').trim(),
 };

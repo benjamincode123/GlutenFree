@@ -47,14 +47,7 @@
           "cameraPermission": "This app uses the camera to photograph products for barcode reports."
         }
       ],
-      "expo-secure-store",
-      [
-        "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": "merchant.com.glutenfree.scanner",
-          "enableGooglePay": false
-        }
-      ]
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

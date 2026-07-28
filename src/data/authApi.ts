@@ -108,7 +108,7 @@ export async function registerSendSmsCode(phone: string): Promise<RegisterSmsCod
   return (await response.json()) as RegisterSmsCodeResult;
 }
 
-/** Completes registration after PaymentSheet success and returns a session. */
+/** Optional: poll after email Checkout payment if webhook has activated the user. */
 export async function registerComplete(userId: number): Promise<AuthResult> {
   let response: Response;
   try {
