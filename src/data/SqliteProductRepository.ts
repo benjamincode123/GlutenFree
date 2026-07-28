@@ -180,4 +180,14 @@ export class SqliteProductRepository implements ProductRepository {
     // Local SQLite mode has no admin image-validation queue.
     return { pending: true };
   }
+
+  async reportWrongInfo(
+    _catalog: ProductCatalog,
+    _id: number,
+    _emne: string,
+    _comment: string
+  ): Promise<void> {
+    // Local SQLite mode has no wrong-info report queue.
+    throw new AppError('unavailable');
+  }
 }

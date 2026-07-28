@@ -34,7 +34,7 @@ const LOCAL_ADMIN: AuthUser = {
   xp: 1,
   isAdmin: true,
   publicUser: false,
-  profileImageBase64: null,
+  profileImageUrl: null,
   favorites: [],
 };
 
@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const next = {
             ...updated,
             favorites: cloneFavorites(latestFavoritesRef.current),
-            profileImageBase64: prev.profileImageBase64 ?? updated.profileImageBase64,
+            profileImageUrl: prev.profileImageUrl ?? updated.profileImageUrl,
           };
           void saveCachedUser(next);
           return next;
@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!prev) return updated;
         const next = {
           ...updated,
-          profileImageBase64: prev.profileImageBase64 ?? updated.profileImageBase64,
+          profileImageUrl: prev.profileImageUrl ?? updated.profileImageUrl,
         };
         void saveCachedUser(next);
         return next;
@@ -314,7 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const next = {
         ...updated,
         favorites: prev.favorites,
-        profileImageBase64: prev.profileImageBase64 ?? updated.profileImageBase64,
+        profileImageUrl: prev.profileImageUrl ?? updated.profileImageUrl,
       };
       void saveCachedUser(next);
       return next;
@@ -325,7 +325,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!config.useBackend) {
       setUser((prev) => {
         if (!prev) return prev;
-        const next = { ...prev, profileImageBase64: imageBase64 };
+        const next = { ...prev, profileImageUrl: imageBase64 };
         void saveCachedUser(next);
         return next;
       });
@@ -341,7 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const next = {
         ...updated,
         favorites: prev.favorites,
-        profileImageBase64: updated.profileImageBase64,
+        profileImageUrl: updated.profileImageUrl,
       };
       void saveCachedUser(next);
       return next;

@@ -22,6 +22,7 @@ import { AddToListModal } from '../src/components/AddToListModal';
 import { ErrorText } from '../src/components/ErrorText';
 import { GlutenBadge } from '../src/components/GlutenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
+import { ReportWrongInfoModal } from '../src/components/ReportWrongInfoModal';
 import { getProductRepository } from '../src/data/repository';
 import { useI18n } from '../src/i18n/I18nContext';
 import {
@@ -40,8 +41,8 @@ function parseCatalog(value: string | undefined): ProductCatalog | null {
   return null;
 }
 
-function productImageUri(imageBase64: string | null | undefined): string | null {
-  const raw = (imageBase64 ?? '').trim();
+function productImageUri(imageUrl: string | null | undefined): string | null {
+  const raw = (imageUrl ?? '').trim();
   if (!raw) return null;
   if (raw.startsWith('data:image/')) return raw;
   if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
@@ -75,6 +76,7 @@ export default function ResultScreen() {
   } | null>(null);
   const [scanModalVisible, setScanModalVisible] = useState(false);
   const [listPickerOpen, setListPickerOpen] = useState(false);
+  const [wrongInfoOpen, setWrongInfoOpen] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: t('nav.result') });
@@ -130,7 +132,7 @@ export default function ResultScreen() {
         product.catalog,
         product.id,
         suggested,
-        productImageUri(product.imageBase64) && !isAdmin ? null : reportImageBase64
+        productImageUri(product.imageUrl) && !isAdmin ? null : reportImageBase64
       );
       setProduct(updated);
       setReportBarcode('');
@@ -189,10 +191,16 @@ export default function ResultScreen() {
     product &&
     !!product.catalog &&
     !isUnknownBarcode(product.barcode) &&
-    (!productImageUri(product.imageBase64) || isAdmin);
+    (!productImageUri(product.imageUrl) || isAdmin);
 
   const canFavorite =
     !!user &&
+    !!product?.catalog &&
+    product.id > 0 &&
+    (product.catalog === 'glutenfri' || product.catalog === 'gluten');
+
+  const canReportWrongInfo =
+    state === 'found' &&
     !!product?.catalog &&
     product.id > 0 &&
     (product.catalog === 'glutenfri' || product.catalog === 'gluten');
@@ -255,9 +263,9 @@ export default function ResultScreen() {
 
       {state === 'found' && product && (
         <View style={[styles.productCard, { backgroundColor: colors.background }]}>
-          {!!productImageUri(product.imageBase64) && (
+          {!!productImageUri(product.imageUrl) && (
             <Image
-              source={{ uri: productImageUri(product.imageBase64)! }}
+              source={{ uri: productImageUri(product.imageUrl)! }}
               style={[styles.productImage, { backgroundColor: colors.surface }]}
               resizeMode="contain"
               accessibilityLabel={`${product.name} ${t('result.productImageA11y')}`}
@@ -268,8 +276,27 @@ export default function ResultScreen() {
               {product.produsent.trim()}
             </Text>
           ) : null}
-          <Text style={[styles.productName, { color: colors.text }]}>{product.name}</Text>
-          <GlutenBadge rating={product.glutenRating} size="large" />
+          <Text style={[styles.productName, { color: colors.text }]}>
+            {product.name}
+          </Text>
+          <View style={styles.statusRow}>
+            <GlutenBadge rating={product.glutenRating} size="large" />
+            {canReportWrongInfo ? (
+              <Pressable
+                style={styles.wrongInfoButton}
+                onPress={() => setWrongInfoOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={t('result.reportWrongInfo')}
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons
+                  name="bullhorn-outline"
+                  size={28}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
+            ) : null}
+          </View>
 
           {canFavorite ? (
             <>
@@ -401,7 +428,7 @@ export default function ResultScreen() {
                   >
                     {t('result.photoOptional')}
                   </Text>
-                  {productImageUri(product.imageBase64) && !isAdmin ? (
+                  {productImageUri(product.imageUrl) && !isAdmin ? (
                     <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
                       {t('result.photoLocked')}
                     </Text>
@@ -566,6 +593,16 @@ export default function ResultScreen() {
               </Text>
             </Pressable>
           )}
+
+          {reportFeedback && !showReportForm && !showPhotoSubmit ? (
+            reportFeedback.kind === 'error' ? (
+              <ErrorText style={styles.reportMessage}>{reportFeedback.text}</ErrorText>
+            ) : (
+              <Text style={[styles.reportMessage, { color: colors.primary }]}>
+                {reportFeedback.text}
+              </Text>
+            )
+          ) : null}
         </View>
       )}
 
@@ -608,6 +645,22 @@ export default function ResultScreen() {
             : null
         }
         onClose={() => setListPickerOpen(false)}
+      />
+      <ReportWrongInfoModal
+        visible={wrongInfoOpen}
+        product={
+          product?.catalog === 'glutenfri' || product?.catalog === 'gluten'
+            ? { catalog: product.catalog, id: product.id }
+            : null
+        }
+        productName={product?.name}
+        onClose={() => setWrongInfoOpen(false)}
+        onSubmitted={() =>
+          setReportFeedback({
+            kind: 'success',
+            text: t('result.wrongInfoSent'),
+          })
+        }
       />
     </ScrollView>
   );
@@ -657,6 +710,16 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     marginBottom: 12,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    alignSelf: 'stretch',
+  },
+  wrongInfoButton: {
+    padding: 4,
+    marginLeft: 'auto',
   },
   produsent: {
     fontSize: 14,

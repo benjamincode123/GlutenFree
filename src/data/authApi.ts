@@ -17,7 +17,7 @@ export interface AuthUser {
   xp: number;
   isAdmin: boolean;
   publicUser: boolean;
-  profileImageBase64?: string | null;
+  profileImageUrl?: string | null;
   favorites: FavoriteProductRef[];
 }
 
@@ -282,7 +282,7 @@ export async function removeFavorite(
 function normalizeAuthUser(raw: AuthUser): AuthUser {
   return {
     ...raw,
-    profileImageBase64: raw.profileImageBase64 ?? null,
+    profileImageUrl: raw.profileImageUrl ?? null,
     favorites: Array.isArray(raw.favorites) ? raw.favorites : [],
   };
 }

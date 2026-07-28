@@ -133,7 +133,7 @@ export default function AddProductScreen() {
           setProdusent(existing.produsent ?? '');
           setIngredients(existing.ingredients ?? '');
           setRating(existing.glutenRating);
-          setSubmissionImageBase64(existing.imageBase64?.trim() || null);
+          setSubmissionImageBase64(existing.imageUrl?.trim() || null);
           setIsEditing(true);
           if (existing.id > 0 && existing.catalog) {
             setEditingId(existing.id);
@@ -200,7 +200,7 @@ export default function AddProductScreen() {
         selectedLink.catalog,
         selectedLink.id,
         scanned,
-        selectedLink.imageBase64?.trim() && !isAdmin ? null : reportImageBase64
+        selectedLink.imageUrl?.trim() && !isAdmin ? null : reportImageBase64
       );
       if (updated.pending) {
         Alert.alert(
@@ -485,7 +485,7 @@ export default function AddProductScreen() {
                       ]}
                       onPress={() => {
                         setSelectedLink(item);
-                        if (item.imageBase64?.trim() && !isAdmin) {
+                        if (item.imageUrl?.trim() && !isAdmin) {
                           setReportImageBase64(null);
                         }
                       }}
@@ -524,7 +524,7 @@ export default function AddProductScreen() {
                 <Text style={[styles.linkPhotoLabel, { color: colors.textSecondary }]}>
                   {t('add.photoOptional')}
                 </Text>
-                {selectedLink?.imageBase64?.trim() && !isAdmin ? (
+                {selectedLink?.imageUrl?.trim() && !isAdmin ? (
                   <Text style={[styles.linkEmpty, { color: colors.textSecondary }]}>
                     {t('add.photoLocked')}
                   </Text>

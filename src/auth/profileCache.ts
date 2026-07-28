@@ -23,7 +23,7 @@ export async function saveCachedUser(user: AuthUser): Promise<void> {
   // Never persist large profile photos in SecureStore (platform size limits).
   const forDisk: AuthUser = {
     ...user,
-    profileImageBase64: null,
+    profileImageUrl: null,
     favorites: Array.isArray(user.favorites) ? user.favorites : [],
   };
   memoryUser = user;
@@ -46,7 +46,7 @@ export async function loadCachedUser(): Promise<AuthUser | null> {
     const parsed = JSON.parse(raw) as AuthUser;
     memoryUser = {
       ...parsed,
-      profileImageBase64: parsed.profileImageBase64 ?? null,
+      profileImageUrl: parsed.profileImageUrl ?? null,
       favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
     };
     return memoryUser;

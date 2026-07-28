@@ -50,8 +50,8 @@ function historyReasonKey(reason: string): TranslationKey {
   return 'profile.xpReasonOther';
 }
 
-function profileImageUri(imageBase64: string | null | undefined): string | null {
-  const raw = (imageBase64 ?? '').trim();
+function profileImageUri(imageUrl: string | null | undefined): string | null {
+  const raw = (imageUrl ?? '').trim();
   if (!raw) return null;
   if (raw.startsWith('data:image/')) return raw;
   if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
@@ -191,7 +191,7 @@ export default function UserScreen() {
   const toNext = xpProfile?.xpToNextLevel ?? 0;
   const isMaxXpLevel = xpProfile != null && (xpLevel >= 99 || toNext <= 0 && progress >= 1);
   const history = xpProfile?.history ?? [];
-  const avatarUri = profileImageUri(user?.profileImageBase64);
+  const avatarUri = profileImageUri(user?.profileImageUrl);
 
   function renderHistoryReason(item: XpHistoryItem): string {
     const detail = item.detail?.trim()

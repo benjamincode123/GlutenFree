@@ -79,8 +79,8 @@ export interface Product {
   catalog?: ProductCatalog;
   /** True when queued for admin review (not in live catalog yet). */
   pending?: boolean;
-  /** Optional product image as base64 (may include data-URI prefix). */
-  imageBase64?: string | null;
+  /** Product image URL (or legacy data-URI / base64). */
+  imageUrl?: string | null;
 }
 
 export function isUnknownBarcode(barcode: string | null | undefined): boolean {

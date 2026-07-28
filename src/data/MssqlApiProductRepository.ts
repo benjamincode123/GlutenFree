@@ -21,7 +21,7 @@ interface ProductApiResponse {
   updatedAt: string;
   catalog?: string;
   pending?: boolean;
-  imageBase64?: string | null;
+  imageUrl?: string | null;
 }
 
 function mapCatalog(value: string | undefined): ProductCatalog | undefined {
@@ -44,7 +44,7 @@ function mapProduct(data: ProductApiResponse): Product {
     updatedAt: data.updatedAt,
     catalog: mapCatalog(data.catalog),
     pending: data.pending === true,
-    imageBase64: data.imageBase64 ?? null,
+    imageUrl: data.imageUrl ?? null,
   };
 }
 
@@ -256,5 +256,40 @@ export class MssqlApiProductRepository implements ProductRepository {
       return { pending: true };
     }
     return { pending: false, product: mapProduct(data) };
+  }
+
+  async reportWrongInfo(
+    catalog: ProductCatalog,
+    id: number,
+    emne: string,
+    comment: string
+  ): Promise<void> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new AppError('unauthorized');
+    }
+
+    const response = await this.request(
+      this.productsUrl(
+        `/${encodeURIComponent(catalog)}/${id}/wrong-info-reports`
+      ),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          emne: emne.trim(),
+          comment: comment.trim(),
+        }),
+      },
+      'report_failed'
+    );
+
+    if (!response.ok) {
+      await this.throwHttpError(response, 'report_failed');
+    }
   }
 }

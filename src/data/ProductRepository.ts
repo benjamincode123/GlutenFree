@@ -43,9 +43,13 @@ export interface ProductRepository {
    * Submit a product photo for admin validation (non-admin), or apply it
    * immediately when the caller is an admin.
    */
-  submitProductImage(
+  /**
+   * Report that product catalog info is wrong (requires auth on API).
+   */
+  reportWrongInfo(
     catalog: ProductCatalog,
     id: number,
-    imageBase64: string
-  ): Promise<{ pending: boolean; product?: Product }>;
+    emne: string,
+    comment: string
+  ): Promise<void>;
 }

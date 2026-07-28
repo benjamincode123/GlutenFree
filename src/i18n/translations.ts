@@ -16,6 +16,7 @@ type TranslationKey =
   | 'common.member'
   | 'common.level'
   | 'common.back'
+  | 'common.close'
   | 'common.saving'
   | 'common.cancel'
   | 'common.delete'
@@ -150,8 +151,17 @@ type TranslationKey =
   | 'admin.empty'
   | 'admin.tabProducts'
   | 'admin.tabImages'
+  | 'admin.tabWrongInfo'
   | 'admin.imagesSubtitle'
+  | 'admin.wrongInfoSubtitle'
   | 'admin.imagesEmpty'
+  | 'admin.wrongInfoEmpty'
+  | 'admin.wrongInfoEmne'
+  | 'admin.wrongInfoComment'
+  | 'admin.wrongInfoProductMissing'
+  | 'admin.wrongInfoEditHint'
+  | 'admin.saveAndResolve'
+  | 'admin.dismiss'
   | 'admin.catalog'
   | 'admin.name'
   | 'admin.produsent'
@@ -227,6 +237,16 @@ type TranslationKey =
   | 'result.ingredients'
   | 'result.noIngredients'
   | 'result.reportBarcode'
+  | 'result.reportWrongInfo'
+  | 'result.signInToReportWrongInfo'
+  | 'result.wrongInfoEmne'
+  | 'result.wrongInfoEmnePlaceholder'
+  | 'result.wrongInfoComment'
+  | 'result.wrongInfoCommentPlaceholder'
+  | 'result.wrongInfoSubmit'
+  | 'result.wrongInfoEmneShort'
+  | 'result.wrongInfoCommentShort'
+  | 'result.wrongInfoSent'
   | 'result.reportHint'
   | 'result.signInToReport'
   | 'result.enterBarcode'
@@ -330,6 +350,7 @@ const en: Record<TranslationKey, string> = {
   'common.member': 'Member',
   'common.level': 'Level',
   'common.back': 'Back',
+  'common.close': 'Close',
   'common.saving': 'Saving...',
   'common.cancel': 'Cancel',
   'common.delete': 'Delete',
@@ -469,9 +490,19 @@ const en: Record<TranslationKey, string> = {
   'admin.empty': 'No pending product submissions.',
   'admin.tabProducts': 'Products',
   'admin.tabImages': 'Images',
+  'admin.tabWrongInfo': 'Reports',
   'admin.imagesSubtitle':
     'Review user-submitted product photos. Approve sets the image on the catalog product.',
+  'admin.wrongInfoSubtitle':
+    'Review wrong-info reports. Edit the product below, then save & resolve — or dismiss.',
   'admin.imagesEmpty': 'No pending product images.',
+  'admin.wrongInfoEmpty': 'No pending wrong-info reports.',
+  'admin.wrongInfoEmne': 'Subject',
+  'admin.wrongInfoComment': 'Explanation',
+  'admin.wrongInfoProductMissing': 'Linked product was not found in the catalog.',
+  'admin.wrongInfoEditHint': 'Edit the product fields below, then save & resolve.',
+  'admin.saveAndResolve': 'Save & resolve',
+  'admin.dismiss': 'Dismiss',
   'admin.catalog': 'Catalog',
   'admin.name': 'Name',
   'admin.produsent': 'Producer',
@@ -550,6 +581,16 @@ const en: Record<TranslationKey, string> = {
   'result.ingredients': 'Ingredients',
   'result.noIngredients': 'No ingredients recorded.',
   'result.reportBarcode': 'Report barcode',
+  'result.reportWrongInfo': 'Report wrong info',
+  'result.signInToReportWrongInfo': 'Sign in to report wrong product information.',
+  'result.wrongInfoEmne': 'Subject',
+  'result.wrongInfoEmnePlaceholder': 'e.g. Wrong gluten status',
+  'result.wrongInfoComment': 'Explanation',
+  'result.wrongInfoCommentPlaceholder': 'Describe what is wrong…',
+  'result.wrongInfoSubmit': 'Send report',
+  'result.wrongInfoEmneShort': 'Subject must be at least 3 characters.',
+  'result.wrongInfoCommentShort': 'Explanation must be at least 5 characters.',
+  'result.wrongInfoSent': 'Thanks — your report was sent.',
   'result.reportHint':
     'This product is missing a barcode. Enter the code below or scan the barcode so we can find the product next time.',
   'result.signInToReport': 'Sign in to report a barcode for this product.',
@@ -667,6 +708,7 @@ const nb: Record<TranslationKey, string> = {
   'common.member': 'Medlem',
   'common.level': 'Nivå',
   'common.back': 'Tilbake',
+  'common.close': 'Lukk',
   'common.saving': 'Lagrer...',
   'common.cancel': 'Avbryt',
   'common.delete': 'Slett',
@@ -806,9 +848,19 @@ const nb: Record<TranslationKey, string> = {
   'admin.empty': 'Ingen ventende produktforslag.',
   'admin.tabProducts': 'Produkter',
   'admin.tabImages': 'Bilder',
+  'admin.tabWrongInfo': 'Rapporter',
   'admin.imagesSubtitle':
     'Gå gjennom brukerinnsente produktbilder. Godkjenn for å sette bildet på produktet i katalogen.',
+  'admin.wrongInfoSubtitle':
+    'Gå gjennom feil-info-rapporter. Rediger produktet nedenfor, lagre og løs — eller avvis.',
   'admin.imagesEmpty': 'Ingen ventende produktbilder.',
+  'admin.wrongInfoEmpty': 'Ingen ventende feil-info-rapporter.',
+  'admin.wrongInfoEmne': 'Emne',
+  'admin.wrongInfoComment': 'Forklaring',
+  'admin.wrongInfoProductMissing': 'Koblet produkt ble ikke funnet i katalogen.',
+  'admin.wrongInfoEditHint': 'Rediger produktfeltene nedenfor, lagre og løs deretter.',
+  'admin.saveAndResolve': 'Lagre og løs',
+  'admin.dismiss': 'Avvis',
   'admin.catalog': 'Katalog',
   'admin.name': 'Navn',
   'admin.produsent': 'Produsent',
@@ -887,6 +939,16 @@ const nb: Record<TranslationKey, string> = {
   'result.ingredients': 'Ingredienser',
   'result.noIngredients': 'Ingen ingredienser registrert.',
   'result.reportBarcode': 'Rapporter strekkode',
+  'result.reportWrongInfo': 'Rapporter feil info',
+  'result.signInToReportWrongInfo': 'Logg inn for å rapportere feil produktinformasjon.',
+  'result.wrongInfoEmne': 'Emne',
+  'result.wrongInfoEmnePlaceholder': 'f.eks. Feil glutenstatus',
+  'result.wrongInfoComment': 'Forklaring',
+  'result.wrongInfoCommentPlaceholder': 'Beskriv hva som er feil…',
+  'result.wrongInfoSubmit': 'Send rapport',
+  'result.wrongInfoEmneShort': 'Emne må være minst 3 tegn.',
+  'result.wrongInfoCommentShort': 'Forklaring må være minst 5 tegn.',
+  'result.wrongInfoSent': 'Takk — rapporten er sendt.',
   'result.reportHint':
     'Dette produktet mangler strekkode. Skriv inn koden under eller skann strekkode så vi finner produktet neste gang.',
   'result.signInToReport': 'Logg inn for å rapportere strekkode for dette produktet.',

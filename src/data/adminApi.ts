@@ -12,7 +12,7 @@ export interface ProductSubmissionItem {
   produsent: string | null;
   ingredients: string | null;
   glutenRating: string;
-  imageBase64: string;
+  imageUrl: string;
   submittedByUserId: number;
   submittedByUsername: string | null;
   status: string;
@@ -111,7 +111,7 @@ export interface ProductImageValidationItem {
   catalog: string;
   productId: number;
   productName: string;
-  imageBase64: string;
+  imageUrl: string;
   submittedByUserId: number;
   submittedByUsername: string | null;
   status: string;
@@ -171,6 +171,85 @@ export async function denyImageValidation(
   let response: Response;
   try {
     response = await fetch(adminUrl(`/product-image-validations/${id}/deny`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+}
+
+export interface WrongInfoReportItem {
+  id: number;
+  catalog: string;
+  productId: number;
+  emne: string;
+  comment: string;
+  reportedByUserId: number;
+  reportedByUsername: string | null;
+  status: string;
+  createdAt: string;
+  productFound: boolean;
+  productBarcode: string | null;
+  productName: string | null;
+  productProdusent: string | null;
+  productIngredients: string | null;
+  productGlutenRating: string | null;
+}
+
+export interface WrongInfoReportList {
+  items: WrongInfoReportItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export async function fetchPendingWrongInfoReports(
+  token: string,
+  page: number
+): Promise<WrongInfoReportList> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/wrong-info-reports?page=${page}`), {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+  return (await response.json()) as WrongInfoReportList;
+}
+
+export async function resolveWrongInfoReport(
+  token: string,
+  id: number
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/wrong-info-reports/${id}/resolve`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+}
+
+export async function dismissWrongInfoReport(
+  token: string,
+  id: number
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/wrong-info-reports/${id}/dismiss`), {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });
