@@ -60,6 +60,8 @@ type TranslationKey =
   | 'settings.languageHint'
   | 'settings.norwegian'
   | 'settings.english'
+  | 'settings.allergens'
+  | 'settings.allergensHint'
   | 'settings.about'
   | 'settings.aboutBody'
   | 'settings.disclaimer'
@@ -228,12 +230,22 @@ type TranslationKey =
   | 'products.empty'
   | 'products.barcodeUnknown'
   | 'products.searchFailed'
+  | 'products.prevPage'
+  | 'products.nextPage'
+  | 'products.pageLabel'
+  | 'products.resultsProgress'
   | 'result.barcode'
   | 'result.scannedBarcode'
   | 'result.lookingUp'
   | 'result.errorTitle'
   | 'result.lookupFailed'
   | 'result.productImageA11y'
+  | 'result.country'
+  | 'result.allergenWarnTitle'
+  | 'result.allergenContains'
+  | 'result.allergenMayContain'
+  | 'result.allergenBadgeContains'
+  | 'result.allergenBadgeMayContain'
   | 'result.ingredients'
   | 'result.noIngredients'
   | 'result.reportBarcode'
@@ -310,6 +322,11 @@ type TranslationKey =
   | 'add.ingredients'
   | 'add.ingredientsPlaceholder'
   | 'add.glutenRating'
+  | 'add.allergens'
+  | 'add.allergensHint'
+  | 'add.allergenContains'
+  | 'add.allergenMayContain'
+  | 'add.allergenFree'
   | 'add.saving'
   | 'add.saveChanges'
   | 'add.saveNew'
@@ -335,7 +352,7 @@ type TranslationKey =
   | 'add.couldNotSave';
 
 const en: Record<TranslationKey, string> = {
-  'nav.scanner': 'Uten Gluten',
+  'nav.scanner': 'AltUten',
   'nav.result': 'Scan Result',
   'nav.add': 'Add Product',
   'nav.products': 'Search Products',
@@ -368,7 +385,7 @@ const en: Record<TranslationKey, string> = {
   'errors.barcodeTaken': 'This barcode is already linked to another product.',
   'errors.productHasBarcode': 'This product already has a barcode.',
   'errors.validation': 'Please check what you entered and try again.',
-  'errors.searchTooShort': 'Type at least 5 characters to search.',
+  'errors.searchTooShort': 'Type at least 4 characters to search.',
   'errors.imageInvalid': 'That photo could not be used. Try another one.',
   'errors.lookupFailed': 'Could not look up this product. Please try again.',
   'errors.searchFailed': 'Could not search right now. Please try again.',
@@ -394,9 +411,12 @@ const en: Record<TranslationKey, string> = {
   'settings.languageHint': 'Choose Norwegian or English.',
   'settings.norwegian': 'Norwegian',
   'settings.english': 'English',
+  'settings.allergens': 'Allergen warnings',
+  'settings.allergensHint':
+    'Choose allergens you want to be warned about when a product contains them or may contain them.',
   'settings.about': 'About',
   'settings.aboutBody':
-    'Uten Gluten looks up grocery barcodes in the gluten and gluten-free product catalogs.',
+    'AltUten looks up grocery barcodes in the product catalog (ingredients, allergens, and origin when available).',
   'settings.disclaimer': 'Disclaimer',
   'settings.disclaimerBody':
     'Product information may be incomplete or incorrect. We cannot take responsibility if anyone — including people with severe allergies — is harmed by relying on this app. Always check the product packaging yourself, and seek medical advice when needed.',
@@ -432,7 +452,7 @@ const en: Record<TranslationKey, string> = {
   'leaderboard.you': 'you',
   'leaderboard.anonymous': 'Anonymous',
   'profile.account': 'Account',
-  'profile.signedInApi': 'Signed in to Uten Gluten.',
+  'profile.signedInApi': 'Signed in to AltUten.',
   'profile.localMode': 'Local mode — no remote account required.',
   'profile.logOut': 'Log out',
   'profile.xp': 'XP',
@@ -561,23 +581,33 @@ const en: Record<TranslationKey, string> = {
   'login.resendSms': 'Resend SMS code',
   'login.smsCodeRequired': 'Request an SMS code and enter it before creating an account.',
   'login.genericError': 'Something went wrong.',
-  'login.poweredBy': 'Powered by Uten Gluten',
+  'login.poweredBy': 'Powered by AltUten',
   'products.searchLabel': 'Search by product name',
   'products.searchPlaceholder': 'e.g. surdeigsbrød, yoghurt...',
   'products.hint':
-    'At least 5 characters. Report barcodes on products to earn points.',
+    'At least {min} characters. Report barcodes on products to earn points.',
   'products.recentTitle': 'Recent searches',
   'products.results': '{count} results',
   'products.resultOne': '1 result',
   'products.empty': 'No products matched.',
   'products.barcodeUnknown': 'Barcode: unknown',
   'products.searchFailed': 'Search failed.',
+  'products.prevPage': 'Previous',
+  'products.nextPage': 'Next',
+  'products.pageLabel': 'Page {page} / {totalPages}',
+  'products.resultsProgress': '{shown} / {total}',
   'result.barcode': 'Barcode',
   'result.scannedBarcode': 'Scanned barcode',
   'result.lookingUp': 'Looking up product...',
   'result.errorTitle': 'Something went wrong',
   'result.lookupFailed': 'Lookup failed.',
   'result.productImageA11y': 'product image',
+  'result.country': 'Country of origin',
+  'result.allergenWarnTitle': 'Allergen warning',
+  'result.allergenContains': 'Contains {name}',
+  'result.allergenMayContain': 'May contain {name}',
+  'result.allergenBadgeContains': 'Contains {name}',
+  'result.allergenBadgeMayContain': 'Traces of {name}',
   'result.ingredients': 'Ingredients',
   'result.noIngredients': 'No ingredients recorded.',
   'result.reportBarcode': 'Report barcode',
@@ -665,6 +695,12 @@ const en: Record<TranslationKey, string> = {
   'add.ingredientsPlaceholder':
     "List the ingredients and any 'produced in a facility that also handles wheat' notes.",
   'add.glutenRating': 'Gluten rating',
+  'add.allergens': 'Allergens',
+  'add.allergensHint':
+    'Tap allergens the product contains, and separately any that may be present as traces.',
+  'add.allergenContains': 'Contains',
+  'add.allergenMayContain': 'Traces of',
+  'add.allergenFree': 'Free',
   'add.saving': 'Saving...',
   'add.saveChanges': 'Save changes',
   'add.saveNew': 'Save new product',
@@ -693,7 +729,7 @@ const en: Record<TranslationKey, string> = {
 };
 
 const nb: Record<TranslationKey, string> = {
-  'nav.scanner': 'Uten Gluten',
+  'nav.scanner': 'AltUten',
   'nav.result': 'Skanneresultat',
   'nav.add': 'Legg til produkt',
   'nav.products': 'Søk produkter',
@@ -726,7 +762,7 @@ const nb: Record<TranslationKey, string> = {
   'errors.barcodeTaken': 'Denne strekkoden er allerede linket til et annet produkt.',
   'errors.productHasBarcode': 'Dette produktet har allerede en strekkode.',
   'errors.validation': 'Sjekk det du skrev inn og prøv igjen.',
-  'errors.searchTooShort': 'Skriv minst 5 tegn for å søke.',
+  'errors.searchTooShort': 'Skriv minst 4 tegn for å søke.',
   'errors.imageInvalid': 'Bildet kunne ikke brukes. Prøv et annet.',
   'errors.lookupFailed': 'Kunne ikke slå opp dette produktet. Prøv igjen.',
   'errors.searchFailed': 'Kunne ikke søke akkurat nå. Prøv igjen.',
@@ -752,9 +788,12 @@ const nb: Record<TranslationKey, string> = {
   'settings.languageHint': 'Velg norsk eller engelsk.',
   'settings.norwegian': 'Norsk',
   'settings.english': 'Engelsk',
+  'settings.allergens': 'Allergenvarsler',
+  'settings.allergensHint':
+    'Velg allergener du vil bli advart om når et produkt inneholder dem eller kan inneholde dem.',
   'settings.about': 'Om',
   'settings.aboutBody':
-    'Uten Gluten slår opp strekkoder i gluten- og glutenfrie produktkataloger.',
+    'AltUten slår opp strekkoder i produktkatalogen (ingredienser, allergener og opprinnelsesland når det er tilgjengelig).',
   'settings.disclaimer': 'Ansvarsfraskrivelse',
   'settings.disclaimerBody':
     'Produktinformasjon kan være ufullstendig eller feil. Vi kan ikke ta ansvar hvis noen — også personer med alvorlige allergier — blir skadet av å stole på denne appen. Sjekk alltid emballasjen selv, og søk medisinsk råd ved behov.',
@@ -790,7 +829,7 @@ const nb: Record<TranslationKey, string> = {
   'leaderboard.you': 'deg',
   'leaderboard.anonymous': 'Anonym',
   'profile.account': 'Konto',
-  'profile.signedInApi': 'Innlogget i Uten Gluten.',
+  'profile.signedInApi': 'Innlogget i AltUten.',
   'profile.localMode': 'Lokal modus — ingen ekstern konto kreves.',
   'profile.logOut': 'Logg ut',
   'profile.xp': 'XP',
@@ -919,23 +958,33 @@ const nb: Record<TranslationKey, string> = {
   'login.resendSms': 'Send SMS-kode på nytt',
   'login.smsCodeRequired': 'Be om SMS-kode og skriv den inn før du oppretter konto.',
   'login.genericError': 'Noe gikk galt.',
-  'login.poweredBy': 'Powered by Uten Gluten',
+  'login.poweredBy': 'Powered by AltUten',
   'products.searchLabel': 'Søk etter produktnavn',
   'products.searchPlaceholder': 'f.eks. surdeigsbrød, yoghurt...',
   'products.hint':
-    'Minst 5 tegn, rapporter strekkoder på produkter for å tjene poeng',
+    'Minst {min} tegn. Rapporter strekkoder på produkter for å tjene poeng.',
   'products.recentTitle': 'Siste søk',
   'products.results': '{count} resultater',
   'products.resultOne': '1 resultat',
   'products.empty': 'Ingen produkter matchet.',
   'products.barcodeUnknown': 'Strekkode: ukjent',
   'products.searchFailed': 'Søk feilet.',
+  'products.prevPage': 'Forrige',
+  'products.nextPage': 'Neste',
+  'products.pageLabel': 'Side {page} / {totalPages}',
+  'products.resultsProgress': '{shown} / {total}',
   'result.barcode': 'Strekkode',
   'result.scannedBarcode': 'Skannet strekkode',
   'result.lookingUp': 'Slår opp produkt...',
   'result.errorTitle': 'Noe gikk galt',
   'result.lookupFailed': 'Oppslag feilet.',
   'result.productImageA11y': 'produktbilde',
+  'result.country': 'Opprinnelsesland',
+  'result.allergenWarnTitle': 'Allergenvarsel',
+  'result.allergenContains': 'Inneholder {name}',
+  'result.allergenMayContain': 'Kan inneholde {name}',
+  'result.allergenBadgeContains': 'Med {name}',
+  'result.allergenBadgeMayContain': 'Spor av {name}',
   'result.ingredients': 'Ingredienser',
   'result.noIngredients': 'Ingen ingredienser registrert.',
   'result.reportBarcode': 'Rapporter strekkode',
@@ -1023,6 +1072,12 @@ const nb: Record<TranslationKey, string> = {
   'add.ingredientsPlaceholder':
     'List opp ingrediensene og eventuelle merknader om «produsert i anlegg som også håndterer hvete».',
   'add.glutenRating': 'Glutenstatus',
+  'add.allergens': 'Allergener',
+  'add.allergensHint':
+    'Trykk på allergenene produktet inneholder, og separat de som kan finnes som spor.',
+  'add.allergenContains': 'Inneholder',
+  'add.allergenMayContain': 'Spor av',
+  'add.allergenFree': 'Fri',
   'add.saving': 'Lagrer...',
   'add.saveChanges': 'Lagre endringer',
   'add.saveNew': 'Lagre nytt produkt',

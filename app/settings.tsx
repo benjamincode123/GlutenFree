@@ -3,6 +3,8 @@ import { useNavigation } from 'expo-router';
 import { useLayoutEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { ALLERGEN_OPTIONS } from '../src/allergens/allergenPrefs';
+import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { SmoothSwitch } from '../src/components/SmoothSwitch';
 import { useI18n } from '../src/i18n/I18nContext';
 import { useTheme } from '../src/theme/ThemeContext';
@@ -11,6 +13,7 @@ export default function SettingsScreen() {
   const navigation = useNavigation();
   const { colors, isDark, setMode } = useTheme();
   const { t, locale, setLocale } = useI18n();
+  const { isSelected, toggle } = useAllergenPrefs();
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: t('nav.settings') });
@@ -82,6 +85,57 @@ export default function SettingsScreen() {
             onPress={() => setLocale('en')}
             colors={colors}
           />
+        </View>
+      </View>
+
+      <View
+        style={[
+          styles.section,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons
+            name="food-allergy"
+            size={22}
+            color={colors.primary}
+          />
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            {t('settings.allergens')}
+          </Text>
+        </View>
+        <Text style={[styles.sectionBody, styles.allergenHint, { color: colors.textSecondary }]}>
+          {t('settings.allergensHint')}
+        </Text>
+        <View style={styles.allergenWrap}>
+          {ALLERGEN_OPTIONS.map((allergen) => {
+            const active = isSelected(allergen);
+            return (
+              <Pressable
+                key={allergen}
+                onPress={() => toggle(allergen)}
+                style={[
+                  styles.allergenChip,
+                  {
+                    borderColor: active ? colors.primary : colors.border,
+                    backgroundColor: active ? colors.primary : colors.background,
+                  },
+                ]}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: active }}
+                accessibilityLabel={allergen}
+              >
+                <Text
+                  style={[
+                    styles.allergenChipText,
+                    { color: active ? colors.onPrimary : colors.text },
+                  ]}
+                >
+                  {allergen}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
@@ -253,5 +307,24 @@ const styles = StyleSheet.create({
   langChipText: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  allergenHint: {
+    marginBottom: 4,
+  },
+  allergenWrap: {
+    marginTop: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  allergenChip: {
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  allergenChipText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

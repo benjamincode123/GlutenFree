@@ -17,10 +17,12 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useAuth } from '../src/auth/AuthContext';
+import { findAllergenWarnings } from '../src/allergens/allergenPrefs';
+import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
 import { AddToListModal } from '../src/components/AddToListModal';
 import { ErrorText } from '../src/components/ErrorText';
-import { GlutenBadge } from '../src/components/GlutenBadge';
+import { AllergenBadge } from '../src/components/AllergenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ReportWrongInfoModal } from '../src/components/ReportWrongInfoModal';
 import { getProductRepository } from '../src/data/repository';
@@ -37,8 +39,14 @@ import { useTheme } from '../src/theme/ThemeContext';
 type LoadState = 'loading' | 'found' | 'not_found' | 'error';
 
 function parseCatalog(value: string | undefined): ProductCatalog | null {
-  if (value === 'glutenfri' || value === 'gluten') return value;
+  if (value === 'products' || value === 'glutenfri' || value === 'gluten') {
+    return value;
+  }
   return null;
+}
+
+function isCatalogProduct(catalog: ProductCatalog | undefined): boolean {
+  return catalog === 'products' || catalog === 'glutenfri' || catalog === 'gluten';
 }
 
 function productImageUri(imageUrl: string | null | undefined): string | null {
@@ -55,6 +63,7 @@ export default function ResultScreen() {
   const { user, isAdmin, addFavorite, removeFavorite } = useAuth();
   const { t } = useI18n();
   const { colors } = useTheme();
+  const { selected: warnAllergens } = useAllergenPrefs();
   const params = useLocalSearchParams<{
     barcode?: string;
     id?: string;
@@ -197,13 +206,15 @@ export default function ResultScreen() {
     !!user &&
     !!product?.catalog &&
     product.id > 0 &&
-    (product.catalog === 'glutenfri' || product.catalog === 'gluten');
+    isCatalogProduct(product.catalog);
 
   const canReportWrongInfo =
     state === 'found' &&
     !!product?.catalog &&
     product.id > 0 &&
-    (product.catalog === 'glutenfri' || product.catalog === 'gluten');
+    isCatalogProduct(product.catalog);
+
+  const allergenWarnings = findAllergenWarnings(warnAllergens, product?.allergens);
 
   const isFavorite =
     canFavorite &&
@@ -279,8 +290,23 @@ export default function ResultScreen() {
           <Text style={[styles.productName, { color: colors.text }]}>
             {product.name}
           </Text>
+          {product.productionCountry?.trim() ? (
+            <Text style={[styles.country, { color: colors.textSecondary }]}>
+              {t('result.country')}: {product.productionCountry.trim()}
+            </Text>
+          ) : null}
+
           <View style={styles.statusRow}>
-            <GlutenBadge rating={product.glutenRating} size="large" />
+            <View style={styles.badgeWrap}>
+              {allergenWarnings.map((hit) => (
+                <AllergenBadge
+                  key={`${hit.kind}-${hit.selected}`}
+                  name={hit.selected}
+                  kind={hit.kind}
+                  size="large"
+                />
+              ))}
+            </View>
             {canReportWrongInfo ? (
               <Pressable
                 style={styles.wrongInfoButton}
@@ -640,8 +666,8 @@ export default function ResultScreen() {
       <AddToListModal
         visible={listPickerOpen}
         product={
-          product?.catalog === 'glutenfri' || product?.catalog === 'gluten'
-            ? { catalog: product.catalog, id: product.id }
+          isCatalogProduct(product?.catalog)
+            ? { catalog: product!.catalog!, id: product!.id }
             : null
         }
         onClose={() => setListPickerOpen(false)}
@@ -649,8 +675,8 @@ export default function ResultScreen() {
       <ReportWrongInfoModal
         visible={wrongInfoOpen}
         product={
-          product?.catalog === 'glutenfri' || product?.catalog === 'gluten'
-            ? { catalog: product.catalog, id: product.id }
+          isCatalogProduct(product?.catalog)
+            ? { catalog: product!.catalog!, id: product!.id }
             : null
         }
         productName={product?.name}
@@ -713,9 +739,17 @@ const styles = StyleSheet.create({
   },
   statusRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     alignSelf: 'stretch',
+    gap: 8,
+  },
+  badgeWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
   },
   wrongInfoButton: {
     padding: 4,
@@ -725,6 +759,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
+  },
+  country: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 12,
   },
   favoriteButton: {
     marginTop: 16,

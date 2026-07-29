@@ -6,7 +6,7 @@ import {
 } from '../errors/appError';
 
 export interface FavoriteProductRef {
-  catalog: 'glutenfri' | 'gluten';
+  catalog: 'products' | 'glutenfri' | 'gluten';
   id: number;
 }
 

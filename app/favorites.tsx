@@ -220,6 +220,14 @@ export default function FavoritesScreen() {
                   {item.product?.name?.trim() ||
                     `${item.ref.catalog} #${item.ref.id}`}
                 </Text>
+                {item.product?.productionCountry?.trim() ? (
+                  <Text
+                    style={[styles.produsent, { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                  >
+                    {item.product.productionCountry.trim()}
+                  </Text>
+                ) : null}
                 {item.product ? (
                   <View style={styles.badgeWrap}>
                     <GlutenBadge rating={item.product.glutenRating} size="small" />

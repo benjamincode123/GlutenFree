@@ -1,5 +1,15 @@
 import { NewProduct, Product, ProductCatalog } from '../db/types';
 
+/** Paginated product name search result. */
+export interface ProductSearchPage {
+  items: Product[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+  /** Total matches; null when API skipped count (reuse cached value from page 1). */
+  totalCount: number | null;
+}
+
 /**
  * Abstraction over product storage. Screens depend only on this interface, so
  * the SQLite backend can be replaced with an MSSQL-backed API client later
@@ -12,12 +22,12 @@ export interface ProductRepository {
   /** Returns a product by catalog table + id (needed when barcode is unknown). */
   getById(catalog: ProductCatalog, id: number): Promise<Product | null>;
 
-  /** Search products by name (case-insensitive contains). */
+  /** Search products by name (case-insensitive contains), paginated. */
   searchByName(
     query: string,
     limit?: number,
-    options?: { unknownOnly?: boolean }
-  ): Promise<Product[]>;
+    options?: { unknownOnly?: boolean; page?: number }
+  ): Promise<ProductSearchPage>;
 
   /** Returns all products, most recently updated first. */
   getAll(): Promise<Product[]>;
@@ -39,10 +49,6 @@ export interface ProductRepository {
     imageBase64?: string | null
   ): Promise<Product>;
 
-  /**
-   * Submit a product photo for admin validation (non-admin), or apply it
-   * immediately when the caller is an admin.
-   */
   /**
    * Report that product catalog info is wrong (requires auth on API).
    */

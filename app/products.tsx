@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../src/auth/AuthContext';
+import { findAllergenWarnings } from '../src/allergens/allergenPrefs';
+import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { AddToListModal } from '../src/components/AddToListModal';
+import { AllergenBadge } from '../src/components/AllergenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
-import { GlutenBadge } from '../src/components/GlutenBadge';
 import { ErrorText } from '../src/components/ErrorText';
 import type { FavoriteProductRef } from '../src/data/authApi';
 import {
@@ -21,7 +23,10 @@ import {
   pushProductSearchHistory,
 } from '../src/data/productSearchHistory';
 import { getProductRepository } from '../src/data/repository';
-import { MIN_PRODUCT_SEARCH_CHARS } from '../src/data/searchLimits';
+import {
+  MIN_PRODUCT_SEARCH_CHARS,
+  PRODUCT_SEARCH_PAGE_SIZE,
+} from '../src/data/searchLimits';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
 import { isUnknownBarcode, Product, ProductCatalog } from '../src/db/types';
@@ -31,7 +36,9 @@ function canFavoriteProduct(item: Product): item is Product & { catalog: Product
   return (
     !!item.catalog &&
     item.id > 0 &&
-    (item.catalog === 'glutenfri' || item.catalog === 'gluten')
+    (item.catalog === 'products' ||
+      item.catalog === 'glutenfri' ||
+      item.catalog === 'gluten')
   );
 }
 
@@ -41,7 +48,11 @@ export default function ProductsScreen() {
   const { user, addFavorite, removeFavorite } = useAuth();
   const { t, tf } = useI18n();
   const { colors } = useTheme();
+  const { selected: warnAllergens } = useAllergenPrefs();
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,10 +70,12 @@ export default function ProductsScreen() {
   }, []);
 
   const runSearch = useCallback(
-    async (term: string) => {
+    async (term: string, pageNumber: number) => {
       const trimmed = term.trim();
       if (trimmed.length < MIN_PRODUCT_SEARCH_CHARS) {
         setProducts([]);
+        setHasMore(false);
+        setTotalCount(0);
         setError(null);
         setLoading(false);
         return;
@@ -71,12 +84,24 @@ export default function ProductsScreen() {
       setLoading(true);
       setError(null);
       try {
-        const rows = await getProductRepository().searchByName(trimmed, 50);
-        setProducts(rows);
-        const next = await pushProductSearchHistory(trimmed);
-        setRecentSearches(next);
+        const result = await getProductRepository().searchByName(
+          trimmed,
+          PRODUCT_SEARCH_PAGE_SIZE,
+          { page: pageNumber }
+        );
+        setProducts(result.items);
+        if (result.totalCount != null) {
+          setTotalCount(result.totalCount);
+        }
+        setHasMore(result.hasMore);
+        if (pageNumber === 1) {
+          const next = await pushProductSearchHistory(trimmed);
+          setRecentSearches(next);
+        }
       } catch (err) {
         setProducts([]);
+        setHasMore(false);
+        setTotalCount(0);
         setError(userFacingError(err, t, 'search_failed'));
       } finally {
         setLoading(false);
@@ -87,10 +112,10 @@ export default function ProductsScreen() {
 
   useEffect(() => {
     const handle = setTimeout(() => {
-      void runSearch(query);
+      void runSearch(query, page);
     }, 300);
     return () => clearTimeout(handle);
-  }, [query, runSearch]);
+  }, [query, page, runSearch]);
 
   const openProduct = (item: Product) => {
     if (item.catalog && (isUnknownBarcode(item.barcode) || item.id > 0)) {
@@ -108,6 +133,8 @@ export default function ProductsScreen() {
   };
 
   const openRecentSearch = (term: string) => {
+    setPage(1);
+    setTotalCount(0);
     setQuery(term);
   };
 
@@ -126,6 +153,14 @@ export default function ProductsScreen() {
       void addFavorite(ref);
     }
   };
+
+  const showPager = queryReady && !loading && !error && (page > 1 || hasMore || products.length > 0);
+  const shownThrough = products.length === 0 ? 0 : (page - 1) * PRODUCT_SEARCH_PAGE_SIZE + products.length;
+  const totalPages = Math.max(1, Math.ceil(Math.max(totalCount, 1) / PRODUCT_SEARCH_PAGE_SIZE));
+  const canGoNext =
+    totalCount > 0
+      ? page * PRODUCT_SEARCH_PAGE_SIZE < totalCount
+      : hasMore;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
@@ -153,14 +188,18 @@ export default function ProductsScreen() {
           placeholder={t('products.searchPlaceholder')}
           placeholderTextColor={colors.textSecondary}
           value={query}
-          onChangeText={setQuery}
+          onChangeText={(text) => {
+            setPage(1);
+            setTotalCount(0);
+            setQuery(text);
+          }}
           autoCorrect={false}
           autoCapitalize="none"
           clearButtonMode="while-editing"
           returnKeyType="search"
         />
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          {t('products.hint')}
+          {tf('products.hint', { min: String(MIN_PRODUCT_SEARCH_CHARS) })}
         </Text>
       </View>
 
@@ -204,11 +243,80 @@ export default function ProductsScreen() {
           keyExtractor={(item) => `${item.catalog ?? 'x'}-${item.id}-${item.barcode}`}
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
-            <Text style={[styles.countText, { color: colors.textSecondary }]}>
-              {products.length === 1
-                ? t('products.resultOne')
-                : tf('products.results', { count: products.length })}
-            </Text>
+            <View style={styles.countRow}>
+              <Text style={[styles.countText, { color: colors.textSecondary }]}>
+                {tf('products.resultsProgress', {
+                  shown: String(shownThrough),
+                  total: String(totalCount),
+                })}
+              </Text>
+              {totalCount > 0 ? (
+                <Text style={[styles.countText, { color: colors.textSecondary }]}>
+                  {tf('products.pageLabel', {
+                    page: String(page),
+                    totalPages: String(totalPages),
+                  })}
+                </Text>
+              ) : null}
+            </View>
+          }
+          ListFooterComponent={
+            showPager ? (
+              <View style={styles.pager}>
+                <Pressable
+                  style={[
+                    styles.pagerButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      opacity: page <= 1 ? 0.4 : 1,
+                    },
+                  ]}
+                  disabled={page <= 1}
+                  onPress={() => setPage((p) => Math.max(1, p - 1))}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('products.prevPage')}
+                >
+                  <MaterialCommunityIcons
+                    name="chevron-left"
+                    size={22}
+                    color={colors.text}
+                  />
+                  <Text style={[styles.pagerButtonText, { color: colors.text }]}>
+                    {t('products.prevPage')}
+                  </Text>
+                </Pressable>
+                <Text style={[styles.pagerLabel, { color: colors.textSecondary }]}>
+                  {tf('products.pageLabel', {
+                    page: String(page),
+                    totalPages: String(totalPages),
+                  })}
+                </Text>
+                <Pressable
+                  style={[
+                    styles.pagerButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                      opacity: canGoNext ? 1 : 0.4,
+                    },
+                  ]}
+                  disabled={!canGoNext}
+                  onPress={() => setPage((p) => p + 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('products.nextPage')}
+                >
+                  <Text style={[styles.pagerButtonText, { color: colors.text }]}>
+                    {t('products.nextPage')}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={22}
+                    color={colors.text}
+                  />
+                </Pressable>
+              </View>
+            ) : null
           }
           ListEmptyComponent={
             <View style={styles.emptyBlock}>
@@ -220,29 +328,47 @@ export default function ProductsScreen() {
           renderItem={({ item }) => {
             const favorited = isFavorite(item);
             const showActions = !!user && canFavoriteProduct(item);
+            const warnings = findAllergenWarnings(warnAllergens, item.allergens);
             return (
               <Pressable
                 style={[styles.row, { backgroundColor: colors.background }]}
                 onPress={() => openProduct(item)}
               >
-                <View style={styles.rowLine}>
-                  <View style={styles.rowMain}>
-                    {item.produsent?.trim() ? (
-                      <Text
-                        style={[styles.produsent, { color: colors.textSecondary }]}
-                        numberOfLines={1}
-                      >
-                        {item.produsent.trim()}
-                      </Text>
-                    ) : null}
+                <View style={styles.rowMain}>
+                  {item.produsent?.trim() ? (
                     <Text
-                      style={[styles.name, { color: colors.text }]}
-                      numberOfLines={2}
+                      style={[styles.produsent, { color: colors.textSecondary }]}
+                      numberOfLines={1}
                     >
-                      {item.name}
+                      {item.produsent.trim()}
                     </Text>
-                  </View>
-                  <GlutenBadge rating={item.glutenRating} />
+                  ) : null}
+                  <Text
+                    style={[styles.name, { color: colors.text }]}
+                    numberOfLines={2}
+                  >
+                    {item.name}
+                  </Text>
+                  {item.productionCountry?.trim() ? (
+                    <Text
+                      style={[styles.country, { color: colors.textSecondary }]}
+                      numberOfLines={1}
+                    >
+                      {item.productionCountry.trim()}
+                    </Text>
+                  ) : null}
+                  {warnings.length > 0 ? (
+                    <View style={styles.badgeWrap}>
+                      {warnings.map((hit) => (
+                        <AllergenBadge
+                          key={`${hit.kind}-${hit.selected}`}
+                          name={hit.selected}
+                          kind={hit.kind}
+                          size="small"
+                        />
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
                 <View style={styles.rowLine}>
                   <Text style={[styles.barcode, { color: colors.textSecondary }]}>
@@ -339,14 +465,21 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingBottom: 28,
   },
   centered: {
     paddingVertical: 40,
     alignItems: 'center',
   },
+  countRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
   countText: {
     fontSize: 13,
-    marginBottom: 12,
     fontWeight: '600',
   },
   recentBlock: {
@@ -389,6 +522,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  country: {
+    fontSize: 12,
+  },
+  badgeWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
   actionsCol: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -408,6 +550,31 @@ const styles = StyleSheet.create({
   barcode: {
     flex: 1,
     fontSize: 13,
+  },
+  pager: {
+    marginTop: 8,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  pagerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  pagerButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  pagerLabel: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 
   emptyBlock: {

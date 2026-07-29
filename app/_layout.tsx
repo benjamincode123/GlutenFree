@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
+import { AllergenPrefsProvider } from '../src/allergens/AllergenPrefsContext';
 import { KeyboardDismissAccessory } from '../src/components/KeyboardDismissBar';
 import { config } from '../src/config';
 import { I18nProvider, useI18n } from '../src/i18n/I18nContext';
@@ -57,7 +58,7 @@ export default function RootLayout() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#1B7F3B" />
-        <Text style={styles.loadingText}>Preparing Uten Gluten...</Text>
+        <Text style={styles.loadingText}>Preparing AltUten...</Text>
       </View>
     );
   }
@@ -67,9 +68,11 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <I18nProvider>
-            <AuthProvider>
-              <RootNavigator />
-            </AuthProvider>
+            <AllergenPrefsProvider>
+              <AuthProvider>
+                <RootNavigator />
+              </AuthProvider>
+            </AllergenPrefsProvider>
           </I18nProvider>
         </ThemeProvider>
       </SafeAreaProvider>

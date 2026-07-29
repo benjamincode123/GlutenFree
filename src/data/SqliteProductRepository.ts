@@ -1,7 +1,7 @@
 import { getDatabase } from '../db/database';
 import { isGlutenRating, NewProduct, Product, ProductCatalog } from '../db/types';
 import { AppError } from '../errors/appError';
-import { ProductRepository } from './ProductRepository';
+import { ProductRepository, ProductSearchPage } from './ProductRepository';
 import { MIN_PRODUCT_SEARCH_CHARS } from './searchLimits';
 
 /** Raw row shape as returned by SQLite (snake_case columns). */
@@ -56,30 +56,77 @@ export class SqliteProductRepository implements ProductRepository {
   async searchByName(
     query: string,
     limit = 40,
-    options?: { unknownOnly?: boolean }
-  ): Promise<Product[]> {
+    options?: { unknownOnly?: boolean; page?: number }
+  ): Promise<ProductSearchPage> {
     const q = query.trim();
-    if (q.length < MIN_PRODUCT_SEARCH_CHARS) return [];
+    const page = Math.max(1, options?.page ?? 1);
+    const pageSize = Math.max(1, limit);
+    if (q.length < MIN_PRODUCT_SEARCH_CHARS) {
+      return { items: [], page, pageSize, hasMore: false, totalCount: 0 };
+    }
     const db = getDatabase();
+    const offset = (page - 1) * pageSize;
+    const like = `%${q}%`;
+    const countRow = options?.unknownOnly
+      ? await db.getFirstAsync<{ c: number }>(
+          `SELECT COUNT(*) AS c FROM products
+           WHERE (
+               name LIKE ? COLLATE NOCASE
+               OR IFNULL(produsent, '') LIKE ? COLLATE NOCASE
+               OR barcode LIKE ? COLLATE NOCASE
+             )
+             AND lower(barcode) = 'unknown';`,
+          like,
+          like,
+          like
+        )
+      : await db.getFirstAsync<{ c: number }>(
+          `SELECT COUNT(*) AS c FROM products
+           WHERE name LIKE ? COLLATE NOCASE
+              OR IFNULL(produsent, '') LIKE ? COLLATE NOCASE
+              OR barcode LIKE ? COLLATE NOCASE;`,
+          like,
+          like,
+          like
+        );
+    const totalCount = countRow?.c ?? 0;
     const rows = options?.unknownOnly
       ? await db.getAllAsync<ProductRow>(
           `SELECT * FROM products
-           WHERE name LIKE ? COLLATE NOCASE
+           WHERE (
+               name LIKE ? COLLATE NOCASE
+               OR IFNULL(produsent, '') LIKE ? COLLATE NOCASE
+               OR barcode LIKE ? COLLATE NOCASE
+             )
              AND lower(barcode) = 'unknown'
            ORDER BY name
-           LIMIT ?;`,
-          `%${q}%`,
-          limit
+           LIMIT ? OFFSET ?;`,
+          like,
+          like,
+          like,
+          pageSize,
+          offset
         )
       : await db.getAllAsync<ProductRow>(
           `SELECT * FROM products
            WHERE name LIKE ? COLLATE NOCASE
+              OR IFNULL(produsent, '') LIKE ? COLLATE NOCASE
+              OR barcode LIKE ? COLLATE NOCASE
            ORDER BY name
-           LIMIT ?;`,
-          `%${q}%`,
-          limit
+           LIMIT ? OFFSET ?;`,
+          like,
+          like,
+          like,
+          pageSize,
+          offset
         );
-    return rows.map(mapRow);
+    return {
+      items: rows.map(mapRow),
+      page,
+      pageSize,
+      hasMore: offset + rows.length < totalCount,
+      totalCount,
+    };
   }
 
   async getAll(): Promise<Product[]> {

@@ -195,7 +195,7 @@ export default function LoginScreen() {
 
           <View style={styles.footer}>
             <Text style={styles.poweredBy}>{t('login.poweredBy')}</Text>
-            <Text style={styles.copyright}>© {year} Uten Gluten</Text>
+            <Text style={styles.copyright}>© {year} AltUten</Text>
           </View>
         </ScrollView>
       </Animated.View>

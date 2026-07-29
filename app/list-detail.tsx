@@ -26,7 +26,7 @@ import { useI18n } from '../src/i18n/I18nContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
 type Row = {
-  catalog: 'glutenfri' | 'gluten';
+  catalog: 'products' | 'glutenfri' | 'gluten';
   id: number;
   product: Product | null;
 };
@@ -220,6 +220,11 @@ export default function ListDetailScreen() {
               <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
                 {item.product?.name?.trim() || `${item.catalog} #${item.id}`}
               </Text>
+              {item.product?.productionCountry?.trim() ? (
+                <Text style={[styles.produsent, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {item.product.productionCountry.trim()}
+                </Text>
+              ) : null}
               {item.product ? <GlutenBadge rating={item.product.glutenRating} size="small" /> : null}
             </View>
             <Pressable hitSlop={10} onPress={() => confirmRemoveProduct(item)}>

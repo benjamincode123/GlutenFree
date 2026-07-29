@@ -63,7 +63,14 @@ export function isGlutenRating(value: string): value is GlutenRating {
 }
 
 /** Which catalog table a product came from (API). */
-export type ProductCatalog = 'glutenfri' | 'gluten';
+export type ProductCatalog = 'products' | 'glutenfri' | 'gluten';
+
+export interface ProductAllergens {
+  inneholder: string[];
+  kanInneholde: string[];
+  inneholderIkke: string[];
+  erklaring?: string | null;
+}
 
 export interface Product {
   id: number;
@@ -71,6 +78,8 @@ export interface Product {
   name: string;
   /** Manufacturer / brand name when available. */
   produsent?: string | null;
+  /** Country of origin / production country when available. */
+  productionCountry?: string | null;
   ingredients: string | null;
   glutenRating: GlutenRating;
   createdAt: string;
@@ -81,6 +90,8 @@ export interface Product {
   pending?: boolean;
   /** Product image URL (or legacy data-URI / base64). */
   imageUrl?: string | null;
+  /** Structured allergen declaration from dbo.products. */
+  allergens?: ProductAllergens | null;
 }
 
 export function isUnknownBarcode(barcode: string | null | undefined): boolean {
@@ -98,4 +109,6 @@ export interface NewProduct {
   /** When set with catalog, admin update of an existing catalog row. */
   id?: number;
   catalog?: ProductCatalog;
+  /** Structured allergen declaration (inneholder / kanInneholde / inneholderIkke). */
+  allergens?: ProductAllergens | null;
 }

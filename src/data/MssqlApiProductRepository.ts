@@ -6,7 +6,7 @@ import {
   appErrorFromHttp,
   readApiErrorMessage,
 } from '../errors/appError';
-import { ProductRepository } from './ProductRepository';
+import { ProductRepository, ProductSearchPage } from './ProductRepository';
 import { MIN_PRODUCT_SEARCH_CHARS } from './searchLimits';
 
 /** Raw JSON shape returned by the .NET API (camelCase). */
@@ -15,6 +15,7 @@ interface ProductApiResponse {
   barcode: string;
   name: string;
   produsent?: string | null;
+  productionCountry?: string | null;
   ingredients: string | null;
   glutenRating: string;
   createdAt: string;
@@ -22,11 +23,33 @@ interface ProductApiResponse {
   catalog?: string;
   pending?: boolean;
   imageUrl?: string | null;
+  allergens?: {
+    inneholder?: string[] | null;
+    kanInneholde?: string[] | null;
+    inneholderIkke?: string[] | null;
+    erklaring?: string | null;
+  } | null;
 }
 
 function mapCatalog(value: string | undefined): ProductCatalog | undefined {
-  if (value === 'glutenfri' || value === 'gluten') return value;
+  if (value === 'products' || value === 'glutenfri' || value === 'gluten') return value;
   return undefined;
+}
+
+function mapAllergens(
+  raw: ProductApiResponse['allergens']
+): Product['allergens'] {
+  if (!raw) return null;
+  return {
+    inneholder: Array.isArray(raw.inneholder) ? raw.inneholder.filter(Boolean) : [],
+    kanInneholde: Array.isArray(raw.kanInneholde)
+      ? raw.kanInneholde.filter(Boolean)
+      : [],
+    inneholderIkke: Array.isArray(raw.inneholderIkke)
+      ? raw.inneholderIkke.filter(Boolean)
+      : [],
+    erklaring: raw.erklaring ?? null,
+  };
 }
 
 function mapProduct(data: ProductApiResponse): Product {
@@ -38,6 +61,7 @@ function mapProduct(data: ProductApiResponse): Product {
     barcode: data.barcode,
     name: data.name,
     produsent: data.produsent ?? null,
+    productionCountry: data.productionCountry ?? null,
     ingredients: data.ingredients,
     glutenRating: data.glutenRating,
     createdAt: data.createdAt,
@@ -45,6 +69,7 @@ function mapProduct(data: ProductApiResponse): Product {
     catalog: mapCatalog(data.catalog),
     pending: data.pending === true,
     imageUrl: data.imageUrl ?? null,
+    allergens: mapAllergens(data.allergens),
   };
 }
 
@@ -117,13 +142,18 @@ export class MssqlApiProductRepository implements ProductRepository {
   async searchByName(
     query: string,
     limit = 40,
-    options?: { unknownOnly?: boolean }
-  ): Promise<Product[]> {
+    options?: { unknownOnly?: boolean; page?: number }
+  ): Promise<ProductSearchPage> {
     const q = query.trim();
-    if (q.length < MIN_PRODUCT_SEARCH_CHARS) return [];
+    const page = Math.max(1, options?.page ?? 1);
+    const pageSize = Math.max(1, limit);
+    if (q.length < MIN_PRODUCT_SEARCH_CHARS) {
+      return { items: [], page, pageSize, hasMore: false, totalCount: 0 };
+    }
     const params = new URLSearchParams({
       q,
-      limit: String(limit),
+      limit: String(pageSize),
+      page: String(page),
     });
     if (options?.unknownOnly) {
       params.set('unknownOnly', 'true');
@@ -136,8 +166,38 @@ export class MssqlApiProductRepository implements ProductRepository {
     if (!response.ok) {
       await this.throwHttpError(response, 'search_failed');
     }
-    const data = (await response.json()) as ProductApiResponse[];
-    return data.map(mapProduct);
+    const data = (await response.json()) as
+      | ProductApiResponse[]
+      | {
+          items?: ProductApiResponse[];
+          page?: number;
+          pageSize?: number;
+          hasMore?: boolean;
+          totalCount?: number | null;
+        };
+
+    // Support both legacy array responses and paginated objects.
+    if (Array.isArray(data)) {
+      return {
+        items: data.map(mapProduct),
+        page,
+        pageSize,
+        hasMore: data.length >= pageSize,
+        totalCount: null,
+      };
+    }
+
+    const items = Array.isArray(data.items) ? data.items.map(mapProduct) : [];
+    return {
+      items,
+      page: data.page ?? page,
+      pageSize: data.pageSize ?? pageSize,
+      hasMore: data.hasMore === true,
+      totalCount:
+        typeof data.totalCount === 'number' && data.totalCount >= 0
+          ? data.totalCount
+          : null,
+    };
   }
 
   async getAll(): Promise<Product[]> {
@@ -168,6 +228,14 @@ export class MssqlApiProductRepository implements ProductRepository {
           imageBase64: product.imageBase64?.trim() || null,
           id: product.id ?? null,
           catalog: product.catalog ?? null,
+          allergens: product.allergens
+            ? {
+                inneholder: product.allergens.inneholder ?? [],
+                kanInneholde: product.allergens.kanInneholde ?? [],
+                inneholderIkke: product.allergens.inneholderIkke ?? [],
+                erklaring: product.allergens.erklaring ?? null,
+              }
+            : null,
         }),
       },
       'save_failed'

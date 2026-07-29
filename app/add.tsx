@@ -15,6 +15,15 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../src/auth/AuthContext';
+import { ALLERGEN_OPTIONS } from '../src/allergens/allergenPrefs';
+import {
+  AllergenStatus,
+  allergensToStatuses,
+  defaultAllergenStatuses,
+  glutenStatusFromRating,
+  ratingFromGlutenStatus,
+  statusesToAllergens,
+} from '../src/allergens/allergenForm';
 import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
 import { ErrorText } from '../src/components/ErrorText';
 import { GlutenBadge } from '../src/components/GlutenBadge';
@@ -22,10 +31,7 @@ import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { getProductRepository } from '../src/data/repository';
 import { MIN_PRODUCT_SEARCH_CHARS } from '../src/data/searchLimits';
 import { useI18n } from '../src/i18n/I18nContext';
-import { TranslationKey } from '../src/i18n/translations';
 import {
-  ALL_GLUTEN_RATINGS,
-  getGlutenRatingMeta,
   GlutenRating,
   isUnknownBarcode,
   Product,
@@ -35,31 +41,12 @@ import { askPickProductImage } from '../src/media/pickProductImage';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useTheme } from '../src/theme/ThemeContext';
 function parseCatalog(value: string | undefined): ProductCatalog | null {
-  if (value === 'glutenfri' || value === 'gluten') return value;
+  if (value === 'products' || value === 'glutenfri' || value === 'gluten') return value;
   return null;
 }
 
-function ratingLabelKey(rating: GlutenRating): TranslationKey {
-  switch (rating) {
-    case GlutenRating.GlutenFree:
-      return 'rating.glutenFree';
-    case GlutenRating.GlutenTrace:
-      return 'rating.glutenTrace';
-    default:
-      return 'rating.glutenContent';
-  }
-}
-
-function ratingDescKey(rating: GlutenRating): TranslationKey {
-  switch (rating) {
-    case GlutenRating.GlutenFree:
-      return 'rating.glutenFreeDesc';
-    case GlutenRating.GlutenTrace:
-      return 'rating.glutenTraceDesc';
-    default:
-      return 'rating.glutenContentDesc';
-  }
-}
+const CONTAINS_CHIP = { color: '#B3261E', backgroundColor: '#FBE5E4' };
+const TRACES_CHIP = { color: '#B26A00', backgroundColor: '#FCF0DA' };
 
 export default function AddProductScreen() {
   const router = useRouter();
@@ -83,6 +70,7 @@ export default function AddProductScreen() {
   const [produsent, setProdusent] = useState('');
   const [ingredients, setIngredients] = useState('');
   const [rating, setRating] = useState<GlutenRating | null>(null);
+  const [allergenStatuses, setAllergenStatuses] = useState(defaultAllergenStatuses);
   const [loading, setLoading] = useState(Boolean(initialBarcode) || hasEditTarget);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -133,6 +121,15 @@ export default function AddProductScreen() {
           setProdusent(existing.produsent ?? '');
           setIngredients(existing.ingredients ?? '');
           setRating(existing.glutenRating);
+          const fromAllergens = allergensToStatuses(existing.allergens);
+          if (existing.allergens) {
+            setAllergenStatuses(fromAllergens);
+          } else {
+            setAllergenStatuses({
+              ...defaultAllergenStatuses(),
+              Gluten: glutenStatusFromRating(existing.glutenRating),
+            });
+          }
           setSubmissionImageBase64(existing.imageUrl?.trim() || null);
           setIsEditing(true);
           if (existing.id > 0 && existing.catalog) {
@@ -163,9 +160,9 @@ export default function AddProductScreen() {
     const handle = setTimeout(() => {
       getProductRepository()
         .searchByName(term, 20, { unknownOnly: true })
-        .then((rows) => {
+        .then((result) => {
           if (!cancelled) {
-            setLinkResults(rows.filter((p) => isUnknownBarcode(p.barcode)));
+            setLinkResults(result.items.filter((p) => isUnknownBarcode(p.barcode)));
           }
         })
         .catch(() => {
@@ -247,7 +244,9 @@ export default function AddProductScreen() {
       setFormError(t('add.missingNameBody'));
       return;
     }
-    if (!rating) {
+    const effectiveRating =
+      rating ?? ratingFromGlutenStatus(allergenStatuses.Gluten ?? 'free');
+    if (!effectiveRating) {
       setFormError(t('add.missingRatingBody'));
       return;
     }
@@ -265,7 +264,8 @@ export default function AddProductScreen() {
         name: name.trim(),
         produsent: produsent.trim() || null,
         ingredients: ingredients.trim() || null,
-        glutenRating: rating,
+        glutenRating: effectiveRating,
+        allergens: statusesToAllergens(allergenStatuses),
         imageBase64: submissionImageBase64,
         id: isEditing && editingId ? editingId : undefined,
         catalog: isEditing && editingCatalog ? editingCatalog : undefined,
@@ -637,45 +637,99 @@ export default function AddProductScreen() {
         />
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {t('add.glutenRating')}
+          {t('add.allergens')}
         </Text>
-        {ALL_GLUTEN_RATINGS.map((option) => {
-          const meta = getGlutenRatingMeta(option);
-          const selected = rating === option;
-          return (
-            <Pressable
-              key={option}
-              style={[
-                styles.ratingOption,
-                {
-                  borderColor: selected ? meta.color : colors.border,
-                  backgroundColor: selected ? meta.backgroundColor : colors.surface,
-                },
-              ]}
-              onPress={() => setRating(option)}
-            >
-              <View style={[styles.ratingDot, { backgroundColor: meta.color }]} />
-              <View style={styles.ratingTextWrap}>
-                <Text style={[styles.ratingLabel, { color: meta.color }]}>
-                  {t(ratingLabelKey(option))}
-                </Text>
-                <Text style={[styles.ratingDesc, { color: colors.textSecondary }]}>
-                  {t(ratingDescKey(option))}
-                </Text>
-              </View>
-              <View
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
+          {t('add.allergensHint')}
+        </Text>
+
+        <Text style={[styles.allergenGroupLabel, { color: CONTAINS_CHIP.color }]}>
+          {t('add.allergenContains')}
+        </Text>
+        <View style={styles.allergenWrap}>
+          {ALLERGEN_OPTIONS.map((allergen) => {
+            const active = (allergenStatuses[allergen] ?? 'free') === 'contains';
+            return (
+              <Pressable
+                key={`contains-${allergen}`}
+                onPress={() => {
+                  const current = allergenStatuses[allergen] ?? 'free';
+                  const next: AllergenStatus =
+                    current === 'contains' ? 'free' : 'contains';
+                  setAllergenStatuses((prev) => ({ ...prev, [allergen]: next }));
+                  if (allergen === 'Gluten') {
+                    setRating(ratingFromGlutenStatus(next));
+                  }
+                }}
                 style={[
-                  styles.radioOuter,
-                  { borderColor: selected ? meta.color : colors.border },
+                  styles.allergenChip,
+                  {
+                    borderColor: active ? CONTAINS_CHIP.color : colors.border,
+                    backgroundColor: active
+                      ? CONTAINS_CHIP.backgroundColor
+                      : colors.surface,
+                  },
                 ]}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: active }}
+                accessibilityLabel={`${t('add.allergenContains')}: ${allergen}`}
               >
-                {selected && (
-                  <View style={[styles.radioInner, { backgroundColor: meta.color }]} />
-                )}
-              </View>
-            </Pressable>
-          );
-        })}
+                <Text
+                  style={[
+                    styles.allergenChipText,
+                    { color: active ? CONTAINS_CHIP.color : colors.text },
+                  ]}
+                >
+                  {allergen}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.allergenGroupLabel, { color: TRACES_CHIP.color }]}>
+          {t('add.allergenMayContain')}
+        </Text>
+        <View style={styles.allergenWrap}>
+          {ALLERGEN_OPTIONS.map((allergen) => {
+            const active = (allergenStatuses[allergen] ?? 'free') === 'mayContain';
+            return (
+              <Pressable
+                key={`traces-${allergen}`}
+                onPress={() => {
+                  const current = allergenStatuses[allergen] ?? 'free';
+                  const next: AllergenStatus =
+                    current === 'mayContain' ? 'free' : 'mayContain';
+                  setAllergenStatuses((prev) => ({ ...prev, [allergen]: next }));
+                  if (allergen === 'Gluten') {
+                    setRating(ratingFromGlutenStatus(next));
+                  }
+                }}
+                style={[
+                  styles.allergenChip,
+                  {
+                    borderColor: active ? TRACES_CHIP.color : colors.border,
+                    backgroundColor: active
+                      ? TRACES_CHIP.backgroundColor
+                      : colors.surface,
+                  },
+                ]}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: active }}
+                accessibilityLabel={`${t('add.allergenMayContain')}: ${allergen}`}
+              >
+                <Text
+                  style={[
+                    styles.allergenChipText,
+                    { color: active ? TRACES_CHIP.color : colors.text },
+                  ]}
+                >
+                  {allergen}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>
           {!isAdmin ? t('add.photoRequired') : t('add.photoOptional')}
@@ -968,44 +1022,27 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  ratingOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-  },
-  ratingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  ratingTextWrap: {
-    flex: 1,
-  },
-  ratingLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  ratingDesc: {
+  allergenGroupLabel: {
+    marginTop: 14,
+    marginBottom: 8,
     fontSize: 13,
-    marginTop: 2,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
+  allergenWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  allergenChip: {
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  allergenChipText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   saveButton: {
     marginTop: 24,

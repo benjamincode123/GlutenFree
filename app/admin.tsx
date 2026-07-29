@@ -87,7 +87,7 @@ function draftFromWrongInfo(item: WrongInfoReportItem): ApproveSubmissionEdits {
 }
 
 function parseCatalog(value: string): ProductCatalog | null {
-  if (value === 'glutenfri' || value === 'gluten') return value;
+  if (value === 'products' || value === 'glutenfri' || value === 'gluten') return value;
   return null;
 }
 
