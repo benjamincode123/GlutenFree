@@ -27,12 +27,19 @@ interface ProductApiResponse {
     inneholder?: string[] | null;
     kanInneholde?: string[] | null;
     inneholderIkke?: string[] | null;
-    erklaring?: string | null;
   } | null;
 }
 
 function mapCatalog(value: string | undefined): ProductCatalog | undefined {
-  if (value === 'products' || value === 'glutenfri' || value === 'gluten') return value;
+  if (
+    value === 'products' ||
+    value === 'products_se' ||
+    value === 'products_dk' ||
+    value === 'glutenfri' ||
+    value === 'gluten'
+  ) {
+    return value;
+  }
   return undefined;
 }
 
@@ -48,7 +55,6 @@ function mapAllergens(
     inneholderIkke: Array.isArray(raw.inneholderIkke)
       ? raw.inneholderIkke.filter(Boolean)
       : [],
-    erklaring: raw.erklaring ?? null,
   };
 }
 
@@ -101,13 +107,23 @@ export class MssqlApiProductRepository implements ProductRepository {
     throw appErrorFromHttp(response.status, apiError, fallback);
   }
 
-  async getByBarcode(barcode: string): Promise<Product | null> {
+  async getByBarcode(
+    barcode: string,
+    options?: { country?: 'no' | 'se' | 'dk' }
+  ): Promise<Product | null> {
     const trimmed = barcode.trim();
     if (!trimmed || trimmed.toLowerCase() === 'unknown') {
       return null;
     }
+    const params = new URLSearchParams();
+    if (options?.country && options.country !== 'no') {
+      params.set('country', options.country);
+    }
+    const qs = params.toString();
     const response = await this.request(
-      this.productsUrl(`/${encodeURIComponent(trimmed)}`),
+      this.productsUrl(
+        `/${encodeURIComponent(trimmed)}${qs ? `?${qs}` : ''}`
+      ),
       undefined,
       'lookup_failed'
     );
@@ -142,7 +158,7 @@ export class MssqlApiProductRepository implements ProductRepository {
   async searchByName(
     query: string,
     limit = 40,
-    options?: { unknownOnly?: boolean; page?: number }
+    options?: { unknownOnly?: boolean; page?: number; country?: 'no' | 'se' | 'dk' }
   ): Promise<ProductSearchPage> {
     const q = query.trim();
     const page = Math.max(1, options?.page ?? 1);
@@ -157,6 +173,9 @@ export class MssqlApiProductRepository implements ProductRepository {
     });
     if (options?.unknownOnly) {
       params.set('unknownOnly', 'true');
+    }
+    if (options?.country && options.country !== 'no') {
+      params.set('country', options.country);
     }
     const response = await this.request(
       this.productsUrl(`/search?${params.toString()}`),
@@ -233,7 +252,6 @@ export class MssqlApiProductRepository implements ProductRepository {
                 inneholder: product.allergens.inneholder ?? [],
                 kanInneholde: product.allergens.kanInneholde ?? [],
                 inneholderIkke: product.allergens.inneholderIkke ?? [],
-                erklaring: product.allergens.erklaring ?? null,
               }
             : null,
         }),

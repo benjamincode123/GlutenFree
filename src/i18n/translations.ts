@@ -60,6 +60,11 @@ type TranslationKey =
   | 'settings.languageHint'
   | 'settings.norwegian'
   | 'settings.english'
+  | 'settings.productCountry'
+  | 'settings.productCountryHint'
+  | 'country.no'
+  | 'country.se'
+  | 'country.dk'
   | 'settings.allergens'
   | 'settings.allergensHint'
   | 'settings.about'
@@ -411,6 +416,12 @@ const en: Record<TranslationKey, string> = {
   'settings.languageHint': 'Choose Norwegian or English.',
   'settings.norwegian': 'Norwegian',
   'settings.english': 'English',
+  'settings.productCountry': 'Product country',
+  'settings.productCountryHint':
+    'Choose which country’s product catalog to use for scanning and search.',
+  'country.no': 'Norway',
+  'country.se': 'Sweden',
+  'country.dk': 'Denmark',
   'settings.allergens': 'Allergen warnings',
   'settings.allergensHint':
     'Choose allergens you want to be warned about when a product contains them or may contain them.',
@@ -788,6 +799,12 @@ const nb: Record<TranslationKey, string> = {
   'settings.languageHint': 'Velg norsk eller engelsk.',
   'settings.norwegian': 'Norsk',
   'settings.english': 'Engelsk',
+  'settings.productCountry': 'Produktland',
+  'settings.productCountryHint':
+    'Velg hvilken lands produktkatalog som brukes ved skanning og søk.',
+  'country.no': 'Norge',
+  'country.se': 'Sverige',
+  'country.dk': 'Danmark',
   'settings.allergens': 'Allergenvarsler',
   'settings.allergensHint':
     'Velg allergener du vil bli advart om når et produkt inneholder dem eller kan inneholde dem.',

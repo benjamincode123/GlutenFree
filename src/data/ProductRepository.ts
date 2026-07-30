@@ -1,3 +1,4 @@
+import type { ProductCountry } from '../country/CountryPrefsContext';
 import { NewProduct, Product, ProductCatalog } from '../db/types';
 
 /** Paginated product name search result. */
@@ -10,6 +11,15 @@ export interface ProductSearchPage {
   totalCount: number | null;
 }
 
+export type ProductLookupOptions = {
+  country?: ProductCountry;
+};
+
+export type ProductSearchOptions = ProductLookupOptions & {
+  unknownOnly?: boolean;
+  page?: number;
+};
+
 /**
  * Abstraction over product storage. Screens depend only on this interface, so
  * the SQLite backend can be replaced with an MSSQL-backed API client later
@@ -17,7 +27,10 @@ export interface ProductSearchPage {
  */
 export interface ProductRepository {
   /** Returns the product with the given barcode, or null if not found. */
-  getByBarcode(barcode: string): Promise<Product | null>;
+  getByBarcode(
+    barcode: string,
+    options?: ProductLookupOptions
+  ): Promise<Product | null>;
 
   /** Returns a product by catalog table + id (needed when barcode is unknown). */
   getById(catalog: ProductCatalog, id: number): Promise<Product | null>;
@@ -26,7 +39,7 @@ export interface ProductRepository {
   searchByName(
     query: string,
     limit?: number,
-    options?: { unknownOnly?: boolean; page?: number }
+    options?: ProductSearchOptions
   ): Promise<ProductSearchPage>;
 
   /** Returns all products, most recently updated first. */

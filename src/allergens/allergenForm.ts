@@ -22,7 +22,7 @@ export function statusesToAllergens(statuses: AllergenStatusMap): ProductAllerge
     else inneholderIkke.push(allergen);
   }
 
-  return { inneholder, kanInneholde, inneholderIkke, erklaring: null };
+  return { inneholder, kanInneholde, inneholderIkke };
 }
 
 export function allergensToStatuses(

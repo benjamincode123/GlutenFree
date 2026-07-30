@@ -26,6 +26,7 @@ import { AllergenBadge } from '../src/components/AllergenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ReportWrongInfoModal } from '../src/components/ReportWrongInfoModal';
 import { getProductRepository } from '../src/data/repository';
+import { useCountryPrefs } from '../src/country/CountryPrefsContext';
 import { useI18n } from '../src/i18n/I18nContext';
 import {
   isUnknownBarcode,
@@ -39,13 +40,20 @@ import { useTheme } from '../src/theme/ThemeContext';
 type LoadState = 'loading' | 'found' | 'not_found' | 'error';
 
 function parseCatalog(value: string | undefined): ProductCatalog | null {
-  if (value === 'products' || value === 'glutenfri' || value === 'gluten') {
+  if (
+    value === 'products' ||
+    value === 'products_se' ||
+    value === 'products_dk' ||
+    value === 'glutenfri' ||
+    value === 'gluten'
+  ) {
     return value;
   }
   return null;
 }
 
-function isCatalogProduct(catalog: ProductCatalog | undefined): boolean {
+/** Favorites / reports / submissions stay on NO (+ legacy) catalogs only. */
+function isWritableCatalog(catalog: ProductCatalog | undefined): boolean {
   return catalog === 'products' || catalog === 'glutenfri' || catalog === 'gluten';
 }
 
@@ -64,6 +72,7 @@ export default function ResultScreen() {
   const { t } = useI18n();
   const { colors } = useTheme();
   const { selected: warnAllergens } = useAllergenPrefs();
+  const { country } = useCountryPrefs();
   const params = useLocalSearchParams<{
     barcode?: string;
     id?: string;
@@ -104,7 +113,7 @@ export default function ResultScreen() {
           if (catalogParam && Number.isFinite(idParam) && idParam > 0) {
             found = await repo.getById(catalogParam, idParam);
           } else if (barcode) {
-            found = await repo.getByBarcode(barcode);
+            found = await repo.getByBarcode(barcode, { country });
           }
 
           if (cancelled) return;
@@ -126,7 +135,7 @@ export default function ResultScreen() {
       return () => {
         cancelled = true;
       };
-    }, [barcode, catalogParam, idParam, t])
+    }, [barcode, catalogParam, idParam, country, t])
   );
 
   const submitBarcodeReport = async () => {
@@ -206,13 +215,13 @@ export default function ResultScreen() {
     !!user &&
     !!product?.catalog &&
     product.id > 0 &&
-    isCatalogProduct(product.catalog);
+    isWritableCatalog(product.catalog);
 
   const canReportWrongInfo =
     state === 'found' &&
     !!product?.catalog &&
     product.id > 0 &&
-    isCatalogProduct(product.catalog);
+    isWritableCatalog(product.catalog);
 
   const allergenWarnings = findAllergenWarnings(warnAllergens, product?.allergens);
 
@@ -666,7 +675,7 @@ export default function ResultScreen() {
       <AddToListModal
         visible={listPickerOpen}
         product={
-          isCatalogProduct(product?.catalog)
+          isWritableCatalog(product?.catalog)
             ? { catalog: product!.catalog!, id: product!.id }
             : null
         }
@@ -675,7 +684,7 @@ export default function ResultScreen() {
       <ReportWrongInfoModal
         visible={wrongInfoOpen}
         product={
-          isCatalogProduct(product?.catalog)
+          isWritableCatalog(product?.catalog)
             ? { catalog: product!.catalog!, id: product!.id }
             : null
         }

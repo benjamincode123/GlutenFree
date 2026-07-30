@@ -15,6 +15,7 @@ import { findAllergenWarnings } from '../src/allergens/allergenPrefs';
 import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { AddToListModal } from '../src/components/AddToListModal';
 import { AllergenBadge } from '../src/components/AllergenBadge';
+import { CountrySelector } from '../src/components/CountrySelector';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ErrorText } from '../src/components/ErrorText';
 import type { FavoriteProductRef } from '../src/data/authApi';
@@ -28,6 +29,7 @@ import {
   PRODUCT_SEARCH_PAGE_SIZE,
 } from '../src/data/searchLimits';
 import { userFacingError } from '../src/errors/userFacingError';
+import { useCountryPrefs } from '../src/country/CountryPrefsContext';
 import { useI18n } from '../src/i18n/I18nContext';
 import { isUnknownBarcode, Product, ProductCatalog } from '../src/db/types';
 import { useTheme } from '../src/theme/ThemeContext';
@@ -49,6 +51,7 @@ export default function ProductsScreen() {
   const { t, tf } = useI18n();
   const { colors } = useTheme();
   const { selected: warnAllergens } = useAllergenPrefs();
+  const { country } = useCountryPrefs();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -87,7 +90,7 @@ export default function ProductsScreen() {
         const result = await getProductRepository().searchByName(
           trimmed,
           PRODUCT_SEARCH_PAGE_SIZE,
-          { page: pageNumber }
+          { page: pageNumber, country }
         );
         setProducts(result.items);
         if (result.totalCount != null) {
@@ -107,7 +110,7 @@ export default function ProductsScreen() {
         setLoading(false);
       }
     },
-    [t]
+    [t, country]
   );
 
   useEffect(() => {
@@ -116,6 +119,11 @@ export default function ProductsScreen() {
     }, 300);
     return () => clearTimeout(handle);
   }, [query, page, runSearch]);
+
+  useEffect(() => {
+    setPage(1);
+    setTotalCount(0);
+  }, [country]);
 
   const openProduct = (item: Product) => {
     if (item.catalog && (isUnknownBarcode(item.barcode) || item.id > 0)) {
@@ -176,6 +184,9 @@ export default function ProductsScreen() {
         <Text style={[styles.searchLabel, { color: colors.textSecondary }]}>
           {t('products.searchLabel')}
         </Text>
+        <View style={styles.countryRow}>
+          <CountrySelector compact />
+        </View>
         <AppTextInput
           style={[
             styles.input,
@@ -450,6 +461,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
+  },
+  countryRow: {
+    marginBottom: 10,
+    alignItems: 'flex-start',
   },
   input: {
     height: 48,

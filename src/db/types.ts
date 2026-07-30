@@ -63,13 +63,17 @@ export function isGlutenRating(value: string): value is GlutenRating {
 }
 
 /** Which catalog table a product came from (API). */
-export type ProductCatalog = 'products' | 'glutenfri' | 'gluten';
+export type ProductCatalog =
+  | 'products'
+  | 'products_se'
+  | 'products_dk'
+  | 'glutenfri'
+  | 'gluten';
 
 export interface ProductAllergens {
   inneholder: string[];
   kanInneholde: string[];
   inneholderIkke: string[];
-  erklaring?: string | null;
 }
 
 export interface Product {

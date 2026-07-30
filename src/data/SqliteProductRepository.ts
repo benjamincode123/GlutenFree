@@ -35,7 +35,10 @@ function mapRow(row: ProductRow): Product {
 }
 
 export class SqliteProductRepository implements ProductRepository {
-  async getByBarcode(barcode: string): Promise<Product | null> {
+  async getByBarcode(
+    barcode: string,
+    _options?: { country?: 'no' | 'se' | 'dk' }
+  ): Promise<Product | null> {
     const db = getDatabase();
     const row = await db.getFirstAsync<ProductRow>(
       'SELECT * FROM products WHERE barcode = ?;',
@@ -56,7 +59,7 @@ export class SqliteProductRepository implements ProductRepository {
   async searchByName(
     query: string,
     limit = 40,
-    options?: { unknownOnly?: boolean; page?: number }
+    options?: { unknownOnly?: boolean; page?: number; country?: 'no' | 'se' | 'dk' }
   ): Promise<ProductSearchPage> {
     const q = query.trim();
     const page = Math.max(1, options?.page ?? 1);
