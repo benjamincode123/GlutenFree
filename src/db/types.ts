@@ -67,8 +67,7 @@ export type ProductCatalog =
   | 'products'
   | 'products_se'
   | 'products_dk'
-  | 'glutenfri'
-  | 'gluten';
+  | 'products_de';
 
 export interface ProductAllergens {
   inneholder: string[];

@@ -21,6 +21,7 @@ import {
 import { getAuthToken } from '../src/auth/session';
 import { ErrorText } from '../src/components/ErrorText';
 import { SmoothSwitch } from '../src/components/SmoothSwitch';
+import * as adminApi from '../src/data/adminApi';
 import * as authApi from '../src/data/authApi';
 import type { XpHistoryItem, XpProfile } from '../src/data/authApi';
 import { isAppError } from '../src/errors/appError';
@@ -29,6 +30,12 @@ import { useI18n } from '../src/i18n/I18nContext';
 import type { TranslationKey } from '../src/i18n/translations';
 import { askPickProfileImage } from '../src/media/pickProductImage';
 import { useTheme } from '../src/theme/ThemeContext';
+
+function formatAdminBadgeCount(total: number): string | null {
+  if (total <= 0) return null;
+  if (total > 9) return '+9';
+  return String(total);
+}
 
 function formatXpDate(iso: string, locale: string): string {
   const date = new Date(iso);
@@ -47,6 +54,7 @@ function formatXpDate(iso: string, locale: string): string {
 function historyReasonKey(reason: string): TranslationKey {
   if (reason === 'barcode_report') return 'profile.xpReasonBarcode';
   if (reason === 'product_submission') return 'profile.xpReasonSubmission';
+  if (reason === 'wrong_info_report') return 'profile.xpReasonWrongInfo';
   return 'profile.xpReasonOther';
 }
 
@@ -72,7 +80,7 @@ export default function UserScreen() {
     setProfileImage,
     refreshUser,
   } = useAuth();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { t, tf, locale } = useI18n();
 
   const [xpProfile, setXpProfile] = useState<XpProfile | null>(() =>
@@ -85,6 +93,7 @@ export default function UserScreen() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [adminPendingTotal, setAdminPendingTotal] = useState(0);
   const lastRefreshAtRef = useRef(0);
 
   useLayoutEffect(() => {
@@ -92,10 +101,12 @@ export default function UserScreen() {
   }, [navigation, t]);
 
   // Hydrate XP from device cache only — never hit the API on page open.
+  // Admins also refresh the pending-queue badge count.
   useFocusEffect(
     useCallback(() => {
       if (!authEnabled) {
         setXpProfile(null);
+        setAdminPendingTotal(0);
         return;
       }
 
@@ -105,12 +116,28 @@ export default function UserScreen() {
         if (!cancelled && cached) {
           setXpProfile(cached);
         }
+
+        if (!isAdmin) {
+          if (!cancelled) setAdminPendingTotal(0);
+          return;
+        }
+        const token = getAuthToken();
+        if (!token) {
+          if (!cancelled) setAdminPendingTotal(0);
+          return;
+        }
+        try {
+          const total = await adminApi.fetchAdminPendingTotal(token);
+          if (!cancelled) setAdminPendingTotal(total);
+        } catch {
+          // Keep last known badge; don't block the profile screen.
+        }
       })();
 
       return () => {
         cancelled = true;
       };
-    }, [authEnabled])
+    }, [authEnabled, isAdmin])
   );
 
   async function handleRefresh() {
@@ -132,12 +159,16 @@ export default function UserScreen() {
         setXpProfile(null);
         return;
       }
-      const [profile] = await Promise.all([
+      const [profile, pendingTotal] = await Promise.all([
         authApi.fetchXpProfile(token),
+        isAdmin
+          ? adminApi.fetchAdminPendingTotal(token).catch(() => null)
+          : Promise.resolve(null),
         refreshUser(),
       ]);
       lastRefreshAtRef.current = Date.now();
       setXpProfile(profile);
+      if (pendingTotal != null) setAdminPendingTotal(pendingTotal);
       await saveCachedXpProfile(profile);
     } catch (err) {
       if (isAppError(err) && err.code === 'rate_limited' && err.retryAfterSeconds) {
@@ -192,6 +223,7 @@ export default function UserScreen() {
   const isMaxXpLevel = xpProfile != null && (xpLevel >= 99 || toNext <= 0 && progress >= 1);
   const history = xpProfile?.history ?? [];
   const avatarUri = profileImageUri(user?.profileImageUrl);
+  const adminBadgeLabel = formatAdminBadgeCount(adminPendingTotal);
 
   function renderHistoryReason(item: XpHistoryItem): string {
     const detail = item.detail?.trim()
@@ -440,6 +472,12 @@ export default function UserScreen() {
             { backgroundColor: colors.primary },
           ]}
           onPress={() => router.push('/admin')}
+          accessibilityRole="button"
+          accessibilityLabel={
+            adminPendingTotal > 0
+              ? `${t('admin.open')}, ${adminPendingTotal}`
+              : t('admin.open')
+          }
         >
           <MaterialCommunityIcons
             name="shield-account"
@@ -449,12 +487,21 @@ export default function UserScreen() {
           <Text style={[styles.adminButtonText, { color: colors.onPrimary }]}>
             {t('admin.open')}
           </Text>
+          {adminBadgeLabel ? (
+            <View style={styles.adminBadge} pointerEvents="none">
+              <Text style={styles.adminBadgeText}>{adminBadgeLabel}</Text>
+            </View>
+          ) : null}
         </Pressable>
       )}
 
       {authEnabled && (
         <Pressable
-          style={[styles.logoutButton, { backgroundColor: colors.danger }]}
+          style={[
+            styles.logoutButton,
+            // Dark theme `danger` is a pale text color — use a solid fill for the button.
+            { backgroundColor: isDark ? '#E53935' : colors.danger },
+          ]}
           onPress={handleSignOut}
         >
           <Text style={styles.logoutButtonText}>{t('profile.logOut')}</Text>
@@ -649,10 +696,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
+    position: 'relative',
+    overflow: 'visible',
   },
   adminButtonText: {
     fontWeight: '700',
     fontSize: 15,
+  },
+  adminBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 5,
+    backgroundColor: '#E53935',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  adminBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+    lineHeight: 13,
   },
   logoutButtonText: {
     color: '#fff',

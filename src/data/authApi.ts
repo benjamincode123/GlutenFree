@@ -6,7 +6,7 @@ import {
 } from '../errors/appError';
 
 export interface FavoriteProductRef {
-  catalog: 'products' | 'glutenfri' | 'gluten';
+  catalog: 'products' | 'products_se' | 'products_dk' | 'products_de';
   id: number;
 }
 
@@ -106,25 +106,6 @@ export async function registerSendSmsCode(phone: string): Promise<RegisterSmsCod
     await throwForAuthResponse(response, 'register_failed');
   }
   return (await response.json()) as RegisterSmsCodeResult;
-}
-
-/** Optional: poll after email Checkout payment if webhook has activated the user. */
-export async function registerComplete(userId: number): Promise<AuthResult> {
-  let response: Response;
-  try {
-    response = await fetch(authUrl('/register/complete'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ userId }),
-    });
-  } catch {
-    throw new AppError('network');
-  }
-  if (!response.ok) {
-    await throwForAuthResponse(response, 'register_failed');
-  }
-  const result = (await response.json()) as AuthResult;
-  return { ...result, user: normalizeAuthUser(result.user) };
 }
 
 export async function login(username: string, password: string): Promise<AuthResult> {
@@ -287,7 +268,11 @@ function normalizeAuthUser(raw: AuthUser): AuthUser {
   };
 }
 
-export type XpHistoryReason = 'barcode_report' | 'product_submission' | 'other';
+export type XpHistoryReason =
+  | 'barcode_report'
+  | 'product_submission'
+  | 'wrong_info_report'
+  | 'other';
 
 export interface XpHistoryItem {
   id: number;

@@ -65,6 +65,7 @@ type TranslationKey =
   | 'country.no'
   | 'country.se'
   | 'country.dk'
+  | 'country.de'
   | 'settings.allergens'
   | 'settings.allergensHint'
   | 'settings.about'
@@ -112,6 +113,7 @@ type TranslationKey =
   | 'profile.xpHistoryEmpty'
   | 'profile.xpReasonBarcode'
   | 'profile.xpReasonSubmission'
+  | 'profile.xpReasonWrongInfo'
   | 'profile.xpReasonOther'
   | 'profile.privacy'
   | 'profile.anonymousTitle'
@@ -416,12 +418,13 @@ const en: Record<TranslationKey, string> = {
   'settings.languageHint': 'Choose Norwegian or English.',
   'settings.norwegian': 'Norwegian',
   'settings.english': 'English',
-  'settings.productCountry': 'Product country',
+  'settings.productCountry': 'Product countries',
   'settings.productCountryHint':
-    'Choose which country’s product catalog to use for scanning and search.',
+    'Select one or more countries to search and scan. Tap to toggle.',
   'country.no': 'Norway',
   'country.se': 'Sweden',
   'country.dk': 'Denmark',
+  'country.de': 'Germany',
   'settings.allergens': 'Allergen warnings',
   'settings.allergensHint':
     'Choose allergens you want to be warned about when a product contains them or may contain them.',
@@ -474,6 +477,7 @@ const en: Record<TranslationKey, string> = {
   'profile.xpHistoryEmpty': 'No XP earned yet. Report barcodes to earn rewards.',
   'profile.xpReasonBarcode': 'Barcode report applied{detail}',
   'profile.xpReasonSubmission': 'Product submission applied{detail}',
+  'profile.xpReasonWrongInfo': 'Wrong-info report approved{detail}',
   'profile.xpReasonOther': 'XP reward',
   'profile.privacy': 'Leaderboard privacy',
   'profile.anonymousTitle': 'Appear as anonymous',
@@ -646,7 +650,7 @@ const en: Record<TranslationKey, string> = {
   'result.photoPending': 'Thanks — photo sent for admin review.',
   'result.photoSaved': 'Thanks — photo saved on this product.',
   'result.addPhotoHint':
-    'This product has no photo yet. Add one and an admin will review it before it goes live.',
+    'This product is missing a photo. Add one so we can review it before we make it visible.',
   'result.signInToAddPhoto': 'Sign in to submit a photo for this product.',
   'result.submitBarcode': 'Submit barcode',
   'result.reportPending':
@@ -801,10 +805,11 @@ const nb: Record<TranslationKey, string> = {
   'settings.english': 'Engelsk',
   'settings.productCountry': 'Produktland',
   'settings.productCountryHint':
-    'Velg hvilken lands produktkatalog som brukes ved skanning og søk.',
+    'Velg ett eller flere land for skanning og søk. Trykk for å slå av/på.',
   'country.no': 'Norge',
   'country.se': 'Sverige',
   'country.dk': 'Danmark',
+  'country.de': 'Tyskland',
   'settings.allergens': 'Allergenvarsler',
   'settings.allergensHint':
     'Velg allergener du vil bli advart om når et produkt inneholder dem eller kan inneholde dem.',
@@ -857,6 +862,7 @@ const nb: Record<TranslationKey, string> = {
   'profile.xpHistoryEmpty': 'Ingen XP ennå. Rapporter strekkoder for å tjene poeng.',
   'profile.xpReasonBarcode': 'Strekkoderapport godkjent{detail}',
   'profile.xpReasonSubmission': 'Produktforslag godkjent{detail}',
+  'profile.xpReasonWrongInfo': 'Feilrapport godkjent{detail}',
   'profile.xpReasonOther': 'XP-belønning',
   'profile.privacy': 'Ledertavle-personvern',
   'profile.anonymousTitle': 'Vis som anonym',
@@ -1029,7 +1035,7 @@ const nb: Record<TranslationKey, string> = {
   'result.photoPending': 'Bilde er sendt til vurdering.',
   'result.photoSaved': 'Takk — bildet er lagret på produktet.',
   'result.addPhotoHint':
-    'Dette produktet har ikke bilde ennå. Legg til ett, så vurderer en admin det før det blir synlig.',
+    'Dette produktet mangler bilde. Legg til ett som vi kan se over før vi synliggjør det.',
   'result.signInToAddPhoto': 'Logg inn for å sende inn bilde til dette produktet.',
   'result.submitBarcode': 'Send strekkode',
   'result.reportPending':

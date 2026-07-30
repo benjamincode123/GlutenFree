@@ -30,14 +30,14 @@ function mapRow(row: ProductRow): Product {
     glutenRating: row.gluten_rating,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    catalog: 'glutenfri',
+    catalog: 'products',
   };
 }
 
 export class SqliteProductRepository implements ProductRepository {
   async getByBarcode(
     barcode: string,
-    _options?: { country?: 'no' | 'se' | 'dk' }
+    _options?: import('./ProductRepository').ProductLookupOptions
   ): Promise<Product | null> {
     const db = getDatabase();
     const row = await db.getFirstAsync<ProductRow>(
@@ -59,7 +59,7 @@ export class SqliteProductRepository implements ProductRepository {
   async searchByName(
     query: string,
     limit = 40,
-    options?: { unknownOnly?: boolean; page?: number; country?: 'no' | 'se' | 'dk' }
+    options?: import('./ProductRepository').ProductSearchOptions
   ): Promise<ProductSearchPage> {
     const q = query.trim();
     const page = Math.max(1, options?.page ?? 1);
@@ -215,7 +215,7 @@ export class SqliteProductRepository implements ProductRepository {
       id
     );
 
-    const saved = await this.getById('glutenfri', id);
+    const saved = await this.getById('products', id);
     if (!saved) {
       throw new AppError('report_failed');
     }

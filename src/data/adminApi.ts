@@ -225,6 +225,18 @@ export async function fetchPendingWrongInfoReports(
   return (await response.json()) as WrongInfoReportList;
 }
 
+/** Sum of pending product submissions, image validations, and wrong-info reports. */
+export async function fetchAdminPendingTotal(token: string): Promise<number> {
+  const [subs, images, reports] = await Promise.all([
+    fetchPendingSubmissions(token, 1),
+    fetchPendingImageValidations(token, 1),
+    fetchPendingWrongInfoReports(token, 1),
+  ]);
+  const total =
+    (subs.totalCount || 0) + (images.totalCount || 0) + (reports.totalCount || 0);
+  return Math.max(0, total);
+}
+
 export async function resolveWrongInfoReport(
   token: string,
   id: number

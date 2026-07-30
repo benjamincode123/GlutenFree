@@ -8,27 +8,31 @@ import {
 import { useI18n } from '../i18n/I18nContext';
 import { useTheme } from '../theme/ThemeContext';
 
-const LABEL_KEYS: Record<ProductCountry, 'country.no' | 'country.se' | 'country.dk'> = {
+const LABEL_KEYS: Record<
+  ProductCountry,
+  'country.no' | 'country.se' | 'country.dk' | 'country.de'
+> = {
   no: 'country.no',
   se: 'country.se',
   dk: 'country.dk',
+  de: 'country.de',
 };
 
-/** Compact NO / SE / DK control bound to the shared country preference. */
+/** Multi-select NO / SE / DK / DE control bound to shared country preferences. */
 export function CountrySelector({ compact = false }: { compact?: boolean }) {
   const { colors } = useTheme();
   const { t } = useI18n();
-  const { country, setCountry } = useCountryPrefs();
+  const { countries, toggleCountry } = useCountryPrefs();
 
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <View style={styles.row}>
         {PRODUCT_COUNTRIES.map((code) => {
-          const active = country === code;
+          const active = countries.includes(code);
           return (
             <Pressable
               key={code}
-              onPress={() => setCountry(code)}
+              onPress={() => toggleCountry(code)}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               accessibilityLabel={t(LABEL_KEYS[code])}
@@ -67,10 +71,13 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   chip: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '20%',
+    minWidth: 52,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
@@ -78,7 +85,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipCompact: {
-    flex: 0,
+    flexGrow: 0,
+    flexBasis: 'auto',
     minWidth: 44,
     paddingVertical: 6,
     paddingHorizontal: 10,

@@ -44,17 +44,21 @@ function parseCatalog(value: string | undefined): ProductCatalog | null {
     value === 'products' ||
     value === 'products_se' ||
     value === 'products_dk' ||
-    value === 'glutenfri' ||
-    value === 'gluten'
+    value === 'products_de'
   ) {
     return value;
   }
   return null;
 }
 
-/** Favorites / reports / submissions stay on NO (+ legacy) catalogs only. */
+/** Favorites / reports / photo / wrong-info work on NO/SE/DK/DE catalogs. */
 function isWritableCatalog(catalog: ProductCatalog | undefined): boolean {
-  return catalog === 'products' || catalog === 'glutenfri' || catalog === 'gluten';
+  return (
+    catalog === 'products' ||
+    catalog === 'products_se' ||
+    catalog === 'products_dk' ||
+    catalog === 'products_de'
+  );
 }
 
 function productImageUri(imageUrl: string | null | undefined): string | null {
@@ -72,7 +76,7 @@ export default function ResultScreen() {
   const { t } = useI18n();
   const { colors } = useTheme();
   const { selected: warnAllergens } = useAllergenPrefs();
-  const { country } = useCountryPrefs();
+  const { countries } = useCountryPrefs();
   const params = useLocalSearchParams<{
     barcode?: string;
     id?: string;
@@ -113,7 +117,7 @@ export default function ResultScreen() {
           if (catalogParam && Number.isFinite(idParam) && idParam > 0) {
             found = await repo.getById(catalogParam, idParam);
           } else if (barcode) {
-            found = await repo.getByBarcode(barcode, { country });
+            found = await repo.getByBarcode(barcode, { countries });
           }
 
           if (cancelled) return;
@@ -135,7 +139,7 @@ export default function ResultScreen() {
       return () => {
         cancelled = true;
       };
-    }, [barcode, catalogParam, idParam, country, t])
+    }, [barcode, catalogParam, idParam, countries, t])
   );
 
   const submitBarcodeReport = async () => {
@@ -305,17 +309,7 @@ export default function ResultScreen() {
             </Text>
           ) : null}
 
-          <View style={styles.statusRow}>
-            <View style={styles.badgeWrap}>
-              {allergenWarnings.map((hit) => (
-                <AllergenBadge
-                  key={`${hit.kind}-${hit.selected}`}
-                  name={hit.selected}
-                  kind={hit.kind}
-                  size="large"
-                />
-              ))}
-            </View>
+          <View style={styles.statusBlock}>
             {canReportWrongInfo ? (
               <Pressable
                 style={styles.wrongInfoButton}
@@ -330,6 +324,18 @@ export default function ResultScreen() {
                   color={colors.textSecondary}
                 />
               </Pressable>
+            ) : null}
+            {allergenWarnings.length > 0 ? (
+              <View style={styles.badgeWrap}>
+                {allergenWarnings.map((hit) => (
+                  <AllergenBadge
+                    key={`${hit.kind}-${hit.selected}`}
+                    name={hit.selected}
+                    kind={hit.kind}
+                    size="large"
+                  />
+                ))}
+              </View>
             ) : null}
           </View>
 
@@ -746,23 +752,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 12,
   },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+  statusBlock: {
     alignSelf: 'stretch',
-    gap: 8,
+    gap: 10,
   },
   badgeWrap: {
-    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
+    alignSelf: 'stretch',
     gap: 8,
   },
   wrongInfoButton: {
     padding: 4,
-    marginLeft: 'auto',
+    alignSelf: 'flex-end',
   },
   produsent: {
     fontSize: 14,

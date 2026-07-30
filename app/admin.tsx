@@ -80,14 +80,19 @@ function draftFromWrongInfo(item: WrongInfoReportItem): ApproveSubmissionEdits {
     ingredients: item.productIngredients ?? '',
     glutenRating: isGlutenRating(item.productGlutenRating)
       ? item.productGlutenRating
-      : item.catalog === 'gluten'
-        ? GlutenRating.GlutenContent
-        : GlutenRating.GlutenFree,
+      : GlutenRating.GlutenFree,
   };
 }
 
 function parseCatalog(value: string): ProductCatalog | null {
-  if (value === 'products' || value === 'glutenfri' || value === 'gluten') return value;
+  if (
+    value === 'products' ||
+    value === 'products_se' ||
+    value === 'products_dk' ||
+    value === 'products_de'
+  ) {
+    return value;
+  }
   return null;
 }
 

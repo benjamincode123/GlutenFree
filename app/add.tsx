@@ -41,7 +41,14 @@ import { askPickProductImage } from '../src/media/pickProductImage';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useTheme } from '../src/theme/ThemeContext';
 function parseCatalog(value: string | undefined): ProductCatalog | null {
-  if (value === 'products' || value === 'glutenfri' || value === 'gluten') return value;
+  if (
+    value === 'products' ||
+    value === 'products_se' ||
+    value === 'products_dk' ||
+    value === 'products_de'
+  ) {
+    return value;
+  }
   return null;
 }
 
@@ -502,7 +509,7 @@ export default function AddProductScreen() {
                           {item.name}
                         </Text>
                         <Text style={[styles.linkMeta, { color: colors.textSecondary }]}>
-                          {item.catalog === 'glutenfri'
+                          {item.glutenRating === 'gluten_free'
                             ? t('add.glutenFree')
                             : t('add.containsGluten')}{' '}
                           · {t('add.unknownBarcode')}

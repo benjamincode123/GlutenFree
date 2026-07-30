@@ -26,7 +26,7 @@ import { useI18n } from '../src/i18n/I18nContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
 type Row = {
-  catalog: 'products' | 'glutenfri' | 'gluten';
+  catalog: 'products' | 'products_se' | 'products_dk' | 'products_de';
   id: number;
   product: Product | null;
 };

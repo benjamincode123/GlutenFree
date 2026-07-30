@@ -1,4 +1,5 @@
 import { getAuthToken } from '../auth/session';
+import type { ProductCountry } from '../country/CountryPrefsContext';
 import { isGlutenRating, NewProduct, Product, ProductCatalog } from '../db/types';
 import {
   AppError,
@@ -6,8 +7,23 @@ import {
   appErrorFromHttp,
   readApiErrorMessage,
 } from '../errors/appError';
-import { ProductRepository, ProductSearchPage } from './ProductRepository';
+import {
+  ProductLookupOptions,
+  ProductRepository,
+  ProductSearchOptions,
+  ProductSearchPage,
+} from './ProductRepository';
 import { MIN_PRODUCT_SEARCH_CHARS } from './searchLimits';
+
+function resolveCountries(options?: ProductLookupOptions): ProductCountry[] {
+  if (options?.countries && options.countries.length > 0) {
+    return options.countries;
+  }
+  if (options?.country) {
+    return [options.country];
+  }
+  return ['no'];
+}
 
 /** Raw JSON shape returned by the .NET API (camelCase). */
 interface ProductApiResponse {
@@ -35,8 +51,7 @@ function mapCatalog(value: string | undefined): ProductCatalog | undefined {
     value === 'products' ||
     value === 'products_se' ||
     value === 'products_dk' ||
-    value === 'glutenfri' ||
-    value === 'gluten'
+    value === 'products_de'
   ) {
     return value;
   }
@@ -109,20 +124,18 @@ export class MssqlApiProductRepository implements ProductRepository {
 
   async getByBarcode(
     barcode: string,
-    options?: { country?: 'no' | 'se' | 'dk' }
+    options?: ProductLookupOptions
   ): Promise<Product | null> {
     const trimmed = barcode.trim();
     if (!trimmed || trimmed.toLowerCase() === 'unknown') {
       return null;
     }
+    const countries = resolveCountries(options);
     const params = new URLSearchParams();
-    if (options?.country && options.country !== 'no') {
-      params.set('country', options.country);
-    }
-    const qs = params.toString();
+    params.set('countries', countries.join(','));
     const response = await this.request(
       this.productsUrl(
-        `/${encodeURIComponent(trimmed)}${qs ? `?${qs}` : ''}`
+        `/${encodeURIComponent(trimmed)}?${params.toString()}`
       ),
       undefined,
       'lookup_failed'
@@ -158,7 +171,7 @@ export class MssqlApiProductRepository implements ProductRepository {
   async searchByName(
     query: string,
     limit = 40,
-    options?: { unknownOnly?: boolean; page?: number; country?: 'no' | 'se' | 'dk' }
+    options?: ProductSearchOptions
   ): Promise<ProductSearchPage> {
     const q = query.trim();
     const page = Math.max(1, options?.page ?? 1);
@@ -166,16 +179,15 @@ export class MssqlApiProductRepository implements ProductRepository {
     if (q.length < MIN_PRODUCT_SEARCH_CHARS) {
       return { items: [], page, pageSize, hasMore: false, totalCount: 0 };
     }
+    const countries = resolveCountries(options);
     const params = new URLSearchParams({
       q,
       limit: String(pageSize),
       page: String(page),
+      countries: countries.join(','),
     });
     if (options?.unknownOnly) {
       params.set('unknownOnly', 'true');
-    }
-    if (options?.country && options.country !== 'no') {
-      params.set('country', options.country);
     }
     const response = await this.request(
       this.productsUrl(`/search?${params.toString()}`),

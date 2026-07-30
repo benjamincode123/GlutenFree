@@ -39,8 +39,9 @@ function canFavoriteProduct(item: Product): item is Product & { catalog: Product
     !!item.catalog &&
     item.id > 0 &&
     (item.catalog === 'products' ||
-      item.catalog === 'glutenfri' ||
-      item.catalog === 'gluten')
+      item.catalog === 'products_se' ||
+      item.catalog === 'products_dk' ||
+      item.catalog === 'products_de')
   );
 }
 
@@ -51,7 +52,7 @@ export default function ProductsScreen() {
   const { t, tf } = useI18n();
   const { colors } = useTheme();
   const { selected: warnAllergens } = useAllergenPrefs();
-  const { country } = useCountryPrefs();
+  const { countries } = useCountryPrefs();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -90,7 +91,7 @@ export default function ProductsScreen() {
         const result = await getProductRepository().searchByName(
           trimmed,
           PRODUCT_SEARCH_PAGE_SIZE,
-          { page: pageNumber, country }
+          { page: pageNumber, countries }
         );
         setProducts(result.items);
         if (result.totalCount != null) {
@@ -110,7 +111,7 @@ export default function ProductsScreen() {
         setLoading(false);
       }
     },
-    [t, country]
+    [t, countries]
   );
 
   useEffect(() => {
@@ -120,10 +121,11 @@ export default function ProductsScreen() {
     return () => clearTimeout(handle);
   }, [query, page, runSearch]);
 
+  const countriesKey = countries.join(',');
   useEffect(() => {
     setPage(1);
     setTotalCount(0);
-  }, [country]);
+  }, [countriesKey]);
 
   const openProduct = (item: Product) => {
     if (item.catalog && (isUnknownBarcode(item.barcode) || item.id > 0)) {
@@ -521,7 +523,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
-    gap: 4,
+    gap: 2,
   },
   rowLine: {
     flexDirection: 'row',
@@ -559,6 +561,7 @@ const styles = StyleSheet.create({
     height: 22,
   },
   name: {
+    maxWidth: '75%',
     fontSize: 16,
     fontWeight: '700',
   },

@@ -12,6 +12,9 @@ export interface ProductSearchPage {
 }
 
 export type ProductLookupOptions = {
+  /** One or more catalog countries to search (e.g. no + se). */
+  countries?: ProductCountry[];
+  /** @deprecated Prefer `countries`. */
   country?: ProductCountry;
 };
 
