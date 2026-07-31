@@ -1,7 +1,8 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -14,6 +15,8 @@ import { I18nProvider, useI18n } from '../src/i18n/I18nContext';
 import { initDatabase } from '../src/db/database';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
+void SplashScreen.preventAutoHideAsync();
+
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +28,7 @@ export default function RootLayout() {
     // is no local SQLite database to prepare.
     if (config.useBackend) {
       setReady(true);
+      void SplashScreen.hideAsync();
       return () => {
         cancelled = true;
       };
@@ -32,11 +36,15 @@ export default function RootLayout() {
 
     initDatabase()
       .then(() => {
-        if (!cancelled) setReady(true);
+        if (!cancelled) {
+          setReady(true);
+          void SplashScreen.hideAsync();
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
           setError('startup');
+          void SplashScreen.hideAsync();
         }
       });
     return () => {
@@ -57,9 +65,13 @@ export default function RootLayout() {
 
   if (!ready) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1B7F3B" />
-        <Text style={styles.loadingText}>Preparing AltUten...</Text>
+      <View style={styles.splashCenter}>
+        <Image
+          source={require('../assets/splash-icon.png')}
+          style={styles.splashLogo}
+          resizeMode="contain"
+          accessibilityLabel="AltUten"
+        />
       </View>
     );
   }
@@ -151,6 +163,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
     backgroundColor: '#fff',
+  },
+  splashCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000000',
+  },
+  splashLogo: {
+    width: 240,
+    height: 240,
   },
   loadingText: {
     marginTop: 16,
