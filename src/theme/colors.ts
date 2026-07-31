@@ -12,26 +12,27 @@ export interface ThemeColors {
   onPrimary: string;
 }
 
+/** Light: black accents on white. Dark: white accents on black — same pairing, inverted. */
 export const lightColors: ThemeColors = {
   background: '#FFFFFF',
-  surface: '#F8F9FA',
-  border: '#E8EAED',
-  text: '#202124',
-  textSecondary: '#5F6368',
-  primary: '#1B7F3B',
-  primaryMuted: '#A8C7B4',
+  surface: '#F5F5F5',
+  border: '#E5E5E5',
+  text: '#0F1115',
+  textSecondary: '#6B7280',
+  primary: '#0F1115',
+  primaryMuted: '#D1D5DB',
   danger: '#B3261E',
   onPrimary: '#FFFFFF',
 };
 
 export const darkColors: ThemeColors = {
-  background: '#121418',
+  background: '#0F1115',
   surface: '#1A1D22',
   border: '#2A2E35',
-  text: '#F1F3F4',
+  text: '#FFFFFF',
   textSecondary: '#9AA0A6',
-  primary: '#3D9B5F',
-  primaryMuted: '#2A5A3C',
+  primary: '#FFFFFF',
+  primaryMuted: '#2A2E35',
   danger: '#F28B82',
-  onPrimary: '#FFFFFF',
+  onPrimary: '#0F1115',
 };

@@ -522,7 +522,7 @@ export default function ResultScreen() {
                     disabled={!reportBarcode.trim() || reporting}
                     onPress={() => void submitBarcodeReport()}
                   >
-                    <Text style={styles.primaryButtonText}>
+                    <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
                       {reporting ? t('common.saving') : t('result.submitBarcode')}
                     </Text>
                   </Pressable>
@@ -597,7 +597,7 @@ export default function ResultScreen() {
                     disabled={!reportImageBase64 || reporting}
                     onPress={() => void submitProductPhoto()}
                   >
-                    <Text style={styles.primaryButtonText}>
+                    <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
                       {reporting ? t('common.saving') : t('result.submitPhoto')}
                     </Text>
                   </Pressable>
@@ -666,7 +666,9 @@ export default function ResultScreen() {
                 router.push({ pathname: '/add', params: { barcode } })
               }
             >
-              <Text style={styles.primaryButtonText}>{t('result.addOrLink')}</Text>
+              <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
+                {t('result.addOrLink')}
+              </Text>
             </Pressable>
           )}
         </View>
@@ -905,7 +907,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#fff',
     fontWeight: '700',
     fontSize: 16,
   },

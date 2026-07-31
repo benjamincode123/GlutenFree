@@ -4,12 +4,22 @@ import {
   useCameraPermissions,
 } from 'expo-camera';
 import { Link, useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from 'react';
+import {
+  Animated,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,19 +29,28 @@ import { ScannerCamera } from '../src/components/ScannerCamera';
 import { useI18n } from '../src/i18n/I18nContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
+type MenuIcon = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
 export default function ScannerScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const { user, authEnabled } = useAuth();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { t } = useI18n();
+  const scanInk = colors.primary;
+  const scanOnInk = colors.onPrimary;
   const [permission, requestPermission] = useCameraPermissions();
 
   const [lastBarcode, setLastBarcode] = useState<string | null>(null);
   const [holdingToScan, setHoldingToScan] = useState(false);
   const [isFocused, setIsFocused] = useState(true);
   const [cameraReady, setCameraReady] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const drawerWidth = screenWidth * 0.25;
+  const menuProgress = useRef(new Animated.Value(0)).current;
 
   // Prevents the camera from firing many navigations for one physical scan.
   const lockRef = useRef(false);
@@ -39,8 +58,79 @@ export default function ScannerScreen() {
   const isFocusedRef = useRef(true);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: t('nav.scanner') });
-  }, [navigation, t]);
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
+
+  useEffect(() => {
+    Animated.timing(menuProgress, {
+      toValue: menuOpen ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [menuOpen, menuProgress]);
+
+  const toggleMenu = useCallback(() => {
+    setMenuOpen((open) => !open);
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+  }, []);
+
+  const goMenuLink = useCallback(
+    (href: '/add' | '/products' | '/user' | '/leaderboard' | '/settings') => {
+      setMenuOpen(false);
+      router.push(href);
+    },
+    [router]
+  );
+
+  const menuItems = useMemo(() => {
+    const items: {
+      href: '/add' | '/products' | '/user' | '/leaderboard' | '/settings';
+      icon: MenuIcon;
+      labelKey:
+        | 'scanner.searchProducts'
+        | 'scanner.addProduct'
+        | 'scanner.profile'
+        | 'scanner.leaderboard'
+        | 'scanner.settings';
+      requireAuth?: boolean;
+    }[] = [
+      {
+        href: '/products',
+        icon: 'magnify',
+        labelKey: 'scanner.searchProducts',
+      },
+      {
+        href: '/add',
+        icon: 'plus-circle-outline',
+        labelKey: 'scanner.addProduct',
+        requireAuth: true,
+      },
+      {
+        href: '/user',
+        icon: 'account-circle-outline',
+        labelKey: 'scanner.profile',
+      },
+      {
+        href: '/leaderboard',
+        icon: 'trophy-outline',
+        labelKey: 'scanner.leaderboard',
+      },
+      {
+        href: '/settings',
+        icon: 'cog-outline',
+        labelKey: 'scanner.settings',
+      },
+    ];
+    return items.filter((item) => !item.requireAuth || (authEnabled && user));
+  }, [authEnabled, user]);
+
+  const shellTranslateX = menuProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-drawerWidth, 0],
+  });
 
   // Keep CameraView mounted; only pause the session while another screen is open.
   useFocusEffect(
@@ -108,8 +198,94 @@ export default function ScannerScreen() {
     );
   }
 
+  const headerIconButton = (
+    name: MenuIcon,
+    label: string,
+    onPress: () => void
+  ) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={styles.headerIconButton}
+    >
+      <MaterialCommunityIcons name={name} size={24} color={colors.text} />
+    </Pressable>
+  );
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[styles.shellRoot, { backgroundColor: colors.background }]}
+    >
+      <Animated.View
+        style={[
+          styles.shellRow,
+          {
+            width: screenWidth + drawerWidth,
+            transform: [{ translateX: shellTranslateX }],
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.drawer,
+            {
+              width: drawerWidth,
+              backgroundColor: colors.surface,
+              borderRightColor: colors.border,
+              paddingTop: insets.top + 12,
+              paddingBottom: insets.bottom + 12,
+            },
+          ]}
+        >
+          {menuItems.map((item) => (
+            <Pressable
+              key={item.href}
+              onPress={() => goMenuLink(item.href)}
+              accessibilityRole="button"
+              accessibilityLabel={t(item.labelKey)}
+              style={styles.drawerItem}
+            >
+              <MaterialCommunityIcons
+                name={item.icon}
+                size={28}
+                color={colors.primary}
+              />
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={[styles.mainColumn, { width: screenWidth }]}>
+          <View
+            style={[
+              styles.headerRoot,
+              {
+                backgroundColor: colors.background,
+                paddingTop: insets.top,
+              },
+            ]}
+          >
+            <View style={styles.headerBar}>
+              {headerIconButton(
+                menuOpen ? 'close' : 'menu',
+                t('scanner.menuA11y'),
+                toggleMenu
+              )}
+              <Text
+                style={[styles.headerTitle, { color: colors.text }]}
+                numberOfLines={1}
+              >
+                {t('nav.scanner')}
+              </Text>
+              {headerIconButton(
+                'bell-outline',
+                t('scanner.notificationsA11y'),
+                () => undefined
+              )}
+            </View>
+          </View>
+
+          <View style={styles.container}>
       {permission.granted ? (
         <View style={styles.cameraWrapper}>
           <ScannerCamera
@@ -120,7 +296,7 @@ export default function ScannerScreen() {
           />
           <View style={styles.overlay} pointerEvents="box-none">
             <View
-              style={[styles.hintWrap, { top: Math.max(insets.top, 8) + 10 }]}
+              style={[styles.hintWrap, { top: 10 }]}
               pointerEvents="none"
             >
               <View
@@ -132,12 +308,12 @@ export default function ScannerScreen() {
                 <MaterialCommunityIcons
                   name={holdingToScan ? 'line-scan' : 'gesture-tap-hold'}
                   size={16}
-                  color={holdingToScan ? '#E4F6E9' : 'rgba(255,255,255,0.92)'}
+                  color={holdingToScan ? scanOnInk : 'rgba(255,255,255,0.92)'}
                 />
                 <Text
                   style={[
                     styles.hintText,
-                    holdingToScan && styles.hintTextActive,
+                    holdingToScan && { color: scanOnInk },
                   ]}
                 >
                   {holdingToScan ? t('scanner.scanning') : t('scanner.holdToScan')}
@@ -150,28 +326,28 @@ export default function ScannerScreen() {
                 style={[
                   styles.scanCorner,
                   styles.scanCornerTL,
-                  holdingToScan && styles.scanCornerActive,
+                  holdingToScan && { borderColor: scanInk },
                 ]}
               />
               <View
                 style={[
                   styles.scanCorner,
                   styles.scanCornerTR,
-                  holdingToScan && styles.scanCornerActive,
+                  holdingToScan && { borderColor: scanInk },
                 ]}
               />
               <View
                 style={[
                   styles.scanCorner,
                   styles.scanCornerBL,
-                  holdingToScan && styles.scanCornerActive,
+                  holdingToScan && { borderColor: scanInk },
                 ]}
               />
               <View
                 style={[
                   styles.scanCorner,
                   styles.scanCornerBR,
-                  holdingToScan && styles.scanCornerActive,
+                  holdingToScan && { borderColor: scanInk },
                 ]}
               />
             </View>
@@ -184,13 +360,17 @@ export default function ScannerScreen() {
                 accessibilityLabel={t('scanner.holdA11y')}
                 style={({ pressed }) => [
                   styles.scanButton,
+                  {
+                    backgroundColor: scanInk,
+                    borderColor: isDark ? 'rgba(15,17,21,0.35)' : 'rgba(255,255,255,0.85)',
+                  },
                   (pressed || holdingToScan) && styles.scanButtonActive,
                 ]}
               >
                 <MaterialCommunityIcons
                   name="barcode-scan"
                   size={36}
-                  color="#fff"
+                  color={scanOnInk}
                 />
               </Pressable>
             </View>
@@ -201,8 +381,13 @@ export default function ScannerScreen() {
           <View style={[styles.centered, styles.noCamera]}>
             <Text style={styles.noCameraTitle}>{t('scanner.cameraNeeded')}</Text>
             <Text style={styles.infoText}>{t('scanner.cameraHint')}</Text>
-            <Pressable style={styles.primaryButton} onPress={requestPermission}>
-              <Text style={styles.primaryButtonText}>{t('scanner.grantCamera')}</Text>
+            <Pressable
+              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+              onPress={requestPermission}
+            >
+              <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
+                {t('scanner.grantCamera')}
+              </Text>
             </Pressable>
             {Platform.OS === 'ios' && (
               <Text style={styles.simulatorNote}>{t('scanner.simulatorNote')}</Text>
@@ -211,9 +396,49 @@ export default function ScannerScreen() {
         </View>
       )}
 
-      <View style={styles.devPanel}>
-        <Text style={styles.devLabel}>{t('scanner.lastScanned')}</Text>
-        <Text style={styles.devValue}>{lastBarcode ?? '—'}</Text>
+      <View
+        style={[
+          styles.devPanel,
+          {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+          },
+        ]}
+      >
+        <View style={styles.lastScanRow}>
+          <View style={styles.lastScanText}>
+            <Text style={[styles.devLabel, { color: colors.textSecondary }]}>
+              {t('scanner.lastScanned')}
+            </Text>
+            <Text
+              style={[styles.devValue, { color: colors.text }]}
+              numberOfLines={1}
+            >
+              {lastBarcode ?? '—'}
+            </Text>
+          </View>
+          {lastBarcode ? (
+            <Pressable
+              style={[
+                styles.openLastButton,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.background,
+                },
+              ]}
+              onPress={() => goToResult(lastBarcode)}
+              accessibilityRole="button"
+              accessibilityLabel={t('scanner.openLastScanned')}
+              hitSlop={8}
+            >
+              <MaterialCommunityIcons
+                name="package-variant"
+                size={22}
+                color={colors.primary}
+              />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       <View
@@ -230,16 +455,28 @@ export default function ScannerScreen() {
           {authEnabled && user && (
             <Link
               href="/add"
-              style={[styles.linkButton, { borderColor: colors.primary }]}
+              style={[
+                styles.linkButton,
+                {
+                  borderColor: colors.primary,
+                  backgroundColor: colors.primary,
+                },
+              ]}
             >
-              <Text style={[styles.linkButtonText, { color: colors.primary }]}>
+              <Text style={[styles.linkButtonText, { color: colors.onPrimary }]}>
                 {t('scanner.addProduct')}
               </Text>
             </Link>
           )}
           <Link
             href="/products"
-            style={[styles.linkButton, { borderColor: colors.primary }]}
+            style={[
+              styles.linkButton,
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.background,
+              },
+            ]}
           >
             <Text style={[styles.linkButtonText, { color: colors.primary }]}>
               {t('scanner.searchProducts')}
@@ -305,11 +542,74 @@ export default function ScannerScreen() {
           {t('scanner.disclaimer')}
         </Text>
       </View>
+
+          {menuOpen ? (
+            <Pressable
+              style={styles.menuDismiss}
+              onPress={closeMenu}
+              accessibilityRole="button"
+              accessibilityLabel={t('scanner.menuA11y')}
+            />
+          ) : null}
+          </View>
+        </View>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  shellRoot: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  shellRow: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  drawer: {
+    height: '100%',
+    borderRightWidth: StyleSheet.hairlineWidth,
+    alignItems: 'stretch',
+    gap: 4,
+    paddingHorizontal: 6,
+  },
+  drawerItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  mainColumn: {
+    flex: 1,
+    height: '100%',
+  },
+  menuDismiss: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
+  headerRoot: {
+    width: '100%',
+  },
+  headerBar: {
+    height: Platform.OS === 'ios' ? 44 : 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: Platform.OS === 'ios' ? 17 : 20,
+    fontWeight: '700',
+  },
+  headerIconButton: {
+    width: 48,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: '#0F1115',
@@ -350,17 +650,14 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.28)',
   },
   hintPillActive: {
-    backgroundColor: 'rgba(27, 127, 59, 0.82)',
-    borderColor: 'rgba(228, 246, 233, 0.55)',
+    backgroundColor: 'rgba(15, 17, 21, 0.88)',
+    borderColor: 'rgba(255,255,255,0.45)',
   },
   hintText: {
     color: 'rgba(255,255,255,0.95)',
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.2,
-  },
-  hintTextActive: {
-    color: '#E4F6E9',
   },
   // Large guide — scanning uses the full camera frame, not only this box.
   scanFrame: {
@@ -375,9 +672,6 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderColor: 'rgba(255,255,255,0.88)',
-  },
-  scanCornerActive: {
-    borderColor: '#4CD787',
   },
   scanCornerTL: {
     top: 0,
@@ -418,9 +712,7 @@ const styles = StyleSheet.create({
     width: 76,
     height: 76,
     borderRadius: 38,
-    backgroundColor: 'rgba(27, 127, 59, 0.92)',
     borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -430,9 +722,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   scanButtonActive: {
-    backgroundColor: '#149A45',
     transform: [{ scale: 0.94 }],
-    borderColor: '#fff',
   },
   noCamera: {
     backgroundColor: '#1A1D22',
@@ -456,31 +746,42 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     marginTop: 16,
-    backgroundColor: '#1B7F3B',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 10,
   },
   primaryButtonText: {
-    color: '#fff',
     fontWeight: '700',
     fontSize: 15,
   },
   devPanel: {
-    backgroundColor: '#181B20',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2A2E35',
+  },
+  lastScanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  lastScanText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  openLastButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   devLabel: {
-    color: '#8A9099',
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   devValue: {
-    color: '#4CD787',
     fontSize: 18,
     fontWeight: '700',
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
@@ -488,8 +789,6 @@ const styles = StyleSheet.create({
   bottomPanel: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
   },
   linksRow: {
     flexDirection: 'row',

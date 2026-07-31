@@ -118,9 +118,10 @@ function RootNavigator() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: colors.primary },
-          headerTintColor: colors.onPrimary,
-          headerTitleStyle: { fontWeight: '700' },
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+          headerTitleStyle: { fontWeight: '700', color: colors.text },
+          headerShadowVisible: false,
           contentStyle: { backgroundColor: colors.background },
         }}
       >

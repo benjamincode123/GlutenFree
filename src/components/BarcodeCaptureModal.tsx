@@ -110,10 +110,18 @@ export function BarcodeCaptureModal({
                   accessibilityLabel={t('scanner.holdA11y')}
                   style={({ pressed }) => [
                     styles.scanButton,
+                    {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.onPrimary,
+                    },
                     (pressed || holding) && styles.scanButtonActive,
                   ]}
                 >
-                  <MaterialCommunityIcons name="barcode-scan" size={36} color="#fff" />
+                  <MaterialCommunityIcons
+                    name="barcode-scan"
+                    size={36}
+                    color={colors.onPrimary}
+                  />
                 </Pressable>
               </View>
             </View>
@@ -126,7 +134,9 @@ export function BarcodeCaptureModal({
               style={[styles.primaryButton, { backgroundColor: colors.primary }]}
               onPress={() => void requestPermission()}
             >
-              <Text style={styles.primaryButtonText}>{t('scanner.grantCamera')}</Text>
+              <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
+                {t('scanner.grantCamera')}
+              </Text>
             </Pressable>
             {Platform.OS === 'ios' && (
               <Text style={styles.simNote}>{t('scanner.simulatorNote')}</Text>
@@ -186,16 +196,12 @@ const styles = StyleSheet.create({
     width: 76,
     height: 76,
     borderRadius: 38,
-    backgroundColor: 'rgba(27, 127, 59, 0.92)',
     borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   scanButtonActive: {
-    backgroundColor: '#149A45',
     transform: [{ scale: 0.94 }],
-    borderColor: '#fff',
   },
   permissionBox: {
     flex: 1,
@@ -221,7 +227,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   primaryButtonText: {
-    color: '#fff',
     fontWeight: '700',
     fontSize: 15,
   },

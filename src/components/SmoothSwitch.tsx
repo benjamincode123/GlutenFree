@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 
 const TRACK_OFF = '#C5CCD4';
-const TRACK_ON = '#1B7F3B';
+/** Matches light primary / dark onPrimary — solid ink when “on”. */
+const TRACK_ON = '#0F1115';
 const WIDTH = 52;
 const HEIGHT = 32;
 const PAD = 3;

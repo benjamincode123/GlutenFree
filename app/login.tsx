@@ -33,7 +33,7 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
   const { t } = useI18n();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const keyboardShift = useSmoothKeyboardShift(200);
 
   const [username, setUsername] = useState('');
@@ -42,7 +42,8 @@ export default function LoginScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const patternLine = darkenHex(colors.primary, 0.32);
+  // Pattern strokes need contrast on primary: lighten on black, darken on white.
+  const patternLine = isDark ? darkenHex(colors.primary, 0.14) : '#2A2E35';
   const year = new Date().getFullYear();
 
   async function handleSubmit() {
@@ -178,24 +179,32 @@ export default function LoginScreen() {
                 disabled={submitting}
               >
                 {submitting ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.onPrimary} />
                 ) : (
-                  <Text style={styles.buttonText}>{t('login.signIn')}</Text>
+                  <Text style={[styles.buttonText, { color: colors.onPrimary }]}>
+                    {t('login.signIn')}
+                  </Text>
                 )}
               </Pressable>
             </View>
 
             <Pressable style={styles.switchRow} onPress={openRegisterWebsite}>
-              <Text style={styles.switchText}>
+              <Text style={[styles.switchText, { color: colors.onPrimary }]}>
                 {t('login.noAccount')}
-                <Text style={styles.switchLink}>{t('login.register')}</Text>
+                <Text style={[styles.switchLink, { color: colors.onPrimary }]}>
+                  {t('login.register')}
+                </Text>
               </Text>
             </Pressable>
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.poweredBy}>{t('login.poweredBy')}</Text>
-            <Text style={styles.copyright}>© {year} AltUten</Text>
+            <Text style={[styles.poweredBy, { color: colors.onPrimary }]}>
+              {t('login.poweredBy')}
+            </Text>
+            <Text style={[styles.copyright, { color: colors.onPrimary, opacity: 0.75 }]}>
+              © {year} AltUten
+            </Text>
           </View>
         </ScrollView>
       </Animated.View>

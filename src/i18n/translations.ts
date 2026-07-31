@@ -88,6 +88,9 @@ type TranslationKey =
   | 'scanner.grantCamera'
   | 'scanner.simulatorNote'
   | 'scanner.lastScanned'
+  | 'scanner.openLastScanned'
+  | 'scanner.menuA11y'
+  | 'scanner.notificationsA11y'
   | 'scanner.addProduct'
   | 'scanner.searchProducts'
   | 'scanner.profile'
@@ -452,6 +455,9 @@ const en: Record<TranslationKey, string> = {
   'scanner.grantCamera': 'Grant camera access',
   'scanner.simulatorNote': 'The iOS Simulator has no camera. Test on a physical device.',
   'scanner.lastScanned': 'Last scanned barcode',
+  'scanner.openLastScanned': 'Open last scanned product',
+  'scanner.menuA11y': 'Menu',
+  'scanner.notificationsA11y': 'Notifications',
   'scanner.addProduct': '+ Add product',
   'scanner.searchProducts': 'Search products',
   'scanner.profile': 'Profile',
@@ -837,6 +843,9 @@ const nb: Record<TranslationKey, string> = {
   'scanner.grantCamera': 'Gi kameratilgang',
   'scanner.simulatorNote': 'iOS-simulatoren har ikke kamera. Test på en fysisk enhet.',
   'scanner.lastScanned': 'Sist skannet strekkode',
+  'scanner.openLastScanned': 'Åpne sist skannede produkt',
+  'scanner.menuA11y': 'Meny',
+  'scanner.notificationsA11y': 'Varsler',
   'scanner.addProduct': '+ Legg til produkt',
   'scanner.searchProducts': 'Søk produkter',
   'scanner.profile': 'Profil',

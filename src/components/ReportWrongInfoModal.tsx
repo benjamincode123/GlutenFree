@@ -251,9 +251,11 @@ export function ReportWrongInfoModal({
                 disabled={submitting}
               >
                 {submitting ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.onPrimary} />
                 ) : (
-                  <Text style={styles.submitText}>{t('result.wrongInfoSubmit')}</Text>
+                  <Text style={[styles.submitText, { color: colors.onPrimary }]}>
+                    {t('result.wrongInfoSubmit')}
+                  </Text>
                 )}
               </Pressable>
             </>
@@ -344,7 +346,6 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   submitText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '700',
   },
