@@ -2,7 +2,7 @@
   "expo": {
     "name": "AltUten",
     "slug": "altuten",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "glutenfree",
@@ -23,7 +23,7 @@
     },
     "android": {
       "package": "com.glutenfree.scanner",
-      "versionCode": 4,
+      "versionCode": 5,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#000000",
