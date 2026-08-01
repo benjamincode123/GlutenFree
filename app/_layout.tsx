@@ -10,9 +10,11 @@ import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import { AllergenPrefsProvider } from '../src/allergens/AllergenPrefsContext';
 import { CountryPrefsProvider } from '../src/country/CountryPrefsContext';
 import { KeyboardDismissAccessory } from '../src/components/KeyboardDismissBar';
+import { TermsAcceptanceScreen } from '../src/components/TermsAcceptanceScreen';
 import { config } from '../src/config';
 import { I18nProvider, useI18n } from '../src/i18n/I18nContext';
 import { initDatabase } from '../src/db/database';
+import { hasAcceptedCurrentTerms } from '../src/legal/termsAcceptance';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
 void SplashScreen.preventAutoHideAsync();
@@ -101,9 +103,24 @@ function RootNavigator() {
   const { t } = useI18n();
   const segments = useSegments();
   const router = useRouter();
+  const [termsReady, setTermsReady] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
-    if (initializing || !authEnabled) {
+    let cancelled = false;
+    void hasAcceptedCurrentTerms().then((accepted) => {
+      if (!cancelled) {
+        setTermsAccepted(accepted);
+        setTermsReady(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (initializing || !authEnabled || !termsAccepted) {
       return;
     }
     const onLoginScreen = segments[0] === 'login';
@@ -112,9 +129,9 @@ function RootNavigator() {
     } else if (user && onLoginScreen) {
       router.replace('/');
     }
-  }, [user, initializing, authEnabled, segments, router]);
+  }, [user, initializing, authEnabled, termsAccepted, segments, router]);
 
-  if (initializing) {
+  if (initializing || !termsReady) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -122,6 +139,15 @@ function RootNavigator() {
           {t('common.loading')}
         </Text>
       </View>
+    );
+  }
+
+  if (!termsAccepted) {
+    return (
+      <>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <TermsAcceptanceScreen onAccepted={() => setTermsAccepted(true)} />
+      </>
     );
   }
 
@@ -147,6 +173,7 @@ function RootNavigator() {
         <Stack.Screen name="lists" options={{ title: t('lists.title') }} />
         <Stack.Screen name="list-detail" options={{ title: t('lists.title') }} />
         <Stack.Screen name="leaderboard" options={{ title: t('nav.leaderboard') }} />
+        <Stack.Screen name="notifications" options={{ title: t('nav.notifications') }} />
         <Stack.Screen name="admin" options={{ title: t('nav.admin') }} />
         <Stack.Screen name="settings" options={{ title: t('nav.settings') }} />
       </Stack>

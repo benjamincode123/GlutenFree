@@ -25,6 +25,7 @@ export async function saveCachedUser(user: AuthUser): Promise<void> {
     ...user,
     profileImageUrl: null,
     favorites: Array.isArray(user.favorites) ? user.favorites : [],
+    unreadMessages: Array.isArray(user.unreadMessages) ? user.unreadMessages : [],
   };
   memoryUser = user;
   try {
@@ -48,6 +49,9 @@ export async function loadCachedUser(): Promise<AuthUser | null> {
       ...parsed,
       profileImageUrl: parsed.profileImageUrl ?? null,
       favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
+      unreadMessages: Array.isArray(parsed.unreadMessages)
+        ? parsed.unreadMessages
+        : [],
     };
     return memoryUser;
   } catch {

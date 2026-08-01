@@ -9,6 +9,8 @@ type TranslationKey =
   | 'nav.settings'
   | 'nav.admin'
   | 'nav.leaderboard'
+  | 'nav.notifications'
+  | 'notifications.empty'
   | 'nav.signIn'
   | 'common.loading'
   | 'common.guest'
@@ -117,6 +119,7 @@ type TranslationKey =
   | 'profile.xpReasonBarcode'
   | 'profile.xpReasonSubmission'
   | 'profile.xpReasonWrongInfo'
+  | 'profile.xpReasonMerge'
   | 'profile.xpReasonOther'
   | 'profile.privacy'
   | 'profile.anonymousTitle'
@@ -164,14 +167,49 @@ type TranslationKey =
   | 'admin.tabProducts'
   | 'admin.tabImages'
   | 'admin.tabWrongInfo'
+  | 'admin.tabMerges'
+  | 'admin.tabNotifications'
   | 'admin.imagesSubtitle'
   | 'admin.wrongInfoSubtitle'
+  | 'admin.mergesSubtitle'
+  | 'admin.notificationsSubtitle'
+  | 'admin.notifyTitle'
+  | 'admin.notifyBody'
+  | 'admin.notifyImageUrl'
+  | 'admin.notifyAudience'
+  | 'admin.notifyAll'
+  | 'admin.notifyUsers'
+  | 'admin.notifyTop'
+  | 'admin.notifyUsersHint'
+  | 'admin.notifyPeriod'
+  | 'admin.notifyPeriodDay'
+  | 'admin.notifyPeriodWeek'
+  | 'admin.notifyPeriodMonth'
+  | 'admin.notifyRank'
+  | 'admin.notifyTopN'
+  | 'admin.notifySend'
+  | 'admin.notifySending'
+  | 'admin.notifySent'
+  | 'admin.notifyRecent'
+  | 'admin.notifyEmpty'
+  | 'admin.notifyTitleRequired'
+  | 'admin.notifyBodyRequired'
+  | 'admin.notifyUsersRequired'
+  | 'admin.notifyDelete'
+  | 'admin.notifyDeleting'
+  | 'admin.notifyDeleted'
   | 'admin.imagesEmpty'
   | 'admin.wrongInfoEmpty'
+  | 'admin.mergesEmpty'
   | 'admin.wrongInfoEmne'
   | 'admin.wrongInfoComment'
   | 'admin.wrongInfoProductMissing'
   | 'admin.wrongInfoEditHint'
+  | 'admin.mergeSource'
+  | 'admin.mergeTarget'
+  | 'admin.mergeComment'
+  | 'admin.mergeAccept'
+  | 'admin.mergeProductMissing'
   | 'admin.saveAndResolve'
   | 'admin.dismiss'
   | 'admin.catalog'
@@ -231,6 +269,14 @@ type TranslationKey =
   | 'login.smsCodeRequired'
   | 'login.genericError'
   | 'login.poweredBy'
+  | 'terms.title'
+  | 'terms.subtitle'
+  | 'terms.highlight'
+  | 'terms.agree'
+  | 'terms.continue'
+  | 'terms.versionLabel'
+  | 'terms.saveFailed'
+  | 'terms.openInSettings'
   | 'products.searchLabel'
   | 'products.searchPlaceholder'
   | 'products.hint'
@@ -269,6 +315,21 @@ type TranslationKey =
   | 'result.wrongInfoEmneShort'
   | 'result.wrongInfoCommentShort'
   | 'result.wrongInfoSent'
+  | 'result.mergeTitle'
+  | 'result.mergeTitleAdmin'
+  | 'result.mergeSourceHint'
+  | 'result.mergeTargetHint'
+  | 'result.mergeSearchPlaceholder'
+  | 'result.mergeCommentPlaceholder'
+  | 'result.mergeNoResults'
+  | 'result.mergePickTarget'
+  | 'result.signInToMerge'
+  | 'result.mergeAdminOnly'
+  | 'result.mergeSuggest'
+  | 'result.mergeNow'
+  | 'result.mergeSuggested'
+  | 'result.mergeDone'
+  | 'result.mergeXpHint'
   | 'result.reportHint'
   | 'result.signInToReport'
   | 'result.enterBarcode'
@@ -370,6 +431,8 @@ const en: Record<TranslationKey, string> = {
   'nav.settings': 'Settings',
   'nav.admin': 'Admin',
   'nav.leaderboard': 'Leaderboard',
+  'nav.notifications': 'Notifications',
+  'notifications.empty': 'No notifications yet.',
   'nav.signIn': 'Sign In',
   'common.loading': 'Loading...',
   'common.guest': 'Guest',
@@ -484,6 +547,7 @@ const en: Record<TranslationKey, string> = {
   'profile.xpReasonBarcode': 'Barcode report applied{detail}',
   'profile.xpReasonSubmission': 'Product submission applied{detail}',
   'profile.xpReasonWrongInfo': 'Wrong-info report approved{detail}',
+  'profile.xpReasonMerge': 'Merge suggestion accepted{detail}',
   'profile.xpReasonOther': 'XP reward',
   'profile.privacy': 'Leaderboard privacy',
   'profile.anonymousTitle': 'Appear as anonymous',
@@ -532,16 +596,53 @@ const en: Record<TranslationKey, string> = {
   'admin.tabProducts': 'Products',
   'admin.tabImages': 'Images',
   'admin.tabWrongInfo': 'Reports',
+  'admin.tabMerges': 'Merges',
+  'admin.tabNotifications': 'Notify',
+  'admin.notificationsSubtitle':
+    'Send management messages to all users, selected users, or top collaborators.',
+  'admin.notifyTitle': 'Title',
+  'admin.notifyBody': 'Message',
+  'admin.notifyImageUrl': 'Image URL (optional)',
+  'admin.notifyAudience': 'Audience',
+  'admin.notifyAll': 'Everyone',
+  'admin.notifyUsers': 'Selected users',
+  'admin.notifyTop': 'Top collaborator',
+  'admin.notifyUsersHint': 'Usernames or ids, comma-separated',
+  'admin.notifyPeriod': 'Period',
+  'admin.notifyPeriodDay': 'Day',
+  'admin.notifyPeriodWeek': 'Week',
+  'admin.notifyPeriodMonth': 'Month',
+  'admin.notifyRank': 'Rank (1 = #1)',
+  'admin.notifyTopN': 'Or top N (optional)',
+  'admin.notifySend': 'Send notification',
+  'admin.notifySending': 'Sending…',
+  'admin.notifySent': 'Sent to {count} users.',
+  'admin.notifyRecent': 'Recently sent',
+  'admin.notifyEmpty': 'No notifications sent yet.',
+  'admin.notifyTitleRequired': 'Title is required.',
+  'admin.notifyBodyRequired': 'Message is required.',
+  'admin.notifyUsersRequired': 'Enter at least one username or user id.',
+  'admin.notifyDelete': 'Delete',
+  'admin.notifyDeleting': 'Deleting…',
+  'admin.notifyDeleted': 'Notification deleted.',
   'admin.imagesSubtitle':
     'Review user-submitted product photos. Approve sets the image on the catalog product.',
   'admin.wrongInfoSubtitle':
     'Review wrong-info reports. Edit the product below, then save & resolve — or dismiss.',
+  'admin.mergesSubtitle':
+    'Accept merges the source into the target (+5 XP to the suggester) and deletes the source.',
   'admin.imagesEmpty': 'No pending product images.',
   'admin.wrongInfoEmpty': 'No pending wrong-info reports.',
+  'admin.mergesEmpty': 'No pending merge suggestions.',
   'admin.wrongInfoEmne': 'Subject',
   'admin.wrongInfoComment': 'Explanation',
   'admin.wrongInfoProductMissing': 'Linked product was not found in the catalog.',
   'admin.wrongInfoEditHint': 'Edit the product fields below, then save & resolve.',
+  'admin.mergeSource': 'Source (remove)',
+  'admin.mergeTarget': 'Target (keep)',
+  'admin.mergeComment': 'Comment',
+  'admin.mergeAccept': 'Accept merge',
+  'admin.mergeProductMissing': 'One of the products is missing from the catalog.',
   'admin.saveAndResolve': 'Save & resolve',
   'admin.dismiss': 'Dismiss',
   'admin.catalog': 'Catalog',
@@ -603,6 +704,17 @@ const en: Record<TranslationKey, string> = {
   'login.smsCodeRequired': 'Request an SMS code and enter it before creating an account.',
   'login.genericError': 'Something went wrong.',
   'login.poweredBy': 'Powered by AltUten',
+  'terms.title': 'Terms & Conditions',
+  'terms.subtitle':
+    'Please read and accept before using AltUten. This includes an important health disclaimer.',
+  'terms.highlight':
+    'Always check the packaging. AltUten can be wrong about allergens and ingredients. Do not rely on the app alone if you have allergies.',
+  'terms.agree':
+    'I have read and agree to the Terms & Conditions and the disclaimer of liability.',
+  'terms.continue': 'Agree and continue',
+  'terms.versionLabel': 'Version {version}',
+  'terms.saveFailed': 'Could not save your acceptance. Please try again.',
+  'terms.openInSettings': 'View Terms & Conditions',
   'products.searchLabel': 'Search by product name',
   'products.searchPlaceholder': 'e.g. surdeigsbrød, yoghurt...',
   'products.hint':
@@ -642,6 +754,21 @@ const en: Record<TranslationKey, string> = {
   'result.wrongInfoEmneShort': 'Subject must be at least 3 characters.',
   'result.wrongInfoCommentShort': 'Explanation must be at least 5 characters.',
   'result.wrongInfoSent': 'Thanks — your report was sent.',
+  'result.mergeTitle': 'Suggest product merge',
+  'result.mergeTitleAdmin': 'Merge products',
+  'result.mergeSourceHint': 'This product will be removed',
+  'result.mergeTargetHint': 'Search and pick the product to keep.',
+  'result.mergeSearchPlaceholder': 'Search target product…',
+  'result.mergeCommentPlaceholder': 'Optional note for admins…',
+  'result.mergeNoResults': 'No matching products.',
+  'result.mergePickTarget': 'Pick a target product first.',
+  'result.signInToMerge': 'Sign in to suggest a product merge.',
+  'result.mergeAdminOnly': 'Only admins can merge immediately.',
+  'result.mergeSuggest': 'Suggest merge',
+  'result.mergeNow': 'Merge now',
+  'result.mergeSuggested': 'Thanks — merge suggestion sent for review.',
+  'result.mergeDone': 'Products merged.',
+  'result.mergeXpHint': 'If an admin accepts your suggestion, you earn 5 XP.',
   'result.reportHint':
     'This product is missing a barcode. Enter the code below or scan the barcode so we can find the product next time.',
   'result.signInToReport': 'Sign in to report a barcode for this product.',
@@ -758,6 +885,8 @@ const nb: Record<TranslationKey, string> = {
   'nav.settings': 'Innstillinger',
   'nav.admin': 'Admin',
   'nav.leaderboard': 'Ledertavle',
+  'nav.notifications': 'Varsler',
+  'notifications.empty': 'Ingen varsler ennå.',
   'nav.signIn': 'Logg inn',
   'common.loading': 'Laster...',
   'common.guest': 'Gjest',
@@ -872,6 +1001,7 @@ const nb: Record<TranslationKey, string> = {
   'profile.xpReasonBarcode': 'Strekkoderapport godkjent{detail}',
   'profile.xpReasonSubmission': 'Produktforslag godkjent{detail}',
   'profile.xpReasonWrongInfo': 'Feilrapport godkjent{detail}',
+  'profile.xpReasonMerge': 'Sammenslåingsforslag godtatt{detail}',
   'profile.xpReasonOther': 'XP-belønning',
   'profile.privacy': 'Ledertavle-personvern',
   'profile.anonymousTitle': 'Vis som anonym',
@@ -920,16 +1050,53 @@ const nb: Record<TranslationKey, string> = {
   'admin.tabProducts': 'Produkter',
   'admin.tabImages': 'Bilder',
   'admin.tabWrongInfo': 'Rapporter',
+  'admin.tabMerges': 'Sammenslåing',
+  'admin.tabNotifications': 'Varsler',
+  'admin.notificationsSubtitle':
+    'Send meldinger fra administrasjonen til alle, utvalgte brukere eller toppsamarbeidere.',
+  'admin.notifyTitle': 'Emne',
+  'admin.notifyBody': 'Melding',
+  'admin.notifyImageUrl': 'Bilde-URL (valgfritt)',
+  'admin.notifyAudience': 'Mottakere',
+  'admin.notifyAll': 'Alle',
+  'admin.notifyUsers': 'Utvalgte brukere',
+  'admin.notifyTop': 'Toppsamarbeider',
+  'admin.notifyUsersHint': 'Brukernavn eller id, kommaseparert',
+  'admin.notifyPeriod': 'Periode',
+  'admin.notifyPeriodDay': 'Dag',
+  'admin.notifyPeriodWeek': 'Uke',
+  'admin.notifyPeriodMonth': 'Måned',
+  'admin.notifyRank': 'Plassering (1 = #1)',
+  'admin.notifyTopN': 'Eller topp N (valgfritt)',
+  'admin.notifySend': 'Send varsel',
+  'admin.notifySending': 'Sender…',
+  'admin.notifySent': 'Sendt til {count} brukere.',
+  'admin.notifyRecent': 'Nylig sendt',
+  'admin.notifyEmpty': 'Ingen varsler sendt ennå.',
+  'admin.notifyTitleRequired': 'Emne er påkrevd.',
+  'admin.notifyBodyRequired': 'Melding er påkrevd.',
+  'admin.notifyUsersRequired': 'Oppgi minst ett brukernavn eller bruker-id.',
+  'admin.notifyDelete': 'Slett',
+  'admin.notifyDeleting': 'Sletter…',
+  'admin.notifyDeleted': 'Varsel slettet.',
   'admin.imagesSubtitle':
     'Gå gjennom brukerinnsente produktbilder. Godkjenn for å sette bildet på produktet i katalogen.',
   'admin.wrongInfoSubtitle':
     'Gå gjennom feil-info-rapporter. Rediger produktet nedenfor, lagre og løs — eller avvis.',
+  'admin.mergesSubtitle':
+    'Godta for å slå sammen kilde inn i mål (+5 XP til forslagsstiller) og slette kilden.',
   'admin.imagesEmpty': 'Ingen ventende produktbilder.',
   'admin.wrongInfoEmpty': 'Ingen ventende feil-info-rapporter.',
+  'admin.mergesEmpty': 'Ingen ventende sammenslåingsforslag.',
   'admin.wrongInfoEmne': 'Emne',
   'admin.wrongInfoComment': 'Forklaring',
   'admin.wrongInfoProductMissing': 'Koblet produkt ble ikke funnet i katalogen.',
   'admin.wrongInfoEditHint': 'Rediger produktfeltene nedenfor, lagre og løs deretter.',
+  'admin.mergeSource': 'Kilde (fjernes)',
+  'admin.mergeTarget': 'Mål (beholdes)',
+  'admin.mergeComment': 'Kommentar',
+  'admin.mergeAccept': 'Godta sammenslåing',
+  'admin.mergeProductMissing': 'Ett av produktene mangler i katalogen.',
   'admin.saveAndResolve': 'Lagre og løs',
   'admin.dismiss': 'Avvis',
   'admin.catalog': 'Katalog',
@@ -991,6 +1158,17 @@ const nb: Record<TranslationKey, string> = {
   'login.smsCodeRequired': 'Be om SMS-kode og skriv den inn før du oppretter konto.',
   'login.genericError': 'Noe gikk galt.',
   'login.poweredBy': 'Powered by AltUten',
+  'terms.title': 'Vilkår og betingelser',
+  'terms.subtitle':
+    'Les og godta før du bruker AltUten. Dette inkluderer en viktig ansvarsfraskrivelse om helse.',
+  'terms.highlight':
+    'Sjekk alltid emballasjen. AltUten kan ha feil om allergener og ingredienser. Stol ikke på appen alene hvis du har allergier.',
+  'terms.agree':
+    'Jeg har lest og godtar vilkårene og betingelsene samt ansvarsfraskrivelsen.',
+  'terms.continue': 'Godta og fortsett',
+  'terms.versionLabel': 'Versjon {version}',
+  'terms.saveFailed': 'Kunne ikke lagre godkjenningen. Prøv igjen.',
+  'terms.openInSettings': 'Se vilkår og betingelser',
   'products.searchLabel': 'Søk etter produktnavn',
   'products.searchPlaceholder': 'f.eks. surdeigsbrød, yoghurt...',
   'products.hint':
@@ -1030,6 +1208,21 @@ const nb: Record<TranslationKey, string> = {
   'result.wrongInfoEmneShort': 'Emne må være minst 3 tegn.',
   'result.wrongInfoCommentShort': 'Forklaring må være minst 5 tegn.',
   'result.wrongInfoSent': 'Takk — rapporten er sendt.',
+  'result.mergeTitle': 'Foreslå sammenslåing',
+  'result.mergeTitleAdmin': 'Slå sammen produkter',
+  'result.mergeSourceHint': 'Dette produktet fjernes',
+  'result.mergeTargetHint': 'Søk og velg produktet som skal beholdes.',
+  'result.mergeSearchPlaceholder': 'Søk etter målprodukt…',
+  'result.mergeCommentPlaceholder': 'Valgfri merknad til admin…',
+  'result.mergeNoResults': 'Ingen treff.',
+  'result.mergePickTarget': 'Velg et målprodukt først.',
+  'result.signInToMerge': 'Logg inn for å foreslå sammenslåing.',
+  'result.mergeAdminOnly': 'Bare admin kan slå sammen med en gang.',
+  'result.mergeSuggest': 'Foreslå sammenslåing',
+  'result.mergeNow': 'Slå sammen nå',
+  'result.mergeSuggested': 'Takk — forslaget er sendt til gjennomgang.',
+  'result.mergeDone': 'Produktene er slått sammen.',
+  'result.mergeXpHint': 'Hvis en admin godtar forslaget, får du 5 XP.',
   'result.reportHint':
     'Dette produktet mangler strekkode. Skriv inn koden under eller skann strekkode så vi finner produktet neste gang.',
   'result.signInToReport': 'Logg inn for å rapportere strekkode for dette produktet.',

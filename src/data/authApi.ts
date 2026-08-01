@@ -19,6 +19,8 @@ export interface AuthUser {
   publicUser: boolean;
   profileImageUrl?: string | null;
   favorites: FavoriteProductRef[];
+  /** Unread management notification ids from the API. */
+  unreadMessages: number[];
 }
 
 export interface AuthResult {
@@ -265,6 +267,9 @@ function normalizeAuthUser(raw: AuthUser): AuthUser {
     ...raw,
     profileImageUrl: raw.profileImageUrl ?? null,
     favorites: Array.isArray(raw.favorites) ? raw.favorites : [],
+    unreadMessages: Array.isArray(raw.unreadMessages)
+      ? raw.unreadMessages.filter((id) => Number.isFinite(id) && id > 0)
+      : [],
   };
 }
 

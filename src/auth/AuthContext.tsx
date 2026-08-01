@@ -36,6 +36,7 @@ const LOCAL_ADMIN: AuthUser = {
   publicUser: false,
   profileImageUrl: null,
   favorites: [],
+  unreadMessages: [],
 };
 
 const FAVORITES_SYNC_DELAY_MS = 2000;

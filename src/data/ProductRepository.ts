@@ -74,4 +74,14 @@ export interface ProductRepository {
     emne: string,
     comment: string
   ): Promise<void>;
+
+  /**
+   * Suggest merging this product (source) into another (target). Requires auth.
+   */
+  suggestMerge(
+    catalog: ProductCatalog,
+    sourceId: number,
+    targetId: number,
+    comment?: string
+  ): Promise<void>;
 }

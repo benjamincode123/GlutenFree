@@ -225,18 +225,6 @@ export async function fetchPendingWrongInfoReports(
   return (await response.json()) as WrongInfoReportList;
 }
 
-/** Sum of pending product submissions, image validations, and wrong-info reports. */
-export async function fetchAdminPendingTotal(token: string): Promise<number> {
-  const [subs, images, reports] = await Promise.all([
-    fetchPendingSubmissions(token, 1),
-    fetchPendingImageValidations(token, 1),
-    fetchPendingWrongInfoReports(token, 1),
-  ]);
-  const total =
-    (subs.totalCount || 0) + (images.totalCount || 0) + (reports.totalCount || 0);
-  return Math.max(0, total);
-}
-
 export async function resolveWrongInfoReport(
   token: string,
   id: number
@@ -263,6 +251,261 @@ export async function dismissWrongInfoReport(
   try {
     response = await fetch(adminUrl(`/wrong-info-reports/${id}/dismiss`), {
       method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+}
+
+export interface MergeSuggestionItem {
+  id: number;
+  catalog: string;
+  sourceProductId: number;
+  targetProductId: number;
+  comment: string | null;
+  suggestedByUserId: number;
+  suggestedByUsername: string | null;
+  status: string;
+  createdAt: string;
+  sourceFound: boolean;
+  sourceBarcode: string | null;
+  sourceName: string | null;
+  sourceProdusent: string | null;
+  targetFound: boolean;
+  targetBarcode: string | null;
+  targetName: string | null;
+  targetProdusent: string | null;
+}
+
+export interface MergeSuggestionList {
+  items: MergeSuggestionItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export async function fetchPendingMergeSuggestions(
+  token: string,
+  page: number
+): Promise<MergeSuggestionList> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/merge-suggestions?page=${page}`), {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+  return (await response.json()) as MergeSuggestionList;
+}
+
+/** Sum of pending product submissions, images, wrong-info, and merge suggestions. */
+export async function fetchAdminPendingTotal(token: string): Promise<number> {
+  const [subs, images, reports, merges] = await Promise.all([
+    fetchPendingSubmissions(token, 1),
+    fetchPendingImageValidations(token, 1),
+    fetchPendingWrongInfoReports(token, 1),
+    fetchPendingMergeSuggestions(token, 1),
+  ]);
+  const total =
+    (subs.totalCount || 0) +
+    (images.totalCount || 0) +
+    (reports.totalCount || 0) +
+    (merges.totalCount || 0);
+  return Math.max(0, total);
+}
+
+export async function acceptMergeSuggestion(
+  token: string,
+  id: number
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/merge-suggestions/${id}/accept`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+}
+
+export async function dismissMergeSuggestion(
+  token: string,
+  id: number
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/merge-suggestions/${id}/dismiss`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+}
+
+export async function mergeProducts(
+  token: string,
+  body: { catalog: string; sourceProductId: number; targetProductId: number }
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/products/merge`), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+}
+
+export type NotificationToUsers = 'all' | number | string | Array<number | string>;
+
+export interface AdminNotificationItem {
+  id: number;
+  title: string;
+  body: string;
+  imageUrl: string | null;
+  toUsers: string;
+  createdAt: string;
+  isUnread: boolean;
+}
+
+export interface CreateNotificationResult {
+  ok: boolean;
+  recipientCount: number;
+  notification: AdminNotificationItem;
+}
+
+export interface CreateTopCollaboratorNotificationResult {
+  ok: boolean;
+  period: string;
+  recipientUserIds: number[];
+  recipientCount: number;
+  notification: AdminNotificationItem;
+}
+
+export async function fetchAdminNotifications(
+  token: string,
+  take = 30
+): Promise<AdminNotificationItem[]> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/notifications?take=${take}`), {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+  const data = (await response.json()) as { notifications?: AdminNotificationItem[] };
+  return data.notifications ?? [];
+}
+
+export async function createNotification(
+  token: string,
+  body: {
+    title: string;
+    body: string;
+    imageUrl?: string | null;
+    toUsers: NotificationToUsers;
+  }
+): Promise<CreateNotificationResult> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl('/notifications'), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: body.title,
+        body: body.body,
+        imageUrl: body.imageUrl || null,
+        toUsers: body.toUsers,
+      }),
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+  return (await response.json()) as CreateNotificationResult;
+}
+
+export async function createTopCollaboratorNotification(
+  token: string,
+  body: {
+    period: 'day' | 'week' | 'month';
+    title: string;
+    body: string;
+    imageUrl?: string | null;
+    rank?: number;
+    top?: number;
+  }
+): Promise<CreateTopCollaboratorNotificationResult> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl('/notifications/top-collaborator'), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        period: body.period,
+        title: body.title,
+        body: body.body,
+        imageUrl: body.imageUrl || null,
+        rank: body.rank,
+        top: body.top,
+      }),
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAdminResponse(response);
+  }
+  return (await response.json()) as CreateTopCollaboratorNotificationResult;
+}
+
+export async function deleteNotification(
+  token: string,
+  id: number
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(adminUrl(`/notifications/${id}`), {
+      method: 'DELETE',
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });
   } catch {

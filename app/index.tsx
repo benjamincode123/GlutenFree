@@ -36,7 +36,7 @@ export default function ScannerScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  const { user, authEnabled } = useAuth();
+  const { user, authEnabled, refreshUser } = useAuth();
   const { colors, isDark } = useTheme();
   const { t } = useI18n();
   const scanInk = colors.primary;
@@ -140,6 +140,9 @@ export default function ScannerScreen() {
       isFocusedRef.current = true;
       setHoldingToScan(false);
       setIsFocused(true);
+      if (authEnabled) {
+        void refreshUser().catch(() => undefined);
+      }
       return () => {
         lockRef.current = true;
         holdingRef.current = false;
@@ -147,7 +150,7 @@ export default function ScannerScreen() {
         setHoldingToScan(false);
         setIsFocused(false);
       };
-    }, [])
+    }, [authEnabled, refreshUser])
   );
 
   const goToResult = useCallback(
@@ -277,11 +280,38 @@ export default function ScannerScreen() {
               >
                 {t('nav.scanner')}
               </Text>
-              {headerIconButton(
-                'bell-outline',
-                t('scanner.notificationsA11y'),
-                () => undefined
-              )}
+              <Pressable
+                onPress={() => {
+                  if (!authEnabled || !user) {
+                    router.push('/login');
+                    return;
+                  }
+                  router.push('/notifications');
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('scanner.notificationsA11y')}
+                style={styles.headerIconButton}
+              >
+                <MaterialCommunityIcons
+                  name="bell-outline"
+                  size={24}
+                  color={colors.text}
+                />
+                {(user?.unreadMessages?.length ?? 0) > 0 ? (
+                  <View
+                    style={[
+                      styles.bellBadge,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Text style={[styles.bellBadgeText, { color: colors.onPrimary }]}>
+                      {(user?.unreadMessages?.length ?? 0) > 9
+                        ? '9+'
+                        : String(user?.unreadMessages?.length ?? 0)}
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
             </View>
           </View>
 
@@ -537,10 +567,6 @@ export default function ScannerScreen() {
             </Pressable>
           </Link>
         </View>
-
-        <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>
-          {t('scanner.disclaimer')}
-        </Text>
       </View>
 
           {menuOpen ? (
@@ -609,6 +635,21 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 4 : 8,
+    right: 6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
   },
   container: {
     flex: 1,
@@ -827,12 +868,5 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
     fontWeight: '600',
-  },
-  disclaimer: {
-    marginTop: 12,
-    fontSize: 11,
-    lineHeight: 15,
-    textAlign: 'center',
-    opacity: 0.9,
   },
 });

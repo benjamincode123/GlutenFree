@@ -25,6 +25,7 @@ import { ErrorText } from '../src/components/ErrorText';
 import { AllergenBadge } from '../src/components/AllergenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ReportWrongInfoModal } from '../src/components/ReportWrongInfoModal';
+import { SuggestMergeModal } from '../src/components/SuggestMergeModal';
 import { getProductRepository } from '../src/data/repository';
 import { useCountryPrefs } from '../src/country/CountryPrefsContext';
 import { useI18n } from '../src/i18n/I18nContext';
@@ -99,6 +100,7 @@ export default function ResultScreen() {
   const [scanModalVisible, setScanModalVisible] = useState(false);
   const [listPickerOpen, setListPickerOpen] = useState(false);
   const [wrongInfoOpen, setWrongInfoOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: t('nav.result') });
@@ -227,6 +229,12 @@ export default function ResultScreen() {
     product.id > 0 &&
     isWritableCatalog(product.catalog);
 
+  const canSuggestMerge =
+    state === 'found' &&
+    !!product?.catalog &&
+    product.id > 0 &&
+    isWritableCatalog(product.catalog);
+
   const allergenWarnings = findAllergenWarnings(warnAllergens, product?.allergens);
 
   const isFavorite =
@@ -310,21 +318,40 @@ export default function ResultScreen() {
           ) : null}
 
           <View style={styles.statusBlock}>
-            {canReportWrongInfo ? (
-              <Pressable
-                style={styles.wrongInfoButton}
-                onPress={() => setWrongInfoOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={t('result.reportWrongInfo')}
-                hitSlop={8}
-              >
-                <MaterialCommunityIcons
-                  name="bullhorn-outline"
-                  size={28}
-                  color={colors.textSecondary}
-                />
-              </Pressable>
-            ) : null}
+            <View style={styles.reportActions}>
+              {canReportWrongInfo ? (
+                <Pressable
+                  style={styles.wrongInfoButton}
+                  onPress={() => setWrongInfoOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('result.reportWrongInfo')}
+                  hitSlop={8}
+                >
+                  <MaterialCommunityIcons
+                    name="bullhorn-outline"
+                    size={28}
+                    color={colors.textSecondary}
+                  />
+                </Pressable>
+              ) : null}
+              {canSuggestMerge ? (
+                <Pressable
+                  style={styles.wrongInfoButton}
+                  onPress={() => setMergeOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    isAdmin ? t('result.mergeTitleAdmin') : t('result.mergeTitle')
+                  }
+                  hitSlop={8}
+                >
+                  <MaterialCommunityIcons
+                    name="call-merge"
+                    size={28}
+                    color={colors.textSecondary}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
             {allergenWarnings.length > 0 ? (
               <View style={styles.badgeWrap}>
                 {allergenWarnings.map((hit) => (
@@ -705,6 +732,29 @@ export default function ResultScreen() {
           })
         }
       />
+      <SuggestMergeModal
+        visible={mergeOpen}
+        product={
+          isWritableCatalog(product?.catalog)
+            ? { catalog: product!.catalog!, id: product!.id }
+            : null
+        }
+        productName={product?.name}
+        onClose={() => setMergeOpen(false)}
+        onSuggested={() =>
+          setReportFeedback({
+            kind: 'success',
+            text: t('result.mergeSuggested'),
+          })
+        }
+        onMerged={() => {
+          setReportFeedback({
+            kind: 'success',
+            text: t('result.mergeDone'),
+          });
+          router.replace('/');
+        }}
+      />
     </ScrollView>
   );
 }
@@ -757,6 +807,13 @@ const styles = StyleSheet.create({
   statusBlock: {
     alignSelf: 'stretch',
     gap: 10,
+  },
+  reportActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    alignSelf: 'stretch',
   },
   badgeWrap: {
     flexDirection: 'row',

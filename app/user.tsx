@@ -55,6 +55,7 @@ function historyReasonKey(reason: string): TranslationKey {
   if (reason === 'barcode_report') return 'profile.xpReasonBarcode';
   if (reason === 'product_submission') return 'profile.xpReasonSubmission';
   if (reason === 'wrong_info_report') return 'profile.xpReasonWrongInfo';
+  if (reason === 'merge_suggestion') return 'profile.xpReasonMerge';
   return 'profile.xpReasonOther';
 }
 

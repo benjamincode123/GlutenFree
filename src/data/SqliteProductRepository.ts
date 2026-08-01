@@ -240,4 +240,13 @@ export class SqliteProductRepository implements ProductRepository {
     // Local SQLite mode has no wrong-info report queue.
     throw new AppError('unavailable');
   }
+
+  async suggestMerge(
+    _catalog: ProductCatalog,
+    _sourceId: number,
+    _targetId: number,
+    _comment?: string
+  ): Promise<void> {
+    throw new AppError('unavailable');
+  }
 }

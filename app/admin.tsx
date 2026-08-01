@@ -1,5 +1,5 @@
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -18,6 +19,7 @@ import { ErrorText } from '../src/components/ErrorText';
 import * as adminApi from '../src/data/adminApi';
 import type {
   ApproveSubmissionEdits,
+  MergeSuggestionItem,
   ProductImageValidationItem,
   ProductSubmissionItem,
   WrongInfoReportItem,
@@ -35,7 +37,30 @@ import { useI18n } from '../src/i18n/I18nContext';
 import type { TranslationKey } from '../src/i18n/translations';
 import { useTheme } from '../src/theme/ThemeContext';
 
-type AdminTab = 'products' | 'images' | 'wrongInfo';
+type AdminTab = 'products' | 'images' | 'wrongInfo' | 'merges' | 'notifications';
+type NotifyAudience = 'all' | 'users' | 'top';
+type NotifyPeriod = 'day' | 'week' | 'month';
+
+const ADMIN_TABS: { id: AdminTab; labelKey: TranslationKey }[] = [
+  { id: 'products', labelKey: 'admin.tabProducts' },
+  { id: 'images', labelKey: 'admin.tabImages' },
+  { id: 'wrongInfo', labelKey: 'admin.tabWrongInfo' },
+  { id: 'merges', labelKey: 'admin.tabMerges' },
+  { id: 'notifications', labelKey: 'admin.tabNotifications' },
+];
+
+function parseNotifyTargets(raw: string): Array<number | string> {
+  return raw
+    .split(/[,;\n]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      if (/^\d+$/.test(part)) {
+        return Number(part);
+      }
+      return part;
+    });
+}
 
 function formatDate(iso: string, locale: string): string {
   const date = new Date(iso);
@@ -110,12 +135,33 @@ export default function AdminScreen() {
   const { isAdmin, authEnabled } = useAuth();
   const { colors } = useTheme();
   const { t, tf, locale } = useI18n();
+  const { width: windowWidth } = useWindowDimensions();
+  const isWide = windowWidth >= 768;
+  const isXWide = windowWidth >= 1100;
+
+  const shellStyle = useMemo(
+    () => [
+      styles.content,
+      {
+        width: '100%' as const,
+        maxWidth: isXWide ? 1200 : isWide ? 960 : undefined,
+        alignSelf: 'center' as const,
+        paddingHorizontal: isWide ? 28 : 16,
+        paddingTop: isWide ? 24 : 16,
+      },
+    ],
+    [isWide, isXWide],
+  );
 
   const [tab, setTab] = useState<AdminTab>('products');
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<ProductSubmissionItem[]>([]);
   const [imageItems, setImageItems] = useState<ProductImageValidationItem[]>([]);
   const [wrongInfoItems, setWrongInfoItems] = useState<WrongInfoReportItem[]>([]);
+  const [mergeItems, setMergeItems] = useState<MergeSuggestionItem[]>([]);
+  const [notificationItems, setNotificationItems] = useState<
+    adminApi.AdminNotificationItem[]
+  >([]);
   const [drafts, setDrafts] = useState<Record<number, ApproveSubmissionEdits>>({});
   const [totalCount, setTotalCount] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -123,6 +169,16 @@ export default function AdminScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [notifyTitle, setNotifyTitle] = useState('');
+  const [notifyBody, setNotifyBody] = useState('');
+  const [notifyImageUrl, setNotifyImageUrl] = useState('');
+  const [notifyAudience, setNotifyAudience] = useState<NotifyAudience>('all');
+  const [notifyTargets, setNotifyTargets] = useState('');
+  const [notifyPeriod, setNotifyPeriod] = useState<NotifyPeriod>('week');
+  const [notifyRank, setNotifyRank] = useState('1');
+  const [notifyTopN, setNotifyTopN] = useState('');
+  const [notifySending, setNotifySending] = useState(false);
+  const [notifySuccess, setNotifySuccess] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: t('nav.admin') });
@@ -156,6 +212,12 @@ export default function AdminScreen() {
     );
   }, []);
 
+  const applyMergeList = useCallback((result: adminApi.MergeSuggestionList) => {
+    setMergeItems(result.items);
+    setTotalCount(result.totalCount);
+    setPageSize(result.pageSize);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       if (!authEnabled || !isAdmin) {
@@ -178,6 +240,8 @@ export default function AdminScreen() {
               applyProductList(result);
               setImageItems([]);
               setWrongInfoItems([]);
+              setMergeItems([]);
+              setNotificationItems([]);
             }
           } else if (tab === 'images') {
             const result = await adminApi.fetchPendingImageValidations(token, page);
@@ -185,14 +249,39 @@ export default function AdminScreen() {
               applyImageList(result);
               setItems([]);
               setWrongInfoItems([]);
+              setMergeItems([]);
+              setNotificationItems([]);
               setDrafts({});
             }
-          } else {
+          } else if (tab === 'wrongInfo') {
             const result = await adminApi.fetchPendingWrongInfoReports(token, page);
             if (!cancelled) {
               applyWrongInfoList(result);
               setItems([]);
               setImageItems([]);
+              setMergeItems([]);
+              setNotificationItems([]);
+            }
+          } else if (tab === 'merges') {
+            const result = await adminApi.fetchPendingMergeSuggestions(token, page);
+            if (!cancelled) {
+              applyMergeList(result);
+              setItems([]);
+              setImageItems([]);
+              setWrongInfoItems([]);
+              setNotificationItems([]);
+              setDrafts({});
+            }
+          } else {
+            const result = await adminApi.fetchAdminNotifications(token, 30);
+            if (!cancelled) {
+              setNotificationItems(result);
+              setTotalCount(0);
+              setItems([]);
+              setImageItems([]);
+              setWrongInfoItems([]);
+              setMergeItems([]);
+              setDrafts({});
             }
           }
         } catch (err) {
@@ -201,6 +290,8 @@ export default function AdminScreen() {
             setItems([]);
             setImageItems([]);
             setWrongInfoItems([]);
+            setMergeItems([]);
+            setNotificationItems([]);
             setDrafts({});
           }
         } finally {
@@ -223,6 +314,7 @@ export default function AdminScreen() {
       applyProductList,
       applyImageList,
       applyWrongInfoList,
+      applyMergeList,
     ])
   );
 
@@ -234,6 +326,92 @@ export default function AdminScreen() {
     setPage(1);
     setError(null);
     setBusyId(null);
+    setNotifySuccess(null);
+  };
+
+  const handleDeleteNotification = async (id: number) => {
+    setBusyId(id);
+    setError(null);
+    setNotifySuccess(null);
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error('unauthorized');
+      }
+      await adminApi.deleteNotification(token, id);
+      setNotificationItems((prev) => prev.filter((n) => n.id !== id));
+      setNotifySuccess(t('admin.notifyDeleted'));
+    } catch (err) {
+      setError(userFacingError(err, t, 'forbidden'));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleSendNotification = async () => {
+    const title = notifyTitle.trim();
+    const body = notifyBody.trim();
+    const imageUrl = notifyImageUrl.trim();
+    if (!title) {
+      setError(t('admin.notifyTitleRequired'));
+      return;
+    }
+    if (!body) {
+      setError(t('admin.notifyBodyRequired'));
+      return;
+    }
+    if (notifyAudience === 'users' && !notifyTargets.trim()) {
+      setError(t('admin.notifyUsersRequired'));
+      return;
+    }
+
+    setNotifySending(true);
+    setError(null);
+    setNotifySuccess(null);
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error('unauthorized');
+      }
+
+      let recipientCount = 0;
+      if (notifyAudience === 'top') {
+        const rank = Math.max(1, Number.parseInt(notifyRank, 10) || 1);
+        const topRaw = notifyTopN.trim();
+        const top = topRaw ? Math.max(1, Number.parseInt(topRaw, 10) || 1) : undefined;
+        const result = await adminApi.createTopCollaboratorNotification(token, {
+          period: notifyPeriod,
+          title,
+          body,
+          imageUrl: imageUrl || null,
+          rank: top ? undefined : rank,
+          top,
+        });
+        recipientCount = result.recipientCount;
+      } else {
+        const toUsers: adminApi.NotificationToUsers =
+          notifyAudience === 'all' ? 'all' : parseNotifyTargets(notifyTargets);
+        const result = await adminApi.createNotification(token, {
+          title,
+          body,
+          imageUrl: imageUrl || null,
+          toUsers,
+        });
+        recipientCount = result.recipientCount;
+      }
+
+      setNotifySuccess(tf('admin.notifySent', { count: recipientCount }));
+      setNotifyTitle('');
+      setNotifyBody('');
+      setNotifyImageUrl('');
+      setNotifyTargets('');
+      const recent = await adminApi.fetchAdminNotifications(token, 30);
+      setNotificationItems(recent);
+    } catch (err) {
+      setError(userFacingError(err, t, 'forbidden'));
+    } finally {
+      setNotifySending(false);
+    }
   };
 
   const updateDraft = (
@@ -405,81 +583,97 @@ export default function AdminScreen() {
     }
   }
 
+  async function handleAcceptMerge(id: number) {
+    const token = getAuthToken();
+    if (!token) return;
+    setBusyId(id);
+    setError(null);
+    try {
+      await adminApi.acceptMergeSuggestion(token, id);
+      const result = await adminApi.fetchPendingMergeSuggestions(token, page);
+      applyMergeList(result);
+      if (result.items.length === 0 && page > 1) {
+        setPage((p) => p - 1);
+      }
+    } catch (err) {
+      setError(userFacingError(err, t, 'generic'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDismissMerge(id: number) {
+    const token = getAuthToken();
+    if (!token) return;
+    setBusyId(id);
+    setError(null);
+    try {
+      await adminApi.dismissMergeSuggestion(token, id);
+      const result = await adminApi.fetchPendingMergeSuggestions(token, page);
+      applyMergeList(result);
+      if (result.items.length === 0 && page > 1) {
+        setPage((p) => p - 1);
+      }
+    } catch (err) {
+      setError(userFacingError(err, t, 'generic'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={shellStyle}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.tabs}>
-        <Pressable
-          style={[
-            styles.tab,
-            {
-              borderColor: tab === 'products' ? colors.primary : colors.border,
-              backgroundColor:
-                tab === 'products' ? colors.primaryMuted : colors.background,
-            },
-          ]}
-          onPress={() => switchTab('products')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: tab === 'products' ? colors.primary : colors.text },
-            ]}
-          >
-            {t('admin.tabProducts')}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.tab,
-            {
-              borderColor: tab === 'images' ? colors.primary : colors.border,
-              backgroundColor:
-                tab === 'images' ? colors.primaryMuted : colors.background,
-            },
-          ]}
-          onPress={() => switchTab('images')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: tab === 'images' ? colors.primary : colors.text },
-            ]}
-          >
-            {t('admin.tabImages')}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.tab,
-            {
-              borderColor: tab === 'wrongInfo' ? colors.primary : colors.border,
-              backgroundColor:
-                tab === 'wrongInfo' ? colors.primaryMuted : colors.background,
-            },
-          ]}
-          onPress={() => switchTab('wrongInfo')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: tab === 'wrongInfo' ? colors.primary : colors.text },
-            ]}
-          >
-            {t('admin.tabWrongInfo')}
-          </Text>
-        </Pressable>
-      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsScroll}
+        contentContainerStyle={[styles.tabs, isWide && styles.tabsWide]}
+      >
+        {ADMIN_TABS.map((item) => {
+          const active = tab === item.id;
+          return (
+            <Pressable
+              key={item.id}
+              style={[
+                styles.tab,
+                isWide && styles.tabWide,
+                {
+                  borderColor: active ? colors.primary : colors.border,
+                  backgroundColor: active
+                    ? colors.primaryMuted
+                    : colors.background,
+                },
+              ]}
+              onPress={() => switchTab(item.id)}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: active ? colors.primary : colors.text },
+                ]}
+                numberOfLines={1}
+              >
+                {t(item.labelKey)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
         {tab === 'products'
           ? t('admin.subtitle')
           : tab === 'images'
             ? t('admin.imagesSubtitle')
-            : t('admin.wrongInfoSubtitle')}
+            : tab === 'wrongInfo'
+              ? t('admin.wrongInfoSubtitle')
+              : tab === 'merges'
+                ? t('admin.mergesSubtitle')
+                : t('admin.notificationsSubtitle')}
       </Text>
       {tab === 'products' || tab === 'wrongInfo' ? (
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
@@ -488,9 +682,304 @@ export default function AdminScreen() {
       ) : null}
 
       {error ? <ErrorText style={styles.error}>{error}</ErrorText> : null}
+      {notifySuccess && tab === 'notifications' ? (
+        <Text style={[styles.success, { color: colors.primary }]}>{notifySuccess}</Text>
+      ) : null}
 
       {loading ? (
         <ActivityIndicator color={colors.primary} style={styles.loader} />
+      ) : tab === 'notifications' ? (
+        <>
+          <View
+            style={[
+              styles.slot,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('admin.notifyTitle')}
+            </Text>
+            <AppTextInput
+              style={[
+                styles.input,
+                {
+                  borderColor: colors.border,
+                  color: colors.text,
+                  backgroundColor: colors.background,
+                },
+              ]}
+              value={notifyTitle}
+              onChangeText={setNotifyTitle}
+              editable={!notifySending}
+              maxLength={200}
+            />
+
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('admin.notifyBody')}
+            </Text>
+            <AppTextInput
+              style={[
+                styles.input,
+                styles.multiline,
+                {
+                  borderColor: colors.border,
+                  color: colors.text,
+                  backgroundColor: colors.background,
+                },
+              ]}
+              value={notifyBody}
+              onChangeText={setNotifyBody}
+              editable={!notifySending}
+              multiline
+              textAlignVertical="top"
+            />
+
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('admin.notifyImageUrl')}
+            </Text>
+            <AppTextInput
+              style={[
+                styles.input,
+                {
+                  borderColor: colors.border,
+                  color: colors.text,
+                  backgroundColor: colors.background,
+                },
+              ]}
+              value={notifyImageUrl}
+              onChangeText={setNotifyImageUrl}
+              editable={!notifySending}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('admin.notifyAudience')}
+            </Text>
+            <View style={styles.audienceRow}>
+              {(
+                [
+                  ['all', 'admin.notifyAll'],
+                  ['users', 'admin.notifyUsers'],
+                  ['top', 'admin.notifyTop'],
+                ] as const
+              ).map(([id, labelKey]) => {
+                const active = notifyAudience === id;
+                return (
+                  <Pressable
+                    key={id}
+                    style={[
+                      styles.audienceChip,
+                      {
+                        borderColor: active ? colors.primary : colors.border,
+                        backgroundColor: active
+                          ? colors.primaryMuted
+                          : colors.background,
+                      },
+                    ]}
+                    disabled={notifySending}
+                    onPress={() => setNotifyAudience(id)}
+                  >
+                    <Text
+                      style={[
+                        styles.tabText,
+                        { color: active ? colors.primary : colors.text },
+                      ]}
+                    >
+                      {t(labelKey)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {notifyAudience === 'users' ? (
+              <>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>
+                  {t('admin.notifyUsersHint')}
+                </Text>
+                <AppTextInput
+                  style={[
+                    styles.input,
+                    styles.multiline,
+                    {
+                      borderColor: colors.border,
+                      color: colors.text,
+                      backgroundColor: colors.background,
+                    },
+                  ]}
+                  value={notifyTargets}
+                  onChangeText={setNotifyTargets}
+                  editable={!notifySending}
+                  multiline
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="alice, 12, bob"
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </>
+            ) : null}
+
+            {notifyAudience === 'top' ? (
+              <>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>
+                  {t('admin.notifyPeriod')}
+                </Text>
+                <View style={styles.audienceRow}>
+                  {(
+                    [
+                      ['day', 'admin.notifyPeriodDay'],
+                      ['week', 'admin.notifyPeriodWeek'],
+                      ['month', 'admin.notifyPeriodMonth'],
+                    ] as const
+                  ).map(([id, labelKey]) => {
+                    const active = notifyPeriod === id;
+                    return (
+                      <Pressable
+                        key={id}
+                        style={[
+                          styles.audienceChip,
+                          {
+                            borderColor: active ? colors.primary : colors.border,
+                            backgroundColor: active
+                              ? colors.primaryMuted
+                              : colors.background,
+                          },
+                        ]}
+                        disabled={notifySending}
+                        onPress={() => setNotifyPeriod(id)}
+                      >
+                        <Text
+                          style={[
+                            styles.tabText,
+                            { color: active ? colors.primary : colors.text },
+                          ]}
+                        >
+                          {t(labelKey)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <View style={[styles.fieldsRow, isWide && styles.fieldsRowWide]}>
+                  <View style={[styles.field, isWide && styles.fieldHalf]}>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                      {t('admin.notifyRank')}
+                    </Text>
+                    <AppTextInput
+                      style={[
+                        styles.input,
+                        {
+                          borderColor: colors.border,
+                          color: colors.text,
+                          backgroundColor: colors.background,
+                        },
+                      ]}
+                      value={notifyRank}
+                      onChangeText={setNotifyRank}
+                      editable={!notifySending && !notifyTopN.trim()}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                  <View style={[styles.field, isWide && styles.fieldHalf]}>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                      {t('admin.notifyTopN')}
+                    </Text>
+                    <AppTextInput
+                      style={[
+                        styles.input,
+                        {
+                          borderColor: colors.border,
+                          color: colors.text,
+                          backgroundColor: colors.background,
+                        },
+                      ]}
+                      value={notifyTopN}
+                      onChangeText={setNotifyTopN}
+                      editable={!notifySending}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                </View>
+              </>
+            ) : null}
+
+            <View style={[styles.actions, isWide && styles.actionsWide]}>
+              <Pressable
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: colors.primary },
+                  notifySending && styles.actionDisabled,
+                ]}
+                disabled={notifySending}
+                onPress={() => void handleSendNotification()}
+              >
+                <Text style={[styles.approveText, { color: colors.onPrimary }]}>
+                  {notifySending ? t('admin.notifySending') : t('admin.notifySend')}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>
+            {t('admin.notifyRecent')}
+          </Text>
+          {notificationItems.length === 0 ? (
+            <Text style={[styles.empty, { color: colors.textSecondary }]}>
+              {t('admin.notifyEmpty')}
+            </Text>
+          ) : (
+            notificationItems.map((item) => {
+              const busy = busyId === item.id;
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.slot,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={[styles.productTitle, { color: colors.text }]}>
+                    {item.title}
+                  </Text>
+                  <Text style={[styles.reportComment, { color: colors.text }]}>
+                    {item.body}
+                  </Text>
+                  <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                    {t('admin.notifyAudience')}: {item.toUsers}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.meta,
+                      { color: colors.textSecondary, marginBottom: 10 },
+                    ]}
+                  >
+                    {formatDate(item.createdAt, locale)}
+                  </Text>
+                  <View style={[styles.actions, isWide && styles.actionsWide]}>
+                    <Pressable
+                      style={[
+                        styles.actionBtn,
+                        styles.denyBtn,
+                        { borderColor: colors.danger },
+                        busy && styles.actionDisabled,
+                      ]}
+                      disabled={busyId !== null || notifySending}
+                      onPress={() => void handleDeleteNotification(item.id)}
+                    >
+                      <Text style={[styles.denyText, { color: colors.danger }]}>
+                        {busy
+                          ? t('admin.notifyDeleting')
+                          : t('admin.notifyDelete')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </>
       ) : tab === 'products' ? (
         items.length === 0 ? (
           <Text style={[styles.empty, { color: colors.textSecondary }]}>
@@ -508,181 +997,211 @@ export default function AdminScreen() {
                   { backgroundColor: colors.surface, borderColor: colors.border },
                 ]}
               >
-                {item.imageUrl?.trim() ? (
-                  <Pressable
-                    onPress={() => setPreviewUri(imageUri(item.imageUrl))}
-                    accessibilityRole="imagebutton"
-                    accessibilityLabel={t('admin.viewImage')}
-                  >
-                    <Image
-                      source={{ uri: imageUri(item.imageUrl) }}
-                      style={styles.photo}
-                      resizeMode="contain"
-                    />
-                  </Pressable>
-                ) : null}
-
-                <Text style={[styles.meta, { color: colors.textSecondary }]}>
-                  {t('admin.submittedBy')}:{' '}
-                  {item.submittedByUsername ?? `#${item.submittedByUserId}`}
-                </Text>
-                <Text
-                  style={[styles.meta, { color: colors.textSecondary, marginBottom: 10 }]}
-                >
-                  {t('admin.submittedAt')}: {formatDate(item.createdAt, locale)}
-                </Text>
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>
-                  {t('admin.produsent')}
-                </Text>
-                <AppTextInput
-                  style={[
-                    styles.input,
-                    {
-                      borderColor: colors.border,
-                      color: colors.text,
-                      backgroundColor: colors.background,
-                    },
-                  ]}
-                  value={draft.produsent}
-                  onChangeText={(produsent) => updateDraft(item.id, { produsent })}
-                  editable={busyId === null}
-                />
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>
-                  {t('admin.name')}
-                </Text>
-                <AppTextInput
-                  style={[
-                    styles.input,
-                    {
-                      borderColor: colors.border,
-                      color: colors.text,
-                      backgroundColor: colors.background,
-                    },
-                  ]}
-                  value={draft.name}
-                  onChangeText={(name) => updateDraft(item.id, { name })}
-                  editable={busyId === null}
-                />
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>
-                  {t('admin.barcode')}
-                </Text>
-                <AppTextInput
-                  style={[
-                    styles.input,
-                    {
-                      borderColor: colors.border,
-                      color: colors.text,
-                      backgroundColor: colors.background,
-                    },
-                  ]}
-                  value={draft.barcode}
-                  onChangeText={(barcode) => updateDraft(item.id, { barcode })}
-                  editable={busyId === null}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>
-                  {t('admin.ingredients')}
-                </Text>
-                <AppTextInput
-                  style={[
-                    styles.input,
-                    styles.multiline,
-                    {
-                      borderColor: colors.border,
-                      color: colors.text,
-                      backgroundColor: colors.background,
-                    },
-                  ]}
-                  value={draft.ingredients}
-                  onChangeText={(ingredients) =>
-                    updateDraft(item.id, { ingredients })
-                  }
-                  editable={busyId === null}
-                  multiline
-                  textAlignVertical="top"
-                />
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>
-                  {t('admin.glutenRating')}
-                </Text>
-                {ALL_GLUTEN_RATINGS.map((option) => {
-                  const meta = getGlutenRatingMeta(option);
-                  const selected = draft.glutenRating === option;
-                  return (
+                <View style={[styles.slotBody, isWide && styles.slotBodyWide]}>
+                  {item.imageUrl?.trim() ? (
                     <Pressable
-                      key={option}
+                      onPress={() => setPreviewUri(imageUri(item.imageUrl))}
+                      accessibilityRole="imagebutton"
+                      accessibilityLabel={t('admin.viewImage')}
+                      style={[styles.photoWrap, isWide && styles.photoWrapWide]}
+                    >
+                      <Image
+                        source={{ uri: imageUri(item.imageUrl) }}
+                        style={[styles.photo, isWide && styles.photoWide]}
+                        resizeMode="contain"
+                      />
+                    </Pressable>
+                  ) : null}
+
+                  <View style={styles.formCol}>
+                    <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                      {t('admin.submittedBy')}:{' '}
+                      {item.submittedByUsername ?? `#${item.submittedByUserId}`}
+                    </Text>
+                    <Text
                       style={[
-                        styles.ratingOption,
+                        styles.meta,
+                        { color: colors.textSecondary, marginBottom: 10 },
+                      ]}
+                    >
+                      {t('admin.submittedAt')}: {formatDate(item.createdAt, locale)}
+                    </Text>
+
+                    <View style={[styles.fieldsRow, isWide && styles.fieldsRowWide]}>
+                      <View style={[styles.field, isWide && styles.fieldHalf]}>
+                        <Text style={[styles.label, { color: colors.textSecondary }]}>
+                          {t('admin.produsent')}
+                        </Text>
+                        <AppTextInput
+                          style={[
+                            styles.input,
+                            {
+                              borderColor: colors.border,
+                              color: colors.text,
+                              backgroundColor: colors.background,
+                            },
+                          ]}
+                          value={draft.produsent}
+                          onChangeText={(produsent) =>
+                            updateDraft(item.id, { produsent })
+                          }
+                          editable={busyId === null}
+                        />
+                      </View>
+                      <View style={[styles.field, isWide && styles.fieldHalf]}>
+                        <Text style={[styles.label, { color: colors.textSecondary }]}>
+                          {t('admin.name')}
+                        </Text>
+                        <AppTextInput
+                          style={[
+                            styles.input,
+                            {
+                              borderColor: colors.border,
+                              color: colors.text,
+                              backgroundColor: colors.background,
+                            },
+                          ]}
+                          value={draft.name}
+                          onChangeText={(name) => updateDraft(item.id, { name })}
+                          editable={busyId === null}
+                        />
+                      </View>
+                      <View style={[styles.field, isWide && styles.fieldHalf]}>
+                        <Text style={[styles.label, { color: colors.textSecondary }]}>
+                          {t('admin.barcode')}
+                        </Text>
+                        <AppTextInput
+                          style={[
+                            styles.input,
+                            {
+                              borderColor: colors.border,
+                              color: colors.text,
+                              backgroundColor: colors.background,
+                            },
+                          ]}
+                          value={draft.barcode}
+                          onChangeText={(barcode) =>
+                            updateDraft(item.id, { barcode })
+                          }
+                          editable={busyId === null}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                      </View>
+                    </View>
+
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                      {t('admin.ingredients')}
+                    </Text>
+                    <AppTextInput
+                      style={[
+                        styles.input,
+                        styles.multiline,
                         {
-                          borderColor: selected ? meta.color : colors.border,
-                          backgroundColor: selected
-                            ? meta.backgroundColor
-                            : colors.background,
+                          borderColor: colors.border,
+                          color: colors.text,
+                          backgroundColor: colors.background,
                         },
                       ]}
-                      disabled={busyId !== null}
-                      onPress={() =>
-                        updateDraft(item.id, { glutenRating: option })
+                      value={draft.ingredients}
+                      onChangeText={(ingredients) =>
+                        updateDraft(item.id, { ingredients })
                       }
-                    >
-                      <View
-                        style={[styles.ratingDot, { backgroundColor: meta.color }]}
-                      />
-                      <Text style={[styles.ratingLabel, { color: meta.color }]}>
-                        {t(ratingLabelKey(option))}
-                      </Text>
-                      <View
-                        style={[
-                          styles.radioOuter,
-                          { borderColor: selected ? meta.color : colors.border },
-                        ]}
-                      >
-                        {selected ? (
-                          <View
-                            style={[
-                              styles.radioInner,
-                              { backgroundColor: meta.color },
-                            ]}
-                          />
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  );
-                })}
+                      editable={busyId === null}
+                      multiline
+                      textAlignVertical="top"
+                    />
 
-                <View style={styles.actions}>
-                  <Pressable
-                    style={[
-                      styles.actionBtn,
-                      styles.denyBtn,
-                      { borderColor: colors.danger },
-                      busy && styles.actionDisabled,
-                    ]}
-                    disabled={busyId !== null}
-                    onPress={() => void handleDeny(item.id)}
-                  >
-                    <Text style={[styles.denyText, { color: colors.danger }]}>
-                      {busy ? t('common.saving') : t('admin.deny')}
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                      {t('admin.glutenRating')}
                     </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.actionBtn,
-                      { backgroundColor: colors.primary },
-                      busy && styles.actionDisabled,
-                    ]}
-                    disabled={busyId !== null}
-                    onPress={() => void handleApprove(item.id)}
-                  >
-                    <Text style={[styles.approveText, { color: colors.onPrimary }]}>
-                      {busy ? t('common.saving') : t('admin.approve')}
-                    </Text>
-                  </Pressable>
+                    <View style={[styles.ratingRow, isWide && styles.ratingRowWide]}>
+                      {ALL_GLUTEN_RATINGS.map((option) => {
+                        const meta = getGlutenRatingMeta(option);
+                        const selected = draft.glutenRating === option;
+                        return (
+                          <Pressable
+                            key={option}
+                            style={[
+                              styles.ratingOption,
+                              isWide && styles.ratingOptionWide,
+                              {
+                                borderColor: selected ? meta.color : colors.border,
+                                backgroundColor: selected
+                                  ? meta.backgroundColor
+                                  : colors.background,
+                              },
+                            ]}
+                            disabled={busyId !== null}
+                            onPress={() =>
+                              updateDraft(item.id, { glutenRating: option })
+                            }
+                          >
+                            <View
+                              style={[
+                                styles.ratingDot,
+                                { backgroundColor: meta.color },
+                              ]}
+                            />
+                            <Text style={[styles.ratingLabel, { color: meta.color }]}>
+                              {t(ratingLabelKey(option))}
+                            </Text>
+                            <View
+                              style={[
+                                styles.radioOuter,
+                                {
+                                  borderColor: selected
+                                    ? meta.color
+                                    : colors.border,
+                                },
+                              ]}
+                            >
+                              {selected ? (
+                                <View
+                                  style={[
+                                    styles.radioInner,
+                                    { backgroundColor: meta.color },
+                                  ]}
+                                />
+                              ) : null}
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    <View style={[styles.actions, isWide && styles.actionsWide]}>
+                      <Pressable
+                        style={[
+                          styles.actionBtn,
+                          styles.denyBtn,
+                          { borderColor: colors.danger },
+                          busy && styles.actionDisabled,
+                        ]}
+                        disabled={busyId !== null}
+                        onPress={() => void handleDeny(item.id)}
+                      >
+                        <Text style={[styles.denyText, { color: colors.danger }]}>
+                          {busy ? t('common.saving') : t('admin.deny')}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[
+                          styles.actionBtn,
+                          { backgroundColor: colors.primary },
+                          busy && styles.actionDisabled,
+                        ]}
+                        disabled={busyId !== null}
+                        onPress={() => void handleApprove(item.id)}
+                      >
+                        <Text
+                          style={[styles.approveText, { color: colors.onPrimary }]}
+                        >
+                          {busy ? t('common.saving') : t('admin.approve')}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 </View>
               </View>
             );
@@ -704,70 +1223,81 @@ export default function AdminScreen() {
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              {item.imageUrl?.trim() ? (
-                <Pressable
-                  onPress={() => setPreviewUri(imageUri(item.imageUrl))}
-                  accessibilityRole="imagebutton"
-                  accessibilityLabel={t('admin.viewImage')}
-                >
-                  <Image
-                    source={{ uri: imageUri(item.imageUrl) }}
-                    style={styles.photo}
-                    resizeMode="contain"
-                  />
-                </Pressable>
-              ) : null}
+              <View style={[styles.slotBody, isWide && styles.slotBodyWide]}>
+                {item.imageUrl?.trim() ? (
+                  <Pressable
+                    onPress={() => setPreviewUri(imageUri(item.imageUrl))}
+                    accessibilityRole="imagebutton"
+                    accessibilityLabel={t('admin.viewImage')}
+                    style={[styles.photoWrap, isWide && styles.photoWrapWide]}
+                  >
+                    <Image
+                      source={{ uri: imageUri(item.imageUrl) }}
+                      style={[styles.photo, isWide && styles.photoWide]}
+                      resizeMode="contain"
+                    />
+                  </Pressable>
+                ) : null}
 
-              <Text style={[styles.productTitle, { color: colors.text }]}>
-                {item.productName}
-              </Text>
-              <Text style={[styles.meta, { color: colors.textSecondary }]}>
-                {t('admin.catalog')}: {item.catalog} · #{item.productId}
-              </Text>
-              <Text style={[styles.meta, { color: colors.textSecondary }]}>
-                {t('admin.submittedBy')}:{' '}
-                {item.submittedByUsername ?? `#${item.submittedByUserId}`}
-              </Text>
-              <Text
-                style={[styles.meta, { color: colors.textSecondary, marginBottom: 10 }]}
-              >
-                {t('admin.submittedAt')}: {formatDate(item.createdAt, locale)}
-              </Text>
+                <View style={styles.formCol}>
+                  <Text style={[styles.productTitle, { color: colors.text }]}>
+                    {item.productName}
+                  </Text>
+                  <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                    {t('admin.catalog')}: {item.catalog} · #{item.productId}
+                  </Text>
+                  <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                    {t('admin.submittedBy')}:{' '}
+                    {item.submittedByUsername ?? `#${item.submittedByUserId}`}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.meta,
+                      { color: colors.textSecondary, marginBottom: 10 },
+                    ]}
+                  >
+                    {t('admin.submittedAt')}: {formatDate(item.createdAt, locale)}
+                  </Text>
 
-              <View style={styles.actions}>
-                <Pressable
-                  style={[
-                    styles.actionBtn,
-                    styles.denyBtn,
-                    { borderColor: colors.danger },
-                    busy && styles.actionDisabled,
-                  ]}
-                  disabled={busyId !== null}
-                  onPress={() => void handleDenyImage(item.id)}
-                >
-                  <Text style={[styles.denyText, { color: colors.danger }]}>
-                    {busy ? t('common.saving') : t('admin.deny')}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.actionBtn,
-                    { backgroundColor: colors.primary },
-                    busy && styles.actionDisabled,
-                  ]}
-                  disabled={busyId !== null}
-                  onPress={() => void handleApproveImage(item.id)}
-                >
-                  <Text style={[styles.approveText, { color: colors.onPrimary }]}>
-                    {busy ? t('common.saving') : t('admin.approve')}
-                  </Text>
-                </Pressable>
+                  <View style={[styles.actions, isWide && styles.actionsWide]}>
+                    <Pressable
+                      style={[
+                        styles.actionBtn,
+                        styles.denyBtn,
+                        { borderColor: colors.danger },
+                        busy && styles.actionDisabled,
+                      ]}
+                      disabled={busyId !== null}
+                      onPress={() => void handleDenyImage(item.id)}
+                    >
+                      <Text style={[styles.denyText, { color: colors.danger }]}>
+                        {busy ? t('common.saving') : t('admin.deny')}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.actionBtn,
+                        { backgroundColor: colors.primary },
+                        busy && styles.actionDisabled,
+                      ]}
+                      disabled={busyId !== null}
+                      onPress={() => void handleApproveImage(item.id)}
+                    >
+                      <Text
+                        style={[styles.approveText, { color: colors.onPrimary }]}
+                      >
+                        {busy ? t('common.saving') : t('admin.approve')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
               </View>
             </View>
           );
         })
       )
-      ) : wrongInfoItems.length === 0 ? (
+      ) : tab === 'wrongInfo' ? (
+        wrongInfoItems.length === 0 ? (
         <Text style={[styles.empty, { color: colors.textSecondary }]}>
           {t('admin.wrongInfoEmpty')}
         </Text>
@@ -815,58 +1345,68 @@ export default function AdminScreen() {
                 </ErrorText>
               ) : (
                 <>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>
-                    {t('admin.produsent')}
-                  </Text>
-                  <AppTextInput
-                    style={[
-                      styles.input,
-                      {
-                        borderColor: colors.border,
-                        color: colors.text,
-                        backgroundColor: colors.background,
-                      },
-                    ]}
-                    value={draft.produsent}
-                    onChangeText={(produsent) => updateDraft(item.id, { produsent })}
-                    editable={busyId === null}
-                  />
-
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>
-                    {t('admin.name')}
-                  </Text>
-                  <AppTextInput
-                    style={[
-                      styles.input,
-                      {
-                        borderColor: colors.border,
-                        color: colors.text,
-                        backgroundColor: colors.background,
-                      },
-                    ]}
-                    value={draft.name}
-                    onChangeText={(name) => updateDraft(item.id, { name })}
-                    editable={busyId === null}
-                  />
-
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>
-                    {t('admin.barcode')}
-                  </Text>
-                  <AppTextInput
-                    style={[
-                      styles.input,
-                      {
-                        borderColor: colors.border,
-                        color: colors.text,
-                        backgroundColor: colors.background,
-                      },
-                    ]}
-                    value={draft.barcode}
-                    onChangeText={(barcode) => updateDraft(item.id, { barcode })}
-                    editable={busyId === null}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                  <View style={[styles.fieldsRow, isWide && styles.fieldsRowWide]}>
+                    <View style={[styles.field, isWide && styles.fieldHalf]}>
+                      <Text style={[styles.label, { color: colors.textSecondary }]}>
+                        {t('admin.produsent')}
+                      </Text>
+                      <AppTextInput
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.border,
+                            color: colors.text,
+                            backgroundColor: colors.background,
+                          },
+                        ]}
+                        value={draft.produsent}
+                        onChangeText={(produsent) =>
+                          updateDraft(item.id, { produsent })
+                        }
+                        editable={busyId === null}
+                      />
+                    </View>
+                    <View style={[styles.field, isWide && styles.fieldHalf]}>
+                      <Text style={[styles.label, { color: colors.textSecondary }]}>
+                        {t('admin.name')}
+                      </Text>
+                      <AppTextInput
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.border,
+                            color: colors.text,
+                            backgroundColor: colors.background,
+                          },
+                        ]}
+                        value={draft.name}
+                        onChangeText={(name) => updateDraft(item.id, { name })}
+                        editable={busyId === null}
+                      />
+                    </View>
+                    <View style={[styles.field, isWide && styles.fieldHalf]}>
+                      <Text style={[styles.label, { color: colors.textSecondary }]}>
+                        {t('admin.barcode')}
+                      </Text>
+                      <AppTextInput
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: colors.border,
+                            color: colors.text,
+                            backgroundColor: colors.background,
+                          },
+                        ]}
+                        value={draft.barcode}
+                        onChangeText={(barcode) =>
+                          updateDraft(item.id, { barcode })
+                        }
+                        editable={busyId === null}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                    </View>
+                  </View>
 
                   <Text style={[styles.label, { color: colors.textSecondary }]}>
                     {t('admin.ingredients')}
@@ -893,54 +1433,64 @@ export default function AdminScreen() {
                   <Text style={[styles.label, { color: colors.textSecondary }]}>
                     {t('admin.glutenRating')}
                   </Text>
-                  {ALL_GLUTEN_RATINGS.map((option) => {
-                    const meta = getGlutenRatingMeta(option);
-                    const selected = draft.glutenRating === option;
-                    return (
-                      <Pressable
-                        key={option}
-                        style={[
-                          styles.ratingOption,
-                          {
-                            borderColor: selected ? meta.color : colors.border,
-                            backgroundColor: selected
-                              ? meta.backgroundColor
-                              : colors.background,
-                          },
-                        ]}
-                        disabled={busyId !== null}
-                        onPress={() =>
-                          updateDraft(item.id, { glutenRating: option })
-                        }
-                      >
-                        <View
-                          style={[styles.ratingDot, { backgroundColor: meta.color }]}
-                        />
-                        <Text style={[styles.ratingLabel, { color: meta.color }]}>
-                          {t(ratingLabelKey(option))}
-                        </Text>
-                        <View
+                  <View style={[styles.ratingRow, isWide && styles.ratingRowWide]}>
+                    {ALL_GLUTEN_RATINGS.map((option) => {
+                      const meta = getGlutenRatingMeta(option);
+                      const selected = draft.glutenRating === option;
+                      return (
+                        <Pressable
+                          key={option}
                           style={[
-                            styles.radioOuter,
-                            { borderColor: selected ? meta.color : colors.border },
+                            styles.ratingOption,
+                            isWide && styles.ratingOptionWide,
+                            {
+                              borderColor: selected ? meta.color : colors.border,
+                              backgroundColor: selected
+                                ? meta.backgroundColor
+                                : colors.background,
+                            },
                           ]}
+                          disabled={busyId !== null}
+                          onPress={() =>
+                            updateDraft(item.id, { glutenRating: option })
+                          }
                         >
-                          {selected ? (
-                            <View
-                              style={[
-                                styles.radioInner,
-                                { backgroundColor: meta.color },
-                              ]}
-                            />
-                          ) : null}
-                        </View>
-                      </Pressable>
-                    );
-                  })}
+                          <View
+                            style={[
+                              styles.ratingDot,
+                              { backgroundColor: meta.color },
+                            ]}
+                          />
+                          <Text style={[styles.ratingLabel, { color: meta.color }]}>
+                            {t(ratingLabelKey(option))}
+                          </Text>
+                          <View
+                            style={[
+                              styles.radioOuter,
+                              {
+                                borderColor: selected
+                                  ? meta.color
+                                  : colors.border,
+                              },
+                            ]}
+                          >
+                            {selected ? (
+                              <View
+                                style={[
+                                  styles.radioInner,
+                                  { backgroundColor: meta.color },
+                                ]}
+                              />
+                            ) : null}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </>
               )}
 
-              <View style={styles.actions}>
+              <View style={[styles.actions, isWide && styles.actionsWide]}>
                 <Pressable
                   style={[
                     styles.actionBtn,
@@ -974,9 +1524,119 @@ export default function AdminScreen() {
             </View>
           );
         })
+      )
+      ) : mergeItems.length === 0 ? (
+        <Text style={[styles.empty, { color: colors.textSecondary }]}>
+          {t('admin.mergesEmpty')}
+        </Text>
+      ) : (
+        mergeItems.map((item) => {
+          const busy = busyId === item.id;
+          return (
+            <View
+              key={item.id}
+              style={[
+                styles.slot,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                {t('admin.catalog')}: {item.catalog}
+                {' · '}
+                {formatDate(item.createdAt, locale)}
+                {' · '}
+                {item.suggestedByUsername ?? `#${item.suggestedByUserId}`}
+              </Text>
+
+              <View style={[styles.mergeCompare, isWide && styles.mergeCompareWide]}>
+                <View style={[styles.mergePane, isWide && styles.mergePaneWide]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    {t('admin.mergeSource')}
+                  </Text>
+                  <Text style={[styles.productTitle, { color: colors.text }]}>
+                    {item.sourceFound
+                      ? `${item.sourceName ?? '—'} (#${item.sourceProductId})`
+                      : `#${item.sourceProductId}`}
+                  </Text>
+                  {item.sourceFound ? (
+                    <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                      {[item.sourceProdusent, item.sourceBarcode]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={[styles.mergePane, isWide && styles.mergePaneWide]}>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    {t('admin.mergeTarget')}
+                  </Text>
+                  <Text style={[styles.productTitle, { color: colors.text }]}>
+                    {item.targetFound
+                      ? `${item.targetName ?? '—'} (#${item.targetProductId})`
+                      : `#${item.targetProductId}`}
+                  </Text>
+                  {item.targetFound ? (
+                    <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                      {[item.targetProdusent, item.targetBarcode]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+
+              {item.comment?.trim() ? (
+                <>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    {t('admin.mergeComment')}
+                  </Text>
+                  <Text style={[styles.reportComment, { color: colors.text }]}>
+                    {item.comment.trim()}
+                  </Text>
+                </>
+              ) : null}
+
+              {!item.sourceFound || !item.targetFound ? (
+                <ErrorText style={styles.error}>
+                  {t('admin.mergeProductMissing')}
+                </ErrorText>
+              ) : null}
+
+              <View style={[styles.actions, isWide && styles.actionsWide]}>
+                <Pressable
+                  style={[
+                    styles.actionBtn,
+                    styles.denyBtn,
+                    { borderColor: colors.danger },
+                    busy && styles.actionDisabled,
+                  ]}
+                  disabled={busyId !== null}
+                  onPress={() => void handleDismissMerge(item.id)}
+                >
+                  <Text style={[styles.denyText, { color: colors.danger }]}>
+                    {busy ? t('common.saving') : t('admin.dismiss')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: colors.primary },
+                    busy && styles.actionDisabled,
+                  ]}
+                  disabled={busyId !== null || !item.sourceFound || !item.targetFound}
+                  onPress={() => void handleAcceptMerge(item.id)}
+                >
+                  <Text style={[styles.approveText, { color: colors.onPrimary }]}>
+                    {busy ? t('common.saving') : t('admin.mergeAccept')}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })
       )}
 
-      {!loading && totalCount > 0 && (
+      {!loading && tab !== 'notifications' && totalCount > 0 && (
         <View style={styles.pager}>
           <Pressable
             style={[
@@ -1033,37 +1693,111 @@ export default function AdminScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 20, paddingBottom: 40 },
+  content: { paddingBottom: 48 },
+  tabsScroll: {
+    marginBottom: 16,
+    flexGrow: 0,
+  },
   tabs: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
+    alignItems: 'center',
+    gap: 10,
+    paddingRight: 4,
+  },
+  tabsWide: {
+    width: '100%',
   },
   tab: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  tabWide: {
     flex: 1,
+    minWidth: 0,
+  },
+  tabText: { fontSize: 15, fontWeight: '700' },
+  subtitle: { fontSize: 15, lineHeight: 22, marginBottom: 6 },
+  hint: { fontSize: 13, lineHeight: 18, marginBottom: 16 },
+  error: { marginBottom: 12 },
+  success: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  sectionHeading: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  audienceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  audienceChip: {
     borderWidth: 1,
     borderRadius: 10,
     paddingVertical: 10,
-    alignItems: 'center',
+    paddingHorizontal: 14,
   },
-  tabText: { fontSize: 14, fontWeight: '700' },
-  subtitle: { fontSize: 14, lineHeight: 20, marginBottom: 6 },
-  hint: { fontSize: 13, lineHeight: 18, marginBottom: 16 },
-  error: { marginBottom: 12 },
   loader: { marginTop: 32 },
   empty: { fontSize: 15, lineHeight: 22, marginTop: 12 },
   slot: {
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 14,
+  },
+  slotBody: {
+    flexDirection: 'column',
+    gap: 14,
+  },
+  slotBodyWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  photoWrap: {
+    width: '100%',
+  },
+  photoWrapWide: {
+    width: 280,
+    flexShrink: 0,
   },
   photo: {
     width: '100%',
-    height: 180,
+    height: 200,
     borderRadius: 10,
-    marginBottom: 10,
     backgroundColor: '#F5F6F8',
+  },
+  photoWide: {
+    height: 280,
+  },
+  formCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  fieldsRow: {
+    flexDirection: 'column',
+  },
+  fieldsRowWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  field: {
+    width: '100%',
+  },
+  fieldHalf: {
+    width: '31%',
+    flexGrow: 1,
+    minWidth: 180,
   },
   previewBackdrop: {
     flex: 1,
@@ -1104,7 +1838,16 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   multiline: {
-    minHeight: 88,
+    minHeight: 100,
+  },
+  ratingRow: {
+    flexDirection: 'column',
+    gap: 8,
+    marginBottom: 4,
+  },
+  ratingRowWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   ratingOption: {
     borderWidth: 1,
@@ -1114,7 +1857,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 8,
+  },
+  ratingOptionWide: {
+    flex: 1,
+    minWidth: 160,
   },
   ratingDot: {
     width: 10,
@@ -1139,10 +1885,32 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+  mergeCompare: {
+    flexDirection: 'column',
+    gap: 12,
+    marginBottom: 8,
+  },
+  mergeCompareWide: {
+    flexDirection: 'row',
+  },
+  mergePane: {
+    flex: 1,
+  },
+  mergePaneWide: {
+    borderWidth: 1,
+    borderColor: 'rgba(127,127,127,0.25)',
+    borderRadius: 10,
+    padding: 12,
+  },
   actions: {
     flexDirection: 'row',
     gap: 10,
     marginTop: 14,
+  },
+  actionsWide: {
+    maxWidth: 420,
+    alignSelf: 'flex-end',
+    width: '100%',
   },
   actionBtn: {
     flex: 1,

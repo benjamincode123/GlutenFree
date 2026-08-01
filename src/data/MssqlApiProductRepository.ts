@@ -390,4 +390,39 @@ export class MssqlApiProductRepository implements ProductRepository {
       await this.throwHttpError(response, 'report_failed');
     }
   }
+
+  async suggestMerge(
+    catalog: ProductCatalog,
+    sourceId: number,
+    targetId: number,
+    comment?: string
+  ): Promise<void> {
+    const token = getAuthToken();
+    if (!token) {
+      throw new AppError('unauthorized');
+    }
+
+    const response = await this.request(
+      this.productsUrl(
+        `/${encodeURIComponent(catalog)}/${sourceId}/merge-suggestions`
+      ),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          targetProductId: targetId,
+          comment: comment?.trim() || null,
+        }),
+      },
+      'report_failed'
+    );
+
+    if (!response.ok) {
+      await this.throwHttpError(response, 'report_failed');
+    }
+  }
 }

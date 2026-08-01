@@ -1,12 +1,13 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from 'expo-router';
-import { useLayoutEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useLayoutEffect, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ALLERGEN_OPTIONS } from '../src/allergens/allergenPrefs';
 import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { CountrySelector } from '../src/components/CountrySelector';
 import { SmoothSwitch } from '../src/components/SmoothSwitch';
+import { TermsDocumentModal } from '../src/components/TermsAcceptanceScreen';
 import { useI18n } from '../src/i18n/I18nContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
@@ -15,6 +16,7 @@ export default function SettingsScreen() {
   const { colors, isDark, setMode } = useTheme();
   const { t, locale, setLocale } = useI18n();
   const { isSelected, toggle } = useAllergenPrefs();
+  const [termsOpen, setTermsOpen] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: t('nav.settings') });
@@ -201,6 +203,25 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>
           {t('settings.disclaimerBody')}
         </Text>
+        <Pressable
+          style={[styles.termsLink, { borderColor: colors.border }]}
+          onPress={() => setTermsOpen(true)}
+          accessibilityRole="button"
+        >
+          <MaterialCommunityIcons
+            name="file-document-outline"
+            size={20}
+            color={colors.primary}
+          />
+          <Text style={[styles.termsLinkText, { color: colors.text }]}>
+            {t('terms.openInSettings')}
+          </Text>
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={22}
+            color={colors.textSecondary}
+          />
+        </Pressable>
       </View>
 
       <View
@@ -219,6 +240,15 @@ export default function SettingsScreen() {
           {t('settings.scanningBody')}
         </Text>
       </View>
+
+      <Modal
+        visible={termsOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setTermsOpen(false)}
+      >
+        <TermsDocumentModal onClose={() => setTermsOpen(false)} />
+      </Modal>
     </ScrollView>
   );
 }
@@ -291,6 +321,21 @@ const styles = StyleSheet.create({
   sectionBody: {
     fontSize: 14,
     lineHeight: 21,
+  },
+  termsLink: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  termsLinkText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
   },
   themeHint: {
     minHeight: 42,
