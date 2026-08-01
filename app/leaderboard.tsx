@@ -22,6 +22,7 @@ import {
 import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
 import { useTheme } from '../src/theme/ThemeContext';
+import { formatApiDateTime } from '../src/time/formatApiDate';
 
 type PeriodKey = 'day' | 'week' | 'month';
 
@@ -115,14 +116,7 @@ export default function LeaderboardScreen() {
 
   function formatUpdated(iso: string | undefined): string {
     if (!iso) return '';
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleString(locale === 'nb' ? 'nb-NO' : 'en-GB', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatApiDateTime(iso, locale);
   }
 
   function renderRow({ item }: { item: LeaderboardEntry }) {

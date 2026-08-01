@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,7 +15,11 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../src/auth/AuthContext';
-import { ALLERGEN_OPTIONS } from '../src/allergens/allergenPrefs';
+import { getAuthToken } from '../src/auth/session';
+import {
+  ALLERGEN_OPTIONS,
+  allergenLabelMatches,
+} from '../src/allergens/allergenPrefs';
 import {
   AllergenStatus,
   allergensToStatuses,
@@ -28,6 +32,7 @@ import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
 import { ErrorText } from '../src/components/ErrorText';
 import { GlutenBadge } from '../src/components/GlutenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
+import { ScanWithAiTutorialModal } from '../src/components/ScanWithAiTutorialModal';
 import { getProductRepository } from '../src/data/repository';
 import { MIN_PRODUCT_SEARCH_CHARS } from '../src/data/searchLimits';
 import { useI18n } from '../src/i18n/I18nContext';
@@ -37,7 +42,19 @@ import {
   Product,
   ProductCatalog,
 } from '../src/db/types';
-import { askPickProductImage } from '../src/media/pickProductImage';
+import * as ocrApi from '../src/data/ocrApi';
+import {
+  askPickIngredientsOcrImage,
+  askPickProductImage,
+} from '../src/media/pickProductImage';
+import {
+  extractBarcodeFromOcrText,
+  scanBarcodeFromImageUriWithTimeout,
+} from '../src/media/scanBarcodeFromImage';
+import {
+  markScanWithAiTutorialSeen,
+  shouldShowScanWithAiTutorial,
+} from '../src/media/scanWithAiTutorialPrefs';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useTheme } from '../src/theme/ThemeContext';
 function parseCatalog(value: string | undefined): ProductCatalog | null {
@@ -99,6 +116,18 @@ export default function AddProductScreen() {
   const [submissionImageBase64, setSubmissionImageBase64] = useState<string | null>(null);
   const [photoMissingError, setPhotoMissingError] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [ocrScanning, setOcrScanning] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrTutorialVisible, setOcrTutorialVisible] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (!formError) return;
+    // Keep the message under the save button in view after a failed attempt.
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+  }, [formError]);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: t('nav.add') });
@@ -266,8 +295,18 @@ export default function AddProductScreen() {
 
     setSaving(true);
     try {
+      const barcodeValue = barcode.trim() || (allowEmptyBarcode ? 'unknown' : '');
+      // Block new adds when the barcode already exists in the catalog.
+      if (!isEditing && barcodeValue && barcodeValue.toLowerCase() !== 'unknown') {
+        const existing = await getProductRepository().getByBarcode(barcodeValue);
+        if (existing) {
+          setFormError(t('errors.barcodeTaken'));
+          return;
+        }
+      }
+
       const saved = await getProductRepository().addProduct({
-        barcode: barcode.trim() || (allowEmptyBarcode ? 'unknown' : ''),
+        barcode: barcodeValue,
         name: name.trim(),
         produsent: produsent.trim() || null,
         ingredients: ingredients.trim() || null,
@@ -297,6 +336,98 @@ export default function AddProductScreen() {
       setFormError(userFacingError(err, t, 'save_failed'));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleScanWithAi() {
+    setOcrError(null);
+    const picked = await askPickIngredientsOcrImage(
+      t('add.scanWithAiPickTitle'),
+      t('add.scanWithAiPickBody')
+    );
+    if (!picked) return;
+
+    const token = getAuthToken();
+    if (!token) {
+      setOcrError(t('add.signInRequired'));
+      return;
+    }
+
+    // Don't overwrite a barcode that came from an existing product scan.
+    const canFillBarcode =
+      !(Boolean(initialBarcode) && !(isAdmin && isEditing));
+
+    setOcrScanning(true);
+    try {
+      // OCR/AI first — do not wait on barcode decode.
+      const result = await ocrApi.readImageText(token, picked.dataUri);
+
+      if (!result.text.trim()) {
+        setOcrError(t('add.scanWithAiFailed'));
+        return;
+      }
+
+      const parsed = result.parsed;
+      if (parsed) {
+        if (parsed.produsent) setProdusent(parsed.produsent);
+        if (parsed.name) setName(parsed.name);
+        if (parsed.ingredients) setIngredients(parsed.ingredients);
+
+        setAllergenStatuses((prev) => {
+          const next = { ...prev };
+          const resolve = (label: string) =>
+            ALLERGEN_OPTIONS.find(
+              (option) =>
+                option === label || allergenLabelMatches(option, label)
+            ) ?? null;
+
+          for (const allergen of parsed.allergensContains) {
+            const key = resolve(allergen);
+            if (key) next[key] = 'contains';
+          }
+          for (const allergen of parsed.allergensMayContain) {
+            const key = resolve(allergen);
+            // Don't downgrade "contains" to traces.
+            if (key && next[key] !== 'contains') {
+              next[key] = 'mayContain';
+            }
+          }
+          const gluten = next.Gluten ?? 'free';
+          setRating(ratingFromGlutenStatus(gluten));
+          return next;
+        });
+      }
+
+      if (result.parseWarning) {
+        setOcrError(result.parseWarning);
+      }
+
+      // Prefer GTIN from OCR text immediately (instant, local).
+      if (canFillBarcode) {
+        const fromText = extractBarcodeFromOcrText(result.text);
+        if (fromText) {
+          setBarcode(fromText);
+        } else {
+          // Downscaled image scan in background — never blocks the AI result UI.
+          void scanBarcodeFromImageUriWithTimeout(picked.localUri, {
+            width: picked.width,
+            height: picked.height,
+            timeoutMs: 2500,
+          }).then((code) => {
+            if (code) setBarcode(code);
+          });
+        }
+      }
+    } catch (err) {
+      if (err instanceof ocrApi.OcrRequestError) {
+        setOcrError(err.message);
+      } else {
+        setOcrError(
+          userFacingError(err, t, 'unauthorized') || t('add.scanWithAiFailed')
+        );
+      }
+    } finally {
+      setOcrScanning(false);
     }
   }
 
@@ -368,6 +499,7 @@ export default function AddProductScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
+        ref={scrollRef}
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -375,8 +507,6 @@ export default function AddProductScreen() {
         <Text style={[styles.heading, { color: colors.text }]}>
           {isEditing ? t('add.editTitle') : t('add.addTitle')}
         </Text>
-
-        {formError && <ErrorText style={styles.formError}>{formError}</ErrorText>}
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>
           {t('add.barcode')}
@@ -422,6 +552,72 @@ export default function AddProductScreen() {
             setFormError(null);
           }}
         />
+
+        <ScanWithAiTutorialModal
+          visible={ocrTutorialVisible}
+          onClose={() => {
+            setOcrTutorialVisible(false);
+            void markScanWithAiTutorialSeen();
+          }}
+          onContinue={() => {
+            setOcrTutorialVisible(false);
+            void markScanWithAiTutorialSeen();
+            void handleScanWithAi();
+          }}
+        />
+
+        <View
+          style={[
+            styles.ocrCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Text style={[styles.label, { color: colors.textSecondary, marginTop: 0 }]}>
+            {t('add.scanWithAi')}
+          </Text>
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            {t('add.scanWithAiHint')}
+          </Text>
+          <Pressable
+            style={[
+              styles.ocrButton,
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.background,
+                opacity: ocrScanning ? 0.6 : 1,
+              },
+            ]}
+            disabled={ocrScanning}
+            onPress={() => {
+              setOcrError(null);
+              void (async () => {
+                const showTutorial = await shouldShowScanWithAiTutorial();
+                if (showTutorial) {
+                  setOcrTutorialVisible(true);
+                  return;
+                }
+                await handleScanWithAi();
+              })();
+            }}
+          >
+            {ocrScanning ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <MaterialCommunityIcons
+                name="text-recognition"
+                size={20}
+                color={colors.primary}
+              />
+            )}
+            <Text style={[styles.ocrButtonText, { color: colors.primary }]}>
+              {ocrScanning ? t('add.scanWithAiWorking') : t('add.scanWithAi')}
+            </Text>
+          </Pressable>
+          {ocrError ? (
+            <ErrorText style={styles.ocrError}>{ocrError}</ErrorText>
+          ) : null}
+        </View>
+
         {!isEditing && (
           <View
             style={[
@@ -827,6 +1023,9 @@ export default function AddProductScreen() {
                   : t('add.submitReview')}
           </Text>
         </Pressable>
+        {formError ? (
+          <ErrorText style={styles.formError}>{formError}</ErrorText>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -852,8 +1051,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   formError: {
+    marginTop: 12,
     marginBottom: 8,
-    marginTop: 4,
+    textAlign: 'center',
   },
   label: {
     fontSize: 13,
@@ -893,6 +1093,31 @@ const styles = StyleSheet.create({
   hint: {
     fontSize: 12,
     marginTop: 4,
+  },
+  ocrCard: {
+    marginTop: 16,
+    marginBottom: 4,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+  },
+  ocrButton: {
+    marginTop: 12,
+    minHeight: 46,
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  ocrButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  ocrError: {
+    marginTop: 10,
   },
   linkCard: {
     marginTop: 20,

@@ -1,7 +1,15 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from 'expo-router';
 import { useLayoutEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { ALLERGEN_OPTIONS } from '../src/allergens/allergenPrefs';
 import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
@@ -9,6 +17,7 @@ import { CountrySelector } from '../src/components/CountrySelector';
 import { SmoothSwitch } from '../src/components/SmoothSwitch';
 import { TermsDocumentModal } from '../src/components/TermsAcceptanceScreen';
 import { useI18n } from '../src/i18n/I18nContext';
+import { useNotificationPrefs } from '../src/notifications/NotificationPrefsContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
 export default function SettingsScreen() {
@@ -16,6 +25,13 @@ export default function SettingsScreen() {
   const { colors, isDark, setMode } = useTheme();
   const { t, locale, setLocale } = useI18n();
   const { isSelected, toggle } = useAllergenPrefs();
+  const {
+    prefs,
+    permissionGranted,
+    setNotifyInbox,
+    setNotifyXp,
+    enableSystemNotifications,
+  } = useNotificationPrefs();
   const [termsOpen, setTermsOpen] = useState(false);
 
   useLayoutEffect(() => {
@@ -109,6 +125,87 @@ export default function SettingsScreen() {
         </Text>
         <View style={styles.countryWrap}>
           <CountrySelector />
+        </View>
+      </View>
+
+      <View
+        style={[
+          styles.section,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons
+            name="bell-outline"
+            size={22}
+            color={colors.primary}
+          />
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            {t('settings.notifications')}
+          </Text>
+        </View>
+        <Text style={[styles.sectionBody, styles.languageHint, { color: colors.textSecondary }]}>
+          {t('settings.notificationsHint')}
+        </Text>
+        {!permissionGranted ? (
+          <Pressable
+            style={[styles.permissionBanner, { borderColor: colors.border }]}
+            onPress={() => {
+              void (async () => {
+                const granted = await enableSystemNotifications();
+                if (!granted) {
+                  void Linking.openSettings();
+                }
+              })();
+            }}
+            accessibilityRole="button"
+          >
+            <MaterialCommunityIcons
+              name="bell-badge-outline"
+              size={20}
+              color={colors.primary}
+            />
+            <Text style={[styles.permissionBannerText, { color: colors.text }]}>
+              {t('settings.notificationsEnableSystem')}
+            </Text>
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={22}
+              color={colors.textSecondary}
+            />
+          </Pressable>
+        ) : null}
+        <View style={styles.row}>
+          <View style={styles.rowTextWrap}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>
+              {t('settings.notificationsInbox')}
+            </Text>
+            <Text style={[styles.rowHint, { color: colors.textSecondary }]}>
+              {t('settings.notificationsInboxHint')}
+            </Text>
+          </View>
+          <SmoothSwitch
+            value={prefs.notifyInbox && permissionGranted}
+            onValueChange={(value) => {
+              void setNotifyInbox(value);
+            }}
+          />
+        </View>
+        <View style={styles.row}>
+          <View style={styles.rowTextWrap}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>
+              {t('settings.notificationsXp')}
+            </Text>
+            <Text style={[styles.rowHint, { color: colors.textSecondary }]}>
+              {t('settings.notificationsXpHint')}
+            </Text>
+          </View>
+          <SmoothSwitch
+            value={prefs.notifyXp && permissionGranted}
+            onValueChange={(value) => {
+              void setNotifyXp(value);
+            }}
+          />
         </View>
       </View>
 
@@ -349,12 +446,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     minHeight: 32,
+    gap: 12,
+  },
+  rowTextWrap: {
+    flex: 1,
+    paddingRight: 8,
   },
   themeLabel: {
     minWidth: 72,
   },
   rowLabel: {
     fontSize: 15,
+    fontWeight: '600',
+  },
+  rowHint: {
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  permissionBanner: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  permissionBannerText: {
+    flex: 1,
+    fontSize: 14,
     fontWeight: '600',
   },
   langRow: {

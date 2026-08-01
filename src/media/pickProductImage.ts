@@ -62,12 +62,18 @@ async function compressToMaxBytes(
   return null;
 }
 
-/**
- * Opens camera or gallery and returns a compressed JPEG data-URI, or null if cancelled.
- */
-export async function pickProductImage(
+export type PickedProductImage = {
+  /** Compressed JPEG data-URI for upload / OCR. */
+  dataUri: string;
+  /** Original local file URI (best for on-device barcode scan). */
+  localUri: string;
+  width?: number;
+  height?: number;
+};
+
+async function pickProductImageAsset(
   source: 'camera' | 'library'
-): Promise<string | null> {
+): Promise<ImagePicker.ImagePickerAsset | null> {
   if (source === 'camera') {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
@@ -105,6 +111,26 @@ export async function pickProductImage(
     return null;
   }
 
+  return asset;
+}
+
+/**
+ * Opens camera or gallery and returns a compressed JPEG data-URI, or null if cancelled.
+ */
+export async function pickProductImage(
+  source: 'camera' | 'library'
+): Promise<string | null> {
+  const picked = await pickProductImageDetailed(source);
+  return picked?.dataUri ?? null;
+}
+
+/** Same as {@link pickProductImage}, but also returns the original local URI. */
+export async function pickProductImageDetailed(
+  source: 'camera' | 'library'
+): Promise<PickedProductImage | null> {
+  const asset = await pickProductImageAsset(source);
+  if (!asset) return null;
+
   try {
     const dataUri = await compressToMaxBytes(
       asset.uri,
@@ -118,16 +144,27 @@ export async function pickProductImage(
       );
       return null;
     }
-    return dataUri;
+    return {
+      dataUri,
+      localUri: asset.uri,
+      width: asset.width,
+      height: asset.height,
+    };
   } catch {
     Alert.alert('Could not process image', 'Try another photo.');
     return null;
   }
 }
 
-export function askPickProductImage(): Promise<string | null> {
+export function askPickProductImage(options?: {
+  title?: string;
+  message?: string;
+}): Promise<string | null> {
+  const title = options?.title ?? 'Product photo';
+  const message =
+    options?.message ?? 'Add a photo of the product for review (max 1 MB).';
   return new Promise((resolve) => {
-    Alert.alert('Product photo', 'Add a photo of the product for review (max 1 MB).', [
+    Alert.alert(title, message, [
       { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
       {
         text: 'Camera',
@@ -139,6 +176,30 @@ export function askPickProductImage(): Promise<string | null> {
         text: Platform.OS === 'ios' ? 'Photo Library' : 'Gallery',
         onPress: () => {
           void pickProductImage('library').then(resolve);
+        },
+      },
+    ]);
+  });
+}
+
+/** Ingredients-label photo for OCR + local barcode scan (still compressed to max 1 MB). */
+export function askPickIngredientsOcrImage(
+  title: string,
+  message: string
+): Promise<PickedProductImage | null> {
+  return new Promise((resolve) => {
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+      {
+        text: 'Camera',
+        onPress: () => {
+          void pickProductImageDetailed('camera').then(resolve);
+        },
+      },
+      {
+        text: Platform.OS === 'ios' ? 'Photo Library' : 'Gallery',
+        onPress: () => {
+          void pickProductImageDetailed('library').then(resolve);
         },
       },
     ]);

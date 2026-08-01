@@ -15,16 +15,17 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.glutenfree.scanner",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "icon": "./assets/icon.png",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan grocery barcodes and photograph products for review.",
-        "NSPhotoLibraryUsageDescription": "This app lets you attach a product photo when reporting a barcode."
+        "NSPhotoLibraryUsageDescription": "This app lets you attach a product photo when reporting a barcode.",
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
       "package": "com.glutenfree.scanner",
-      "versionCode": 6,
+      "versionCode": 7,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#000000",
@@ -35,7 +36,8 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -55,6 +57,14 @@
         {
           "photosPermission": "This app lets you attach a product photo when reporting a barcode.",
           "cameraPermission": "This app uses the camera to photograph products for barcode reports."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#000000",
+          "defaultChannel": "default"
         }
       ],
       "expo-secure-store",

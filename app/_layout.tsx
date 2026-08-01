@@ -9,12 +9,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import { AllergenPrefsProvider } from '../src/allergens/AllergenPrefsContext';
 import { CountryPrefsProvider } from '../src/country/CountryPrefsContext';
-import { KeyboardDismissAccessory } from '../src/components/KeyboardDismissBar';
 import { TermsAcceptanceScreen } from '../src/components/TermsAcceptanceScreen';
 import { config } from '../src/config';
 import { I18nProvider, useI18n } from '../src/i18n/I18nContext';
 import { initDatabase } from '../src/db/database';
 import { hasAcceptedCurrentTerms } from '../src/legal/termsAcceptance';
+import { NotificationPrefsProvider } from '../src/notifications/NotificationPrefsContext';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
 void SplashScreen.preventAutoHideAsync();
@@ -86,7 +86,9 @@ export default function RootLayout() {
             <AllergenPrefsProvider>
               <CountryPrefsProvider>
                 <AuthProvider>
-                  <RootNavigator />
+                  <NotificationPrefsProvider>
+                    <RootNavigator />
+                  </NotificationPrefsProvider>
                 </AuthProvider>
               </CountryPrefsProvider>
             </AllergenPrefsProvider>
@@ -177,7 +179,6 @@ function RootNavigator() {
         <Stack.Screen name="admin" options={{ title: t('nav.admin') }} />
         <Stack.Screen name="settings" options={{ title: t('nav.settings') }} />
       </Stack>
-      <KeyboardDismissAccessory />
     </>
   );
 }

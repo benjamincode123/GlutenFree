@@ -1,3 +1,4 @@
+import { HeaderBackButton } from '@react-navigation/elements';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useLayoutEffect, useState } from 'react';
 import {
@@ -16,58 +17,73 @@ import { getAuthToken } from '../src/auth/session';
 import { ErrorText } from '../src/components/ErrorText';
 import * as notificationsApi from '../src/data/notificationsApi';
 import type { UserNotificationItem } from '../src/data/notificationsApi';
+import { NOTIFICATIONS_PAGE_SIZE } from '../src/data/notificationsApi';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
+import { goBackOrHome } from '../src/navigation/goHome';
 import { useTheme } from '../src/theme/ThemeContext';
+import { formatApiDateTime } from '../src/time/formatApiDate';
 
 function formatDate(iso: string, locale: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString(locale === 'nb' ? 'nb-NO' : 'en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatApiDateTime(iso, locale);
 }
 
 export default function NotificationsScreen() {
   const navigation = useNavigation();
   const router = useRouter();
-  const { authEnabled, user, refreshUser } = useAuth();
+  const { authEnabled, user, removeUnreadMessage } = useAuth();
   const { colors } = useTheme();
-  const { t, locale } = useI18n();
+  const { t, tf, locale } = useI18n();
 
   const [items, setItems] = useState<UserNotificationItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const handleBack = useCallback(() => {
+    goBackOrHome(router);
+  }, [router]);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: t('nav.notifications') });
-  }, [navigation, t]);
+    navigation.setOptions({
+      title: t('nav.notifications'),
+      // Always leave this screen — stack history can be empty after replaces,
+      // which makes the default header back control appear stuck.
+      headerLeft: (props) => (
+        <HeaderBackButton
+          {...props}
+          tintColor={colors.text}
+          onPress={handleBack}
+        />
+      ),
+      gestureEnabled: true,
+    });
+  }, [navigation, t, colors.text, handleBack]);
 
-  const loadInbox = useCallback(async () => {
+  const loadInbox = useCallback(async (pageNumber: number) => {
     const token = getAuthToken();
     if (!token) {
       throw new Error('unauthorized');
     }
-    const inbox = await notificationsApi.fetchNotifications(token, 50);
+    const inbox = await notificationsApi.fetchNotifications(
+      token,
+      pageNumber,
+      NOTIFICATIONS_PAGE_SIZE
+    );
     setItems(inbox.notifications);
+    setPage(inbox.page);
+    setTotalPages(inbox.totalPages);
+    setTotalCount(inbox.totalCount);
+  }, []);
 
-    // Opening the inbox counts as seeing the messages — clear unread badge.
-    if (inbox.unreadCount > 0) {
-      await notificationsApi.markAllNotificationsRead(token);
-      setItems((prev) => prev.map((n) => ({ ...n, isUnread: false })));
-      await refreshUser();
-    }
-  }, [refreshUser]);
+  const userId = user?.id ?? null;
 
   useFocusEffect(
     useCallback(() => {
-      if (!authEnabled || !user) {
+      if (!authEnabled || userId == null) {
         router.replace('/login');
         return;
       }
@@ -77,11 +93,14 @@ export default function NotificationsScreen() {
         setLoading(true);
         setError(null);
         try {
-          await loadInbox();
+          await loadInbox(1);
         } catch (err) {
           if (!cancelled) {
             setError(userFacingError(err, t, 'unauthorized'));
             setItems([]);
+            setTotalCount(0);
+            setTotalPages(1);
+            setPage(1);
           }
         } finally {
           if (!cancelled) {
@@ -93,43 +112,51 @@ export default function NotificationsScreen() {
       return () => {
         cancelled = true;
       };
-    }, [authEnabled, user, router, t, loadInbox])
+      // Intentionally depend on userId (not full user) so mark-as-read →
+      // refreshUser() does not re-enter this effect and freeze navigation.
+    }, [authEnabled, userId, router, t, loadInbox])
+  );
+
+  const goToPage = useCallback(
+    async (nextPage: number) => {
+      const target = Math.min(totalPages, Math.max(1, nextPage));
+      if (target === page || loading) return;
+      setLoading(true);
+      setError(null);
+      try {
+        await loadInbox(target);
+      } catch (err) {
+        setError(userFacingError(err, t, 'unauthorized'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loadInbox, loading, page, t, totalPages]
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     setError(null);
     try {
-      await loadInbox();
+      await loadInbox(page);
     } catch (err) {
       setError(userFacingError(err, t, 'unauthorized'));
     } finally {
       setRefreshing(false);
     }
-  }, [loadInbox, t]);
+  }, [loadInbox, page, t]);
 
-  const markOneRead = useCallback(
-    async (id: number) => {
-      if (busyId != null) return;
-      setBusyId(id);
-      try {
-        const token = getAuthToken();
-        if (!token) {
-          throw new Error('unauthorized');
-        }
-        await notificationsApi.markNotificationRead(token, id);
-        setItems((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, isUnread: false } : n))
-        );
-        await refreshUser();
-      } catch (err) {
-        setError(userFacingError(err, t, 'unauthorized'));
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [busyId, refreshUser, t]
-  );
+  const markOneRead = useCallback((id: number) => {
+    setItems((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isUnread: false } : n))
+    );
+    removeUnreadMessage(id);
+
+    const token = getAuthToken();
+    if (!token) return;
+    // Fire-and-forget — list UI must not wait on this.
+    void notificationsApi.markNotificationRead(token, id).catch(() => undefined);
+  }, [removeUnreadMessage]);
 
   return (
     <ScrollView
@@ -153,7 +180,7 @@ export default function NotificationsScreen() {
             key={item.id}
             onPress={() => {
               if (item.isUnread) {
-                void markOneRead(item.id);
+                markOneRead(item.id);
               }
             }}
             style={[
@@ -184,6 +211,36 @@ export default function NotificationsScreen() {
           </Pressable>
         ))
       )}
+
+      {!loading && totalCount > NOTIFICATIONS_PAGE_SIZE ? (
+        <View style={styles.pager}>
+          <Pressable
+            style={[
+              styles.pageBtn,
+              { borderColor: colors.border },
+              page <= 1 && styles.pageBtnDisabled,
+            ]}
+            disabled={page <= 1}
+            onPress={() => void goToPage(page - 1)}
+          >
+            <Text style={{ color: colors.text }}>{t('admin.prev')}</Text>
+          </Pressable>
+          <Text style={[styles.pageLabel, { color: colors.textSecondary }]}>
+            {tf('admin.pageOf', { page, total: totalPages })}
+          </Text>
+          <Pressable
+            style={[
+              styles.pageBtn,
+              { borderColor: colors.border },
+              page >= totalPages && styles.pageBtnDisabled,
+            ]}
+            disabled={page >= totalPages}
+            onPress={() => void goToPage(page + 1)}
+          >
+            <Text style={{ color: colors.text }}>{t('admin.next')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -231,5 +288,27 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  pager: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  pageBtn: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  pageBtnDisabled: {
+    opacity: 0.4,
+  },
+  pageLabel: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

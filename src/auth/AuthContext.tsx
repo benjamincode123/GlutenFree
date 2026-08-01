@@ -100,6 +100,8 @@ interface AuthContextValue {
   setProfileImage: (imageBase64: string | null) => Promise<void>;
   addFavorite: (favorite: authApi.FavoriteProductRef) => Promise<void>;
   removeFavorite: (favorite: authApi.FavoriteProductRef) => Promise<void>;
+  /** Local badge update — removes one unread notification id without a network round-trip. */
+  removeUnreadMessage: (notificationId: number) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -267,6 +269,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     favoritesSyncGenerationRef.current += 1;
     const token = getAuthToken();
     if (token) {
+      try {
+        await authApi.setPushToken(token, null);
+      } catch {
+        // Best-effort clear of device push registration.
+      }
       await authApi.logout(token);
     }
     await clearToken();
@@ -398,6 +405,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [scheduleFavoritesSync]
   );
 
+  const removeUnreadMessage = useCallback((notificationId: number) => {
+    if (notificationId <= 0) return;
+    setUser((prev) => {
+      if (!prev) return prev;
+      const nextUnread = (prev.unreadMessages ?? []).filter(
+        (id) => id !== notificationId
+      );
+      if (nextUnread.length === (prev.unreadMessages?.length ?? 0)) {
+        return prev;
+      }
+      const next = { ...prev, unreadMessages: nextUnread };
+      void saveCachedUser(next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -411,6 +434,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfileImage,
       addFavorite,
       removeFavorite,
+      removeUnreadMessage,
     }),
     [
       user,
@@ -422,6 +446,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfileImage,
       addFavorite,
       removeFavorite,
+      removeUnreadMessage,
     ]
   );
 

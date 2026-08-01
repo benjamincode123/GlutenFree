@@ -68,6 +68,13 @@ type TranslationKey =
   | 'country.se'
   | 'country.dk'
   | 'country.de'
+  | 'settings.notifications'
+  | 'settings.notificationsHint'
+  | 'settings.notificationsEnableSystem'
+  | 'settings.notificationsInbox'
+  | 'settings.notificationsInboxHint'
+  | 'settings.notificationsXp'
+  | 'settings.notificationsXpHint'
   | 'settings.allergens'
   | 'settings.allergensHint'
   | 'settings.about'
@@ -398,6 +405,24 @@ type TranslationKey =
   | 'add.namePlaceholder'
   | 'add.ingredients'
   | 'add.ingredientsPlaceholder'
+  | 'add.scanWithAi'
+  | 'add.scanWithAiHint'
+  | 'add.scanWithAiPickTitle'
+  | 'add.scanWithAiPickBody'
+  | 'add.scanWithAiWorking'
+  | 'add.scanWithAiResult'
+  | 'add.scanWithAiFailed'
+  | 'add.scanWithAiTutorialTitle'
+  | 'add.scanWithAiTutorialLead'
+  | 'add.scanWithAiTutorialImageA11y'
+  | 'add.scanWithAiTutorialTipProducer'
+  | 'add.scanWithAiTutorialTipNameIngredients'
+  | 'add.scanWithAiTutorialTipClarity'
+  | 'add.scanWithAiTutorialTipDistance'
+  | 'add.scanWithAiTutorialContinue'
+  | 'add.scanWithAiTutorialCancel'
+  | 'add.scanWithAiTutorialFullscreen'
+  | 'add.scanWithAiTutorialCloseFullscreen'
   | 'add.glutenRating'
   | 'add.allergens'
   | 'add.allergensHint'
@@ -497,6 +522,16 @@ const en: Record<TranslationKey, string> = {
   'country.se': 'Sweden',
   'country.dk': 'Denmark',
   'country.de': 'Germany',
+  'settings.notifications': 'Notifications',
+  'settings.notificationsHint':
+    'Choose which push alerts you want. Both are on by default once you allow notifications.',
+  'settings.notificationsEnableSystem': 'Allow notifications on this device',
+  'settings.notificationsInbox': 'Inbox messages',
+  'settings.notificationsInboxHint':
+    'Get a push when you receive a notification in the app.',
+  'settings.notificationsXp': 'XP earned',
+  'settings.notificationsXpHint':
+    'Get a push when you earn XP for an approved contribution.',
   'settings.allergens': 'Allergen warnings',
   'settings.allergensHint':
     'Choose allergens you want to be warned about when a product contains them or may contain them.',
@@ -855,6 +890,33 @@ const en: Record<TranslationKey, string> = {
   'add.ingredients': 'Ingredients / contents',
   'add.ingredientsPlaceholder':
     "List the ingredients and any 'produced in a facility that also handles wheat' notes.",
+  'add.scanWithAi': 'Scan with AI',
+  'add.scanWithAiHint':
+    'Photo tip first: producer, product name and ingredients must be clear in one shot (max 30 cm away).',
+  'add.scanWithAiPickTitle': 'Label photo',
+  'add.scanWithAiPickBody':
+    'Photograph producer, product name and ingredients up close and in focus (max 30 cm, max 1 MB).',
+  'add.scanWithAiWorking': 'Reading label…',
+  'add.scanWithAiResult': 'OCR text',
+  'add.scanWithAiFailed':
+    'Could not read text from the photo. Try a clearer close-up (max 30 cm) with producer, name and ingredients visible.',
+  'add.scanWithAiTutorialTitle': 'How to photograph the label',
+  'add.scanWithAiTutorialLead':
+    'Follow the example below. The red boxes show what must be in the photo: producer, product name and ingredients.',
+  'add.scanWithAiTutorialImageA11y':
+    'Example photo of a milk carton with producer and ingredients marked.',
+  'add.scanWithAiTutorialTipProducer':
+    'Producer / brand must be clearly visible (see the top red box).',
+  'add.scanWithAiTutorialTipNameIngredients':
+    'Product name and ingredients list must both be visible (see the lower red box).',
+  'add.scanWithAiTutorialTipClarity':
+    'Keep text sharp and large enough — not blurry or too small to read.',
+  'add.scanWithAiTutorialTipDistance':
+    'Hold the camera at most 30 cm from the product.',
+  'add.scanWithAiTutorialContinue': 'Take photo',
+  'add.scanWithAiTutorialCancel': 'Cancel',
+  'add.scanWithAiTutorialFullscreen': 'Full screen',
+  'add.scanWithAiTutorialCloseFullscreen': 'Close',
   'add.glutenRating': 'Gluten rating',
   'add.allergens': 'Allergens',
   'add.allergensHint':
@@ -958,6 +1020,16 @@ const nb: Record<TranslationKey, string> = {
   'country.se': 'Sverige',
   'country.dk': 'Danmark',
   'country.de': 'Tyskland',
+  'settings.notifications': 'Varsler',
+  'settings.notificationsHint':
+    'Velg hvilke push-varsler du vil ha. Begge er på som standard når du tillater varsler.',
+  'settings.notificationsEnableSystem': 'Tillat varsler på denne enheten',
+  'settings.notificationsInbox': 'Innboks',
+  'settings.notificationsInboxHint':
+    'Få push når du mottar et varsel i appen.',
+  'settings.notificationsXp': 'XP opptjent',
+  'settings.notificationsXpHint':
+    'Få push når du tjener XP for et godkjent bidrag.',
   'settings.allergens': 'Allergenvarsler',
   'settings.allergensHint':
     'Velg allergener du vil bli advart om når et produkt inneholder dem eller kan inneholde dem.',
@@ -1316,6 +1388,33 @@ const nb: Record<TranslationKey, string> = {
   'add.ingredients': 'Ingredienser / innhold',
   'add.ingredientsPlaceholder':
     'List opp ingrediensene og eventuelle merknader om «produsert i anlegg som også håndterer hvete».',
+  'add.scanWithAi': 'Scann med AI',
+  'add.scanWithAiHint':
+    'Først et tips: produsent, produktnavn og ingredienser må være tydelige på ett bilde (maks 30 cm unna).',
+  'add.scanWithAiPickTitle': 'Bilde av etikett',
+  'add.scanWithAiPickBody':
+    'Fotografer produsent, produktnavn og ingredienser nært og skarpt (maks 30 cm, maks 1 MB).',
+  'add.scanWithAiWorking': 'Leser etikett…',
+  'add.scanWithAiResult': 'OCR-tekst',
+  'add.scanWithAiFailed':
+    'Kunne ikke lese tekst fra bildet. Prøv et klarere nærbilde (maks 30 cm) der produsent, navn og ingredienser synes.',
+  'add.scanWithAiTutorialTitle': 'Slik fotograferer du etiketten',
+  'add.scanWithAiTutorialLead':
+    'Følg eksempelet under. De røde boksene viser hva som må være med: produsent, produktnavn og ingredienser.',
+  'add.scanWithAiTutorialImageA11y':
+    'Eksempelbilde av en melkekartong med produsent og ingredienser markert.',
+  'add.scanWithAiTutorialTipProducer':
+    'Produsent / merkevare må være tydelig synlig (se den øverste røde boksen).',
+  'add.scanWithAiTutorialTipNameIngredients':
+    'Både produktnavn og ingrediensliste må synes (se den nederste røde boksen).',
+  'add.scanWithAiTutorialTipClarity':
+    'Teksten må være skarp og stor nok — ikke uklar eller for liten til å lese.',
+  'add.scanWithAiTutorialTipDistance':
+    'Hold kameraet maks 30 cm fra produktet.',
+  'add.scanWithAiTutorialContinue': 'Ta bilde',
+  'add.scanWithAiTutorialCancel': 'Avbryt',
+  'add.scanWithAiTutorialFullscreen': 'Fullskjerm',
+  'add.scanWithAiTutorialCloseFullscreen': 'Lukk',
   'add.glutenRating': 'Glutenstatus',
   'add.allergens': 'Allergener',
   'add.allergensHint':

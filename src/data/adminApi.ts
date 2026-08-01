@@ -1,4 +1,5 @@
 import { config } from '../config';
+import type { ProductAllergens } from '../db/types';
 import {
   AppError,
   appErrorFromHttp,
@@ -17,6 +18,7 @@ export interface ProductSubmissionItem {
   submittedByUsername: string | null;
   status: string;
   createdAt: string;
+  allergens?: ProductAllergens | null;
 }
 
 export interface ProductSubmissionList {
@@ -32,6 +34,7 @@ export interface ApproveSubmissionEdits {
   produsent: string;
   ingredients: string;
   glutenRating: string;
+  allergens: ProductAllergens;
 }
 
 function adminUrl(path: string): string {
@@ -81,6 +84,11 @@ export async function approveSubmission(
         produsent: edits.produsent,
         ingredients: edits.ingredients,
         glutenRating: edits.glutenRating,
+        allergens: {
+          inneholder: edits.allergens.inneholder ?? [],
+          kanInneholde: edits.allergens.kanInneholde ?? [],
+          inneholderIkke: edits.allergens.inneholderIkke ?? [],
+        },
       }),
     });
   } catch {

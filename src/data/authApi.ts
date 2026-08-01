@@ -21,6 +21,15 @@ export interface AuthUser {
   favorites: FavoriteProductRef[];
   /** Unread management notification ids from the API. */
   unreadMessages: number[];
+  /** OS push when an inbox notification is created. Default true. */
+  notifyInboxPush?: boolean;
+  /** OS push when the user earns XP. Default true. */
+  notifyXpPush?: boolean;
+}
+
+export interface NotificationPreferences {
+  notifyInboxPush: boolean;
+  notifyXpPush: boolean;
 }
 
 export interface AuthResult {
@@ -270,6 +279,80 @@ function normalizeAuthUser(raw: AuthUser): AuthUser {
     unreadMessages: Array.isArray(raw.unreadMessages)
       ? raw.unreadMessages.filter((id) => Number.isFinite(id) && id > 0)
       : [],
+    notifyInboxPush: raw.notifyInboxPush !== false,
+    notifyXpPush: raw.notifyXpPush !== false,
+  };
+}
+
+export async function setPushToken(
+  token: string,
+  pushToken: string | null
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(authUrl('/push-token'), {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ token: pushToken }),
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAuthResponse(response, 'unauthorized');
+  }
+}
+
+export async function fetchNotificationPreferences(
+  token: string
+): Promise<NotificationPreferences> {
+  let response: Response;
+  try {
+    response = await fetch(authUrl('/notification-preferences'), {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAuthResponse(response, 'unauthorized');
+  }
+  const data = (await response.json()) as Partial<NotificationPreferences>;
+  return {
+    notifyInboxPush: data.notifyInboxPush !== false,
+    notifyXpPush: data.notifyXpPush !== false,
+  };
+}
+
+export async function setNotificationPreferences(
+  token: string,
+  prefs: Partial<NotificationPreferences>
+): Promise<NotificationPreferences> {
+  let response: Response;
+  try {
+    response = await fetch(authUrl('/notification-preferences'), {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(prefs),
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    await throwForAuthResponse(response, 'unauthorized');
+  }
+  const data = (await response.json()) as Partial<NotificationPreferences>;
+  return {
+    notifyInboxPush: data.notifyInboxPush !== false,
+    notifyXpPush: data.notifyXpPush !== false,
   };
 }
 

@@ -30,6 +30,7 @@ import { useI18n } from '../src/i18n/I18nContext';
 import type { TranslationKey } from '../src/i18n/translations';
 import { askPickProfileImage } from '../src/media/pickProductImage';
 import { useTheme } from '../src/theme/ThemeContext';
+import { formatApiDateTime } from '../src/time/formatApiDate';
 
 function formatAdminBadgeCount(total: number): string | null {
   if (total <= 0) return null;
@@ -38,17 +39,7 @@ function formatAdminBadgeCount(total: number): string | null {
 }
 
 function formatXpDate(iso: string, locale: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return iso;
-  }
-  return date.toLocaleString(locale === 'nb' ? 'nb-NO' : 'en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatApiDateTime(iso, locale);
 }
 
 function historyReasonKey(reason: string): TranslationKey {
