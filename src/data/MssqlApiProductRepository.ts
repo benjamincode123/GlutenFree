@@ -105,6 +105,21 @@ export class MssqlApiProductRepository implements ProductRepository {
     return `${this.baseUrl}/api/products${path}`;
   }
 
+  /** Paying members only — every catalog call needs a session token. */
+  private requireAuthHeaders(
+    extra?: Record<string, string>
+  ): Record<string, string> {
+    const token = getAuthToken();
+    if (!token?.trim()) {
+      throw new AppError('unauthorized');
+    }
+    return {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...extra,
+    };
+  }
+
   private async request(
     input: string,
     init: RequestInit | undefined,
@@ -137,7 +152,7 @@ export class MssqlApiProductRepository implements ProductRepository {
       this.productsUrl(
         `/${encodeURIComponent(trimmed)}?${params.toString()}`
       ),
-      undefined,
+      { headers: this.requireAuthHeaders() },
       'lookup_failed'
     );
 
@@ -155,7 +170,7 @@ export class MssqlApiProductRepository implements ProductRepository {
   async getById(catalog: ProductCatalog, id: number): Promise<Product | null> {
     const response = await this.request(
       this.productsUrl(`/${encodeURIComponent(catalog)}/${id}`),
-      undefined,
+      { headers: this.requireAuthHeaders() },
       'lookup_failed'
     );
     if (response.status === 404) {
@@ -191,7 +206,7 @@ export class MssqlApiProductRepository implements ProductRepository {
     }
     const response = await this.request(
       this.productsUrl(`/search?${params.toString()}`),
-      undefined,
+      { headers: this.requireAuthHeaders() },
       'search_failed'
     );
     if (!response.ok) {
@@ -236,14 +251,9 @@ export class MssqlApiProductRepository implements ProductRepository {
   }
 
   async addProduct(product: NewProduct): Promise<Product> {
-    const token = getAuthToken();
-    const headers: Record<string, string> = {
+    const headers = this.requireAuthHeaders({
       'Content-Type': 'application/json',
-      Accept: 'application/json',
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    });
 
     const response = await this.request(
       this.productsUrl(),
@@ -285,14 +295,9 @@ export class MssqlApiProductRepository implements ProductRepository {
     barcode: string,
     imageBase64?: string | null
   ): Promise<Product> {
-    const token = getAuthToken();
-    const headers: Record<string, string> = {
+    const headers = this.requireAuthHeaders({
       'Content-Type': 'application/json',
-      Accept: 'application/json',
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    });
 
     const response = await this.request(
       this.productsUrl(`/${encodeURIComponent(catalog)}/${id}/report-barcode`),
@@ -320,14 +325,9 @@ export class MssqlApiProductRepository implements ProductRepository {
     id: number,
     imageBase64: string
   ): Promise<{ pending: boolean; product?: Product }> {
-    const token = getAuthToken();
-    const headers: Record<string, string> = {
+    const headers = this.requireAuthHeaders({
       'Content-Type': 'application/json',
-      Accept: 'application/json',
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    });
 
     const response = await this.request(
       this.productsUrl(

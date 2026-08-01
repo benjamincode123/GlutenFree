@@ -20,6 +20,8 @@ import {
   GroceryPatternBackground,
 } from '../src/components/GroceryPatternBackground';
 import { config } from '../src/config';
+import * as authApi from '../src/data/authApi';
+import { isAppError } from '../src/errors/appError';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useSmoothKeyboardShift } from '../src/hooks/useSmoothKeyboardShift';
 import { useI18n } from '../src/i18n/I18nContext';
@@ -29,6 +31,11 @@ function registerWebUrl(): string {
   return config.registerUrl;
 }
 
+function looksLikeEmail(value: string): boolean {
+  const email = value.trim();
+  return email.length >= 5 && email.includes('@');
+}
+
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
@@ -36,18 +43,29 @@ export default function LoginScreen() {
   const { colors, isDark } = useTheme();
   const keyboardShift = useSmoothKeyboardShift(200);
 
+  const [mode, setMode] = useState<'signIn' | 'forgot'>('signIn');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   // Pattern strokes need contrast on primary: lighten on black, darken on white.
   const patternLine = isDark ? darkenHex(colors.primary, 0.14) : '#2A2E35';
   const year = new Date().getFullYear();
 
+  function switchMode(next: 'signIn' | 'forgot') {
+    setMode(next);
+    setError(null);
+    setInfo(null);
+    setSubmitting(false);
+  }
+
   async function handleSubmit() {
     setError(null);
+    setInfo(null);
     if (username.trim().length < 3) {
       setError(t('login.usernameShort'));
       return;
@@ -61,6 +79,32 @@ export default function LoginScreen() {
       await signIn(username, password);
     } catch (err) {
       setError(userFacingError(err, t, 'login_failed'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    setError(null);
+    setInfo(null);
+    if (username.trim().length < 3) {
+      setError(t('login.usernameShort'));
+      return;
+    }
+    if (!looksLikeEmail(email)) {
+      setError(t('login.emailInvalid'));
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await authApi.forgotPassword(username.trim(), email.trim());
+      setInfo(t('login.resetLinkSent'));
+    } catch (err) {
+      if (!isAppError(err) && err instanceof Error && err.message.trim()) {
+        setError(err.message);
+      } else {
+        setError(userFacingError(err, t, 'generic'));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -107,95 +151,199 @@ export default function LoginScreen() {
         >
           <View style={styles.main}>
             <View style={[styles.card, { backgroundColor: colors.background }]}>
-              <Text style={[styles.label, styles.labelFirst, { color: colors.textSecondary }]}>
-                {t('login.username')}
-              </Text>
-              <AppTextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    color: colors.text,
-                  },
-                ]}
-                placeholder={t('login.usernamePlaceholder')}
-                placeholderTextColor={colors.textSecondary}
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={username}
-                onChangeText={setUsername}
-              />
+              {mode === 'forgot' ? (
+                <>
+                  <Pressable
+                    style={styles.backRow}
+                    onPress={() => switchMode('signIn')}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('login.backToSignIn')}
+                    hitSlop={8}
+                  >
+                    <MaterialCommunityIcons
+                      name="chevron-left"
+                      size={26}
+                      color={colors.primary}
+                    />
+                    <Text style={[styles.backText, { color: colors.primary }]}>
+                      {t('login.back')}
+                    </Text>
+                  </Pressable>
 
-              <Text style={[styles.label, { color: colors.textSecondary }]}>
-                {t('login.password')}
-              </Text>
-              <View
-                style={[
-                  styles.passwordRow,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <AppTextInput
-                  style={[styles.passwordInput, { color: colors.text }]}
-                  placeholder={t('login.passwordPlaceholder')}
-                  placeholderTextColor={colors.textSecondary}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  value={password}
-                  onChangeText={setPassword}
-                  onSubmitEditing={handleSubmit}
-                  returnKeyType="go"
-                />
-                <Pressable
-                  style={styles.passwordToggle}
-                  onPress={() => setShowPassword((prev) => !prev)}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    showPassword ? t('login.hidePassword') : t('login.showPassword')
-                  }
-                  hitSlop={8}
-                >
-                  <MaterialCommunityIcons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={22}
-                    color={colors.textSecondary}
-                  />
-                </Pressable>
-              </View>
-
-              {error ? <ErrorText style={styles.error}>{error}</ErrorText> : null}
-
-              <Pressable
-                style={[
-                  styles.button,
-                  { backgroundColor: colors.primary },
-                  submitting && styles.buttonDisabled,
-                ]}
-                onPress={handleSubmit}
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <ActivityIndicator color={colors.onPrimary} />
-                ) : (
-                  <Text style={[styles.buttonText, { color: colors.onPrimary }]}>
-                    {t('login.signIn')}
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
+                    {t('login.forgotPasswordTitle')}
                   </Text>
-                )}
-              </Pressable>
+
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    {t('login.username')}
+                  </Text>
+                  <AppTextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                    placeholder={t('login.usernamePlaceholder')}
+                    placeholderTextColor={colors.textSecondary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={username}
+                    onChangeText={setUsername}
+                  />
+
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    {t('login.email')}
+                  </Text>
+                  <AppTextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                    placeholder={t('login.emailPlaceholder')}
+                    placeholderTextColor={colors.textSecondary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    value={email}
+                    onChangeText={setEmail}
+                    onSubmitEditing={handleForgotPassword}
+                    returnKeyType="send"
+                  />
+
+                  {error ? <ErrorText style={styles.error}>{error}</ErrorText> : null}
+                  {info ? (
+                    <Text style={[styles.info, { color: colors.primary }]}>{info}</Text>
+                  ) : null}
+
+                  <Pressable
+                    style={[
+                      styles.button,
+                      { backgroundColor: colors.primary },
+                      submitting && styles.buttonDisabled,
+                    ]}
+                    onPress={handleForgotPassword}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator color={colors.onPrimary} />
+                    ) : (
+                      <Text style={[styles.buttonText, { color: colors.onPrimary }]}>
+                        {t('login.sendResetLink')}
+                      </Text>
+                    )}
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.label, styles.labelFirst, { color: colors.textSecondary }]}>
+                    {t('login.username')}
+                  </Text>
+                  <AppTextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                    placeholder={t('login.usernamePlaceholder')}
+                    placeholderTextColor={colors.textSecondary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={username}
+                    onChangeText={setUsername}
+                  />
+
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                    {t('login.password')}
+                  </Text>
+                  <View
+                    style={[
+                      styles.passwordRow,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <AppTextInput
+                      style={[styles.passwordInput, { color: colors.text }]}
+                      placeholder={t('login.passwordPlaceholder')}
+                      placeholderTextColor={colors.textSecondary}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      value={password}
+                      onChangeText={setPassword}
+                      onSubmitEditing={handleSubmit}
+                      returnKeyType="go"
+                    />
+                    <Pressable
+                      style={styles.passwordToggle}
+                      onPress={() => setShowPassword((prev) => !prev)}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        showPassword ? t('login.hidePassword') : t('login.showPassword')
+                      }
+                      hitSlop={8}
+                    >
+                      <MaterialCommunityIcons
+                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={22}
+                        color={colors.textSecondary}
+                      />
+                    </Pressable>
+                  </View>
+
+                  <Pressable
+                    style={styles.forgotLink}
+                    onPress={() => switchMode('forgot')}
+                  >
+                    <Text style={[styles.forgotLinkText, { color: colors.primary }]}>
+                      {t('login.forgotPassword')}
+                    </Text>
+                  </Pressable>
+
+                  {error ? <ErrorText style={styles.error}>{error}</ErrorText> : null}
+
+                  <Pressable
+                    style={[
+                      styles.button,
+                      { backgroundColor: colors.primary },
+                      submitting && styles.buttonDisabled,
+                    ]}
+                    onPress={handleSubmit}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator color={colors.onPrimary} />
+                    ) : (
+                      <Text style={[styles.buttonText, { color: colors.onPrimary }]}>
+                        {t('login.signIn')}
+                      </Text>
+                    )}
+                  </Pressable>
+                </>
+              )}
             </View>
 
-            <Pressable style={styles.switchRow} onPress={openRegisterWebsite}>
-              <Text style={[styles.switchText, { color: colors.onPrimary }]}>
-                {t('login.noAccount')}
-                <Text style={[styles.switchLink, { color: colors.onPrimary }]}>
-                  {t('login.register')}
+            {mode === 'signIn' ? (
+              <Pressable style={styles.switchRow} onPress={openRegisterWebsite}>
+                <Text style={[styles.switchText, { color: colors.onPrimary }]}>
+                  {t('login.noAccount')}
+                  <Text style={[styles.switchLink, { color: colors.onPrimary }]}>
+                    {t('login.register')}
+                  </Text>
                 </Text>
-              </Text>
-            </Pressable>
+              </Pressable>
+            ) : null}
           </View>
 
           <View style={styles.footer}>
@@ -228,6 +376,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 20,
+  },
+  backRow: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: -6,
+    marginBottom: 14,
+    paddingVertical: 2,
+  },
+  backText: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: -2,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 4,
   },
   label: {
     fontSize: 13,
@@ -263,9 +429,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  forgotLink: {
+    alignSelf: 'flex-end',
+    marginTop: 10,
+    paddingVertical: 4,
+  },
+  forgotLinkText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
   error: {
     fontSize: 14,
     marginTop: 14,
+  },
+  info: {
+    fontSize: 14,
+    marginTop: 14,
+    lineHeight: 20,
   },
   button: {
     marginTop: 16,

@@ -41,6 +41,10 @@ export async function readImageText(
   token: string,
   imageBase64: string
 ): Promise<OcrReadResult> {
+  if (!token?.trim()) {
+    throw new OcrRequestError('You must be logged in.', 401);
+  }
+
   const url = ocrUrl('/read');
   let response: Response;
   try {

@@ -7,6 +7,7 @@ import {
 import { memo, useCallback, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
+/** 1D product barcodes only — never QR / 2D codes. */
 export const SCANNER_BARCODE_TYPES: BarcodeType[] = [
   'ean13',
   'ean8',
@@ -17,10 +18,6 @@ export const SCANNER_BARCODE_TYPES: BarcodeType[] = [
   'code93',
   'itf14',
   'codabar',
-  'qr',
-  'pdf417',
-  'aztec',
-  'datamatrix',
 ];
 
 type ScannerCameraProps = {

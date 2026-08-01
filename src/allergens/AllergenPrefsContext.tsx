@@ -11,10 +11,13 @@ import {
 
 import { ALLERGEN_OPTIONS } from './allergenPrefs';
 
-const STORAGE_KEY = 'gluten_allergen_warn_v1';
+const STORAGE_KEY = 'gluten_allergen_warn_v2';
+const LEGACY_STORAGE_KEY = 'gluten_allergen_warn_v1';
+
+const DEFAULT_SELECTED: string[] = [...ALLERGEN_OPTIONS];
 
 interface AllergenPrefsContextValue {
-  /** Allergens the user wants to be warned about. */
+  /** Allergens the user wants to see / be warned about. Default: all. */
   selected: string[];
   ready: boolean;
   toggle: (allergen: string) => void;
@@ -40,7 +43,7 @@ function sanitize(list: unknown): string[] {
 }
 
 export function AllergenPrefsProvider({ children }: { children: ReactNode }) {
-  const [selected, setSelectedState] = useState<string[]>([]);
+  const [selected, setSelectedState] = useState<string[]>(DEFAULT_SELECTED);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -50,9 +53,30 @@ export function AllergenPrefsProvider({ children }: { children: ReactNode }) {
         const raw = await SecureStore.getItemAsync(STORAGE_KEY);
         if (!cancelled && raw) {
           setSelectedState(sanitize(JSON.parse(raw)));
+          return;
+        }
+
+        // Migrate v1: keep a non-empty custom selection; empty/missing → all on.
+        const legacy = await SecureStore.getItemAsync(LEGACY_STORAGE_KEY);
+        if (!cancelled && legacy) {
+          const parsed = sanitize(JSON.parse(legacy));
+          const next = parsed.length > 0 ? parsed : DEFAULT_SELECTED;
+          setSelectedState(next);
+          void SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(next)).catch(
+            () => undefined
+          );
+          return;
+        }
+
+        if (!cancelled) {
+          setSelectedState(DEFAULT_SELECTED);
+          void SecureStore.setItemAsync(
+            STORAGE_KEY,
+            JSON.stringify(DEFAULT_SELECTED)
+          ).catch(() => undefined);
         }
       } catch {
-        // Keep default empty.
+        if (!cancelled) setSelectedState(DEFAULT_SELECTED);
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -76,24 +100,21 @@ export function AllergenPrefsProvider({ children }: { children: ReactNode }) {
     [persist]
   );
 
-  const toggle = useCallback(
-    (allergen: string) => {
-      const trimmed = allergen.trim();
-      if (!ALLERGEN_OPTIONS.includes(trimmed as (typeof ALLERGEN_OPTIONS)[number])) {
-        return;
-      }
-      setSelectedState((prev) => {
-        const next = prev.includes(trimmed)
-          ? prev.filter((a) => a !== trimmed)
-          : [...prev, trimmed];
-        void SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(next)).catch(
-          () => undefined
-        );
-        return next;
-      });
-    },
-    []
-  );
+  const toggle = useCallback((allergen: string) => {
+    const trimmed = allergen.trim();
+    if (!ALLERGEN_OPTIONS.includes(trimmed as (typeof ALLERGEN_OPTIONS)[number])) {
+      return;
+    }
+    setSelectedState((prev) => {
+      const next = prev.includes(trimmed)
+        ? prev.filter((a) => a !== trimmed)
+        : [...prev, trimmed];
+      void SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(next)).catch(
+        () => undefined
+      );
+      return next;
+    });
+  }, []);
 
   const isSelected = useCallback(
     (allergen: string) => selected.includes(allergen),

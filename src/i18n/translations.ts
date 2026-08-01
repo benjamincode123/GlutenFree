@@ -276,6 +276,12 @@ type TranslationKey =
   | 'login.smsCodeRequired'
   | 'login.genericError'
   | 'login.poweredBy'
+  | 'login.forgotPassword'
+  | 'login.forgotPasswordTitle'
+  | 'login.forgotPasswordBody'
+  | 'login.sendResetLink'
+  | 'login.resetLinkSent'
+  | 'login.backToSignIn'
   | 'terms.title'
   | 'terms.subtitle'
   | 'terms.highlight'
@@ -313,6 +319,8 @@ type TranslationKey =
   | 'result.allergensContainsLabel'
   | 'result.allergensMayContainLabel'
   | 'result.allergensNone'
+  | 'result.allergensFilterOff'
+  | 'result.allergensNoMatch'
   | 'result.allergenLimitHint'
   | 'result.backHome'
   | 'result.ingredients'
@@ -534,7 +542,7 @@ const en: Record<TranslationKey, string> = {
     'Get a push when you earn XP for an approved contribution.',
   'settings.allergens': 'Allergen warnings',
   'settings.allergensHint':
-    'Choose allergens you want to be warned about when a product contains them or may contain them.',
+    'All allergens are on by default. Turn off any you do not want to see in product results and warnings.',
   'settings.about': 'About',
   'settings.aboutBody':
     'AltUten looks up grocery barcodes in the product catalog (ingredients, allergens, and origin when available).',
@@ -745,6 +753,14 @@ const en: Record<TranslationKey, string> = {
   'login.smsCodeRequired': 'Request an SMS code and enter it before creating an account.',
   'login.genericError': 'Something went wrong.',
   'login.poweredBy': 'Powered by AltUten',
+  'login.forgotPassword': 'Forgot password?',
+  'login.forgotPasswordTitle': 'Reset password',
+  'login.forgotPasswordBody':
+    'Enter your username and the email on your account. We will send a reset link valid for 30 minutes.',
+  'login.sendResetLink': 'Send reset link',
+  'login.resetLinkSent':
+    'If the username and email match an account, a reset link has been sent. Check your inbox.',
+  'login.backToSignIn': 'Back to sign in',
   'terms.title': 'Terms & Conditions',
   'terms.subtitle':
     'Please read and accept before using AltUten. This includes an important health disclaimer.',
@@ -786,8 +802,12 @@ const en: Record<TranslationKey, string> = {
   'result.allergensContainsLabel': 'Contains',
   'result.allergensMayContainLabel': 'May contain',
   'result.allergensNone': 'No allergen information for this product.',
+  'result.allergensFilterOff':
+    'You have no allergen filter on. If you want to see allergens, go to Settings.',
+  'result.allergensNoMatch':
+    'None of your selected allergens are listed for this product.',
   'result.allergenLimitHint':
-    'To remove allergens from warnings, go to Settings to limit warnings.',
+    'To change which allergens you see, go to Settings.',
   'result.backHome': 'Back to AltUten',
   'result.ingredients': 'Ingredients',
   'result.noIngredients': 'No ingredients recorded.',
@@ -840,14 +860,14 @@ const en: Record<TranslationKey, string> = {
   'result.reportFailed': 'Could not save barcode.',
   'result.barcodeAlreadyLinked': 'This barcode is already linked to another product.',
   'result.editProduct': 'Edit this product',
-  'result.notFound': 'Product not found',
+  'result.notFound': "Oops, we didn't have this one",
   'result.notFoundAdmin':
-    'This barcode is not in the database yet. Add a new product, or link the code to an existing product that still has an unknown barcode.',
+    'Add it in 1-2-3 with AI and get allergens and info right away.',
   'result.notFoundUser':
-    'This barcode is not in the database yet. You can link it to an existing product with an unknown barcode, or submit a new product for admin review.',
+    'Add it in 1-2-3 with AI and get allergens and info right away.',
   'result.notFoundGuest':
-    'This barcode is not in the database yet. Sign in to submit or link a product.',
-  'result.addOrLink': 'Add or link product',
+    'This product is not in the catalog yet. Sign in to add products.',
+  'result.addOrLink': 'Add product with AI',
   'add.signInRequired': 'Sign in required',
   'add.signInRequiredBody':
     'Log in to submit a product. Non-admin submissions wait for admin approval.',
@@ -1032,7 +1052,7 @@ const nb: Record<TranslationKey, string> = {
     'Få push når du tjener XP for et godkjent bidrag.',
   'settings.allergens': 'Allergenvarsler',
   'settings.allergensHint':
-    'Velg allergener du vil bli advart om når et produkt inneholder dem eller kan inneholde dem.',
+    'Alle allergener er på som standard. Skru av de du ikke vil se i produktresultater og varsler.',
   'settings.about': 'Om',
   'settings.aboutBody':
     'AltUten slår opp strekkoder i produktkatalogen (ingredienser, allergener og opprinnelsesland når det er tilgjengelig).',
@@ -1243,6 +1263,14 @@ const nb: Record<TranslationKey, string> = {
   'login.smsCodeRequired': 'Be om SMS-kode og skriv den inn før du oppretter konto.',
   'login.genericError': 'Noe gikk galt.',
   'login.poweredBy': 'Powered by AltUten',
+  'login.forgotPassword': 'Glemt passord?',
+  'login.forgotPasswordTitle': 'Tilbakestill passord',
+  'login.forgotPasswordBody':
+    'Skriv inn brukernavn og e-posten på kontoen. Vi sender en lenke som er gyldig i 30 minutter.',
+  'login.sendResetLink': 'Send tilbakestillingslenke',
+  'login.resetLinkSent':
+    'Hvis brukernavn og e-post matcher en konto, er en lenke sendt. Sjekk innboksen din.',
+  'login.backToSignIn': 'Tilbake til innlogging',
   'terms.title': 'Vilkår og betingelser',
   'terms.subtitle':
     'Les og godta før du bruker AltUten. Dette inkluderer en viktig ansvarsfraskrivelse om helse.',
@@ -1284,8 +1312,12 @@ const nb: Record<TranslationKey, string> = {
   'result.allergensContainsLabel': 'Inneholder',
   'result.allergensMayContainLabel': 'Kan inneholde',
   'result.allergensNone': 'Ingen allergeninformasjon for dette produktet.',
+  'result.allergensFilterOff':
+    'Du har ingen allergenfilter på. Hvis du vil se allergener, gå til Innstillinger.',
+  'result.allergensNoMatch':
+    'Ingen av dine valgte allergener er oppført for dette produktet.',
   'result.allergenLimitHint':
-    'For å fjerne allergener fra varsler, gå til Innstillinger for å begrense varsler.',
+    'For å endre hvilke allergener du ser, gå til Innstillinger.',
   'result.backHome': 'Tilbake til AltUten',
   'result.ingredients': 'Ingredienser',
   'result.noIngredients': 'Ingen ingredienser registrert.',
@@ -1338,14 +1370,14 @@ const nb: Record<TranslationKey, string> = {
   'result.reportFailed': 'Kunne ikke lagre strekkode.',
   'result.barcodeAlreadyLinked': 'Denne strekkoden er allerede linket til et annet produkt.',
   'result.editProduct': 'Rediger dette produktet',
-  'result.notFound': 'Produktet ble ikke funnet',
+  'result.notFound': 'Ops, vi hadde ikke denne',
   'result.notFoundAdmin':
-    'Denne strekkoden er ikke i databasen ennå. Legg til et nytt produkt, eller knytt koden til et eksisterende produkt som fortsatt har ukjent strekkode.',
+    'Legg til på 1-2-3 med AI og få allergener og info med en gang.',
   'result.notFoundUser':
-    'Denne strekkoden er ikke i databasen ennå. Du kan knytte den til et eksisterende produkt med ukjent strekkode, eller sende inn et nytt produkt til admin-vurdering.',
+    'Legg til på 1-2-3 med AI og få allergener og info med en gang.',
   'result.notFoundGuest':
-    'Denne strekkoden er ikke i databasen ennå. Logg inn for å sende inn eller knytte et produkt.',
-  'result.addOrLink': 'Legg til eller knytt produkt',
+    'Dette produktet er ikke i katalogen ennå. Logg inn for å legge til produkter.',
+  'result.addOrLink': 'Legg til produkt med AI',
   'add.signInRequired': 'Innlogging kreves',
   'add.signInRequiredBody':
     'Logg inn for å sende inn et produkt. Innsendinger fra ikke-admin venter på godkjenning.',

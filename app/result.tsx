@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+import { findAllergenWarnings } from '../src/allergens/allergenPrefs';
+import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { useAuth } from '../src/auth/AuthContext';
 import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
 import { AddToListModal } from '../src/components/AddToListModal';
@@ -73,6 +75,7 @@ export default function ResultScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { user, isAdmin, addFavorite, removeFavorite } = useAuth();
+  const { selected: warnAllergens } = useAllergenPrefs();
   const { t } = useI18n();
   const { colors } = useTheme();
   const { countries } = useCountryPrefs();
@@ -233,9 +236,20 @@ export default function ResultScreen() {
     product.id > 0 &&
     isWritableCatalog(product.catalog);
 
-  const containsAllergens = product?.allergens?.inneholder ?? [];
-  const mayContainAllergens = product?.allergens?.kanInneholde ?? [];
-  const hasAllergenLists =
+  const productHasAllergenData =
+    (product?.allergens?.inneholder?.length ?? 0) > 0 ||
+    (product?.allergens?.kanInneholde?.length ?? 0) > 0;
+  const allergenFilterOn = warnAllergens.length > 0;
+  const allergenHits = allergenFilterOn
+    ? findAllergenWarnings(warnAllergens, product?.allergens)
+    : [];
+  const containsAllergens = allergenHits
+    .filter((h) => h.kind === 'contains')
+    .map((h) => h.selected);
+  const mayContainAllergens = allergenHits
+    .filter((h) => h.kind === 'mayContain')
+    .map((h) => h.selected);
+  const hasFilteredAllergens =
     containsAllergens.length > 0 || mayContainAllergens.length > 0;
 
   const isFavorite =
@@ -357,7 +371,15 @@ export default function ResultScreen() {
             <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
               {t('result.allergensTitle')}
             </Text>
-            {hasAllergenLists ? (
+            {!allergenFilterOn ? (
+              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
+                {t('result.allergensFilterOff')}
+              </Text>
+            ) : !productHasAllergenData ? (
+              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
+                {t('result.allergensNone')}
+              </Text>
+            ) : hasFilteredAllergens ? (
               <View style={styles.allergenLists}>
                 {containsAllergens.length > 0 ? (
                   <View style={styles.allergenGroup}>
@@ -398,12 +420,14 @@ export default function ResultScreen() {
               </View>
             ) : (
               <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-                {t('result.allergensNone')}
+                {t('result.allergensNoMatch')}
               </Text>
             )}
-            <Text style={[styles.allergenHint, { color: colors.textSecondary }]}>
-              {t('result.allergenLimitHint')}
-            </Text>
+            {allergenFilterOn ? (
+              <Text style={[styles.allergenHint, { color: colors.textSecondary }]}>
+                {t('result.allergenLimitHint')}
+              </Text>
+            ) : null}
           </View>
 
           {canFavorite ? (
@@ -726,7 +750,7 @@ export default function ResultScreen() {
                 : t('result.notFoundUser')
               : t('result.notFoundGuest')}
           </Text>
-          {user && (
+          {user ? (
             <Pressable
               style={[styles.primaryButton, { backgroundColor: colors.primary }]}
               onPress={() =>
@@ -735,6 +759,15 @@ export default function ResultScreen() {
             >
               <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
                 {t('result.addOrLink')}
+              </Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/login')}
+            >
+              <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
+                {t('nav.signIn')}
               </Text>
             </Pressable>
           )}

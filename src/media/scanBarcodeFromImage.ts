@@ -35,6 +35,7 @@ type ZXingNamespace = {
 /** Keep barcode decode cheap on-device. */
 const SCAN_MAX_EDGE = 720;
 
+/** 1D product barcodes only — never QR / 2D codes. */
 const PRODUCT_BARCODE_TYPES: BarcodeType[] = [
   'ean13',
   'ean8',
@@ -45,10 +46,9 @@ const PRODUCT_BARCODE_TYPES: BarcodeType[] = [
   'code93',
   'itf14',
   'codabar',
-  'qr',
 ];
 
-/** Keep grocery-style codes; ignore random QR/URL payloads. */
+/** Accept grocery-style 1D codes only; reject QR and other 2D formats. */
 export function normalizeProductBarcode(
   raw: string,
   typeHint?: string
@@ -57,22 +57,15 @@ export function normalizeProductBarcode(
   if (!trimmed) return null;
 
   const hint = (typeHint ?? '').toLowerCase();
-  const digits = trimmed.replace(/\D/g, '');
-
   const is2d =
     hint.includes('qr') ||
     hint.includes('pdf417') ||
     hint.includes('aztec') ||
     hint.includes('datamatrix') ||
     hint.includes('data_matrix');
+  if (is2d) return null;
 
-  if (is2d) {
-    if (digits.length >= 8 && digits.length <= 14 && /^\d+$/.test(trimmed)) {
-      return digits;
-    }
-    return null;
-  }
-
+  const digits = trimmed.replace(/\D/g, '');
   if (digits.length >= 8 && digits.length <= 14) {
     return digits;
   }

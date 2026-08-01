@@ -137,6 +137,34 @@ export async function login(username: string, password: string): Promise<AuthRes
   return { ...result, user: normalizeAuthUser(result.user) };
 }
 
+/** Request a password-reset email (username + email must match). */
+export async function forgotPassword(
+  username: string,
+  email: string
+): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(authUrl('/forgot-password'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ username, email }),
+    });
+  } catch {
+    throw new AppError('network');
+  }
+  if (!response.ok) {
+    const body = await readApiErrorBody(response);
+    if (body.error) {
+      throw new Error(body.error);
+    }
+    throw appErrorFromHttp(response.status, body.error, 'generic', body.retryAfterSeconds);
+  }
+  const data = (await response.json()) as { message?: string };
+  return typeof data.message === 'string' && data.message.trim()
+    ? data.message.trim()
+    : 'OK';
+}
+
 export async function fetchMe(token: string): Promise<AuthUser> {
   let response: Response;
   try {
