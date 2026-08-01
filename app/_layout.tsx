@@ -198,8 +198,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   splashLogo: {
-    width: 240,
-    height: 240,
+    width: 320,
+    height: 320,
   },
   loadingText: {
     marginTop: 16,

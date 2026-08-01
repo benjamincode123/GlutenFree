@@ -8,6 +8,8 @@ interface AllergenBadgeProps {
   name: string;
   kind: AllergenHitKind;
   size?: 'small' | 'large';
+  /** When false, show only the allergen name (section header already states contains/traces). */
+  showKindPrefix?: boolean;
 }
 
 const CONTAINS = {
@@ -21,12 +23,18 @@ const MAY_CONTAIN = {
 };
 
 /** Badge matching GlutenBadge look — one per allergen warning. */
-export function AllergenBadge({ name, kind, size = 'small' }: AllergenBadgeProps) {
+export function AllergenBadge({
+  name,
+  kind,
+  size = 'small',
+  showKindPrefix = true,
+}: AllergenBadgeProps) {
   const { tf } = useI18n();
   const meta = kind === 'contains' ? CONTAINS : MAY_CONTAIN;
   const isLarge = size === 'large';
-  const label =
-    kind === 'contains'
+  const label = !showKindPrefix
+    ? name
+    : kind === 'contains'
       ? tf('result.allergenBadgeContains', { name })
       : tf('result.allergenBadgeMayContain', { name });
 

@@ -2,7 +2,7 @@
   "expo": {
     "name": "AltUten",
     "slug": "altuten",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "glutenfree",
@@ -15,6 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.glutenfree.scanner",
+      "buildNumber": "6",
       "icon": "./assets/icon.png",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan grocery barcodes and photograph products for review.",
@@ -23,7 +24,7 @@
     },
     "android": {
       "package": "com.glutenfree.scanner",
-      "versionCode": 5,
+      "versionCode": 6,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#000000",
@@ -61,7 +62,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 240,
+          "imageWidth": 320,
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }

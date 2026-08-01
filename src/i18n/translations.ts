@@ -302,6 +302,12 @@ type TranslationKey =
   | 'result.allergenMayContain'
   | 'result.allergenBadgeContains'
   | 'result.allergenBadgeMayContain'
+  | 'result.allergensTitle'
+  | 'result.allergensContainsLabel'
+  | 'result.allergensMayContainLabel'
+  | 'result.allergensNone'
+  | 'result.allergenLimitHint'
+  | 'result.backHome'
   | 'result.ingredients'
   | 'result.noIngredients'
   | 'result.reportBarcode'
@@ -741,6 +747,13 @@ const en: Record<TranslationKey, string> = {
   'result.allergenMayContain': 'May contain {name}',
   'result.allergenBadgeContains': 'Contains {name}',
   'result.allergenBadgeMayContain': 'Traces of {name}',
+  'result.allergensTitle': 'Allergens',
+  'result.allergensContainsLabel': 'Contains',
+  'result.allergensMayContainLabel': 'May contain',
+  'result.allergensNone': 'No allergen information for this product.',
+  'result.allergenLimitHint':
+    'To remove allergens from warnings, go to Settings to limit warnings.',
+  'result.backHome': 'Back to AltUten',
   'result.ingredients': 'Ingredients',
   'result.noIngredients': 'No ingredients recorded.',
   'result.reportBarcode': 'Report barcode',
@@ -1195,6 +1208,13 @@ const nb: Record<TranslationKey, string> = {
   'result.allergenMayContain': 'Kan inneholde {name}',
   'result.allergenBadgeContains': 'Med {name}',
   'result.allergenBadgeMayContain': 'Spor av {name}',
+  'result.allergensTitle': 'Allergener',
+  'result.allergensContainsLabel': 'Inneholder',
+  'result.allergensMayContainLabel': 'Kan inneholde',
+  'result.allergensNone': 'Ingen allergeninformasjon for dette produktet.',
+  'result.allergenLimitHint':
+    'For å fjerne allergener fra varsler, gå til Innstillinger for å begrense varsler.',
+  'result.backHome': 'Tilbake til AltUten',
   'result.ingredients': 'Ingredienser',
   'result.noIngredients': 'Ingen ingredienser registrert.',
   'result.reportBarcode': 'Rapporter strekkode',

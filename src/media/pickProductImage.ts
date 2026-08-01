@@ -1,8 +1,12 @@
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert, Platform } from 'react-native';
 
 /** Max decoded image size accepted for uploads. */
-export const MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_PRODUCT_IMAGE_BYTES = 1 * 1024 * 1024;
+
+/** Longest side after resize — enough for product review, keeps payloads small. */
+const MAX_IMAGE_EDGE = 1280;
 
 function estimateDecodedBytes(base64Payload: string): number {
   const cleaned = base64Payload.replace(/\s/g, '');
@@ -10,13 +14,56 @@ function estimateDecodedBytes(base64Payload: string): number {
   return Math.max(0, Math.floor((cleaned.length * 3) / 4) - padding);
 }
 
-function stripDataUri(value: string): string {
-  const idx = value.indexOf('base64,');
-  return idx >= 0 ? value.slice(idx + 'base64,'.length) : value;
+/**
+ * Resize + JPEG-compress until at or under {@link MAX_PRODUCT_IMAGE_BYTES}.
+ */
+async function compressToMaxBytes(
+  uri: string,
+  sourceWidth?: number,
+  sourceHeight?: number
+): Promise<string | null> {
+  const hasSize = Boolean(sourceWidth && sourceHeight);
+  const longest = hasSize
+    ? Math.max(sourceWidth!, sourceHeight!)
+    : MAX_IMAGE_EDGE;
+  let maxEdge = Math.min(MAX_IMAGE_EDGE, longest);
+  const qualities = [0.72, 0.58, 0.45, 0.35, 0.25];
+
+  for (let pass = 0; pass < 6; pass++) {
+    for (const quality of qualities) {
+      const needsResize = !hasSize || maxEdge < longest;
+      const actions: ImageManipulator.Action[] = needsResize
+        ? hasSize && sourceWidth! >= sourceHeight!
+          ? [{ resize: { width: maxEdge } }]
+          : hasSize
+            ? [{ resize: { height: maxEdge } }]
+            : [{ resize: { width: maxEdge } }]
+        : [];
+
+      const result = await ImageManipulator.manipulateAsync(uri, actions, {
+        compress: quality,
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: true,
+      });
+
+      if (!result.base64) {
+        continue;
+      }
+
+      const bytes = estimateDecodedBytes(result.base64);
+      if (bytes <= MAX_PRODUCT_IMAGE_BYTES) {
+        return `data:image/jpeg;base64,${result.base64}`;
+      }
+    }
+    // Still too large — shrink dimensions and retry.
+    maxEdge = Math.max(480, Math.floor(maxEdge * 0.75));
+  }
+
+  return null;
 }
 
 /**
- * Opens camera or gallery and returns a data-URI base64 string, or null if cancelled.
+ * Opens camera or gallery and returns a compressed JPEG data-URI, or null if cancelled.
  */
 export async function pickProductImage(
   source: 'camera' | 'library'
@@ -37,8 +84,9 @@ export async function pickProductImage(
 
   const options: ImagePicker.ImagePickerOptions = {
     mediaTypes: ['images'],
-    quality: 0.5,
-    base64: true,
+    quality: 0.8,
+    // Prefer URI + manipulate; base64 from picker can be huge before we compress.
+    base64: false,
     exif: false,
   };
 
@@ -52,42 +100,34 @@ export async function pickProductImage(
   }
 
   const asset = result.assets[0];
-  if (!asset.base64) {
+  if (!asset.uri) {
     Alert.alert('Could not read image', 'Try another photo.');
     return null;
   }
 
-  const decodedBytes =
-    typeof asset.fileSize === 'number' && asset.fileSize > 0
-      ? asset.fileSize
-      : estimateDecodedBytes(asset.base64);
-
-  if (decodedBytes > MAX_PRODUCT_IMAGE_BYTES) {
-    Alert.alert(
-      'Image too large',
-      'Max image size is 5 MB. Try a smaller photo or lower quality.'
+  try {
+    const dataUri = await compressToMaxBytes(
+      asset.uri,
+      asset.width,
+      asset.height
     );
+    if (!dataUri) {
+      Alert.alert(
+        'Image too large',
+        'Could not compress this photo under 1 MB. Try another photo.'
+      );
+      return null;
+    }
+    return dataUri;
+  } catch {
+    Alert.alert('Could not process image', 'Try another photo.');
     return null;
   }
-
-  const mime =
-    asset.mimeType && asset.mimeType.startsWith('image/')
-      ? asset.mimeType
-      : 'image/jpeg';
-  const dataUri = `data:${mime};base64,${asset.base64}`;
-  if (estimateDecodedBytes(stripDataUri(dataUri)) > MAX_PRODUCT_IMAGE_BYTES) {
-    Alert.alert(
-      'Image too large',
-      'Max image size is 5 MB. Try a smaller photo or lower quality.'
-    );
-    return null;
-  }
-  return dataUri;
 }
 
 export function askPickProductImage(): Promise<string | null> {
   return new Promise((resolve) => {
-    Alert.alert('Product photo', 'Add a photo of the product for review (max 5 MB).', [
+    Alert.alert('Product photo', 'Add a photo of the product for review (max 1 MB).', [
       { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
       {
         text: 'Camera',
@@ -107,7 +147,7 @@ export function askPickProductImage(): Promise<string | null> {
 
 export function askPickProfileImage(): Promise<string | null> {
   return new Promise((resolve) => {
-    Alert.alert('Profile photo', 'Choose a photo (max 5 MB).', [
+    Alert.alert('Profile photo', 'Choose a photo (max 1 MB).', [
       { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
       {
         text: 'Camera',

@@ -17,8 +17,6 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useAuth } from '../src/auth/AuthContext';
-import { findAllergenWarnings } from '../src/allergens/allergenPrefs';
-import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
 import { AddToListModal } from '../src/components/AddToListModal';
 import { ErrorText } from '../src/components/ErrorText';
@@ -36,6 +34,7 @@ import {
 } from '../src/db/types';
 import { askPickProductImage } from '../src/media/pickProductImage';
 import { userFacingError } from '../src/errors/userFacingError';
+import { goHome } from '../src/navigation/goHome';
 import { useTheme } from '../src/theme/ThemeContext';
 
 type LoadState = 'loading' | 'found' | 'not_found' | 'error';
@@ -76,7 +75,6 @@ export default function ResultScreen() {
   const { user, isAdmin, addFavorite, removeFavorite } = useAuth();
   const { t } = useI18n();
   const { colors } = useTheme();
-  const { selected: warnAllergens } = useAllergenPrefs();
   const { countries } = useCountryPrefs();
   const params = useLocalSearchParams<{
     barcode?: string;
@@ -235,7 +233,10 @@ export default function ResultScreen() {
     product.id > 0 &&
     isWritableCatalog(product.catalog);
 
-  const allergenWarnings = findAllergenWarnings(warnAllergens, product?.allergens);
+  const containsAllergens = product?.allergens?.inneholder ?? [];
+  const mayContainAllergens = product?.allergens?.kanInneholde ?? [];
+  const hasAllergenLists =
+    containsAllergens.length > 0 || mayContainAllergens.length > 0;
 
   const isFavorite =
     canFavorite &&
@@ -352,18 +353,57 @@ export default function ResultScreen() {
                 </Pressable>
               ) : null}
             </View>
-            {allergenWarnings.length > 0 ? (
-              <View style={styles.badgeWrap}>
-                {allergenWarnings.map((hit) => (
-                  <AllergenBadge
-                    key={`${hit.kind}-${hit.selected}`}
-                    name={hit.selected}
-                    kind={hit.kind}
-                    size="large"
-                  />
-                ))}
+
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+              {t('result.allergensTitle')}
+            </Text>
+            {hasAllergenLists ? (
+              <View style={styles.allergenLists}>
+                {containsAllergens.length > 0 ? (
+                  <View style={styles.allergenGroup}>
+                    <Text style={[styles.allergenGroupLabel, { color: colors.text }]}>
+                      {t('result.allergensContainsLabel')}
+                    </Text>
+                    <View style={styles.badgeWrap}>
+                      {containsAllergens.map((name) => (
+                        <AllergenBadge
+                          key={`c-${name}`}
+                          name={name}
+                          kind="contains"
+                          size="large"
+                          showKindPrefix={false}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+                {mayContainAllergens.length > 0 ? (
+                  <View style={styles.allergenGroup}>
+                    <Text style={[styles.allergenGroupLabel, { color: colors.text }]}>
+                      {t('result.allergensMayContainLabel')}
+                    </Text>
+                    <View style={styles.badgeWrap}>
+                      {mayContainAllergens.map((name) => (
+                        <AllergenBadge
+                          key={`m-${name}`}
+                          name={name}
+                          kind="mayContain"
+                          size="large"
+                          showKindPrefix={false}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
               </View>
-            ) : null}
+            ) : (
+              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
+                {t('result.allergensNone')}
+              </Text>
+            )}
+            <Text style={[styles.allergenHint, { color: colors.textSecondary }]}>
+              {t('result.allergenLimitHint')}
+            </Text>
           </View>
 
           {canFavorite ? (
@@ -701,9 +741,14 @@ export default function ResultScreen() {
         </View>
       )}
 
-      <Pressable style={styles.scanAgainButton} onPress={() => router.back()}>
-        <Text style={[styles.scanAgainText, { color: colors.textSecondary }]}>
-          {t('common.back')}
+      <Pressable
+        style={[styles.scanAgainButton, { borderColor: colors.border }]}
+        onPress={() => goHome(router)}
+        accessibilityRole="button"
+        accessibilityLabel={t('result.backHome')}
+      >
+        <Text style={[styles.scanAgainText, { color: colors.text }]}>
+          {t('result.backHome')}
         </Text>
       </Pressable>
 
@@ -821,6 +866,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'stretch',
     gap: 8,
+  },
+  allergenLists: {
+    gap: 12,
+  },
+  allergenGroup: {
+    gap: 8,
+  },
+  allergenGroupLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  allergenHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+    marginTop: 2,
   },
   wrongInfoButton: {
     padding: 4,
@@ -981,11 +1042,13 @@ const styles = StyleSheet.create({
   scanAgainButton: {
     marginTop: 20,
     paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 10,
+    borderWidth: 1,
     alignItems: 'center',
   },
   scanAgainText: {
-    fontWeight: '600',
+    fontWeight: '700',
     fontSize: 15,
   },
 });
