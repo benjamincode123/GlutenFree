@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -32,6 +32,7 @@ import { userFacingError } from '../src/errors/userFacingError';
 import { useCountryPrefs } from '../src/country/CountryPrefsContext';
 import { useI18n } from '../src/i18n/I18nContext';
 import { isUnknownBarcode, Product, ProductCatalog } from '../src/db/types';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 
 function canFavoriteProduct(item: Product): item is Product & { catalog: ProductCatalog } {
@@ -47,7 +48,6 @@ function canFavoriteProduct(item: Product): item is Product & { catalog: Product
 
 export default function ProductsScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { user, addFavorite, removeFavorite } = useAuth();
   const { t, tf } = useI18n();
   const { colors } = useTheme();
@@ -65,9 +65,7 @@ export default function ProductsScreen() {
 
   const queryReady = query.trim().length >= MIN_PRODUCT_SEARCH_CHARS;
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: t('nav.products') });
-  }, [navigation, t]);
+  useReliableBackHeader({ title: t('nav.products') });
 
   useEffect(() => {
     void loadProductSearchHistory().then(setRecentSearches);

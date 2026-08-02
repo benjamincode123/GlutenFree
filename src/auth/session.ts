@@ -16,16 +16,29 @@ export async function loadToken(): Promise<string | null> {
   return currentToken;
 }
 
+/** Updates the in-memory token immediately (no disk I/O). */
+export function setAuthToken(token: string): void {
+  currentToken = token;
+}
+
 /** Persists the token securely and updates the in-memory cache. */
 export async function saveToken(token: string): Promise<void> {
   currentToken = token;
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  try {
+    await SecureStore.setItemAsync(TOKEN_KEY, token);
+  } catch {
+    // Best-effort disk persistence.
+  }
 }
 
 /** Clears the token from storage and memory. */
 export async function clearToken(): Promise<void> {
   currentToken = null;
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  try {
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 /** Returns the current session token (or null), synchronously. */

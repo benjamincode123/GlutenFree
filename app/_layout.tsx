@@ -1,7 +1,7 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -107,6 +107,8 @@ function RootNavigator() {
   const router = useRouter();
   const [termsReady, setTermsReady] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  /** Avoid repeated replace() while a login→home transition is in flight. */
+  const authRedirectKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,17 +123,31 @@ function RootNavigator() {
     };
   }, []);
 
+  const isLoggedIn = user != null;
+  const routeHead = segments[0] ?? '';
+
   useEffect(() => {
     if (initializing || !authEnabled || !termsAccepted) {
       return;
     }
-    const onLoginScreen = segments[0] === 'login';
-    if (!user && !onLoginScreen) {
-      router.replace('/login');
-    } else if (user && onLoginScreen) {
-      router.replace('/');
+    const onLoginScreen = routeHead === 'login';
+    // Key on login state + route only — not the whole user object (profile
+    // background refresh used to re-fire replace('/') in a loop).
+    const redirectKey = `${isLoggedIn ? 'in' : 'out'}:${onLoginScreen ? 'login' : 'app'}`;
+    if (authRedirectKeyRef.current === redirectKey) {
+      return;
     }
-  }, [user, initializing, authEnabled, termsAccepted, segments, router]);
+
+    if (!isLoggedIn && !onLoginScreen) {
+      authRedirectKeyRef.current = redirectKey;
+      router.replace('/login');
+    } else if (isLoggedIn && onLoginScreen) {
+      authRedirectKeyRef.current = redirectKey;
+      router.replace('/');
+    } else {
+      authRedirectKeyRef.current = redirectKey;
+    }
+  }, [isLoggedIn, initializing, authEnabled, termsAccepted, routeHead, router]);
 
   if (initializing || !termsReady) {
     return (

@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,13 +30,13 @@ import {
 import { isAppError } from '../src/errors/appError';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 
 type Scope = ListsScope;
 
 export default function ListsScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { colors } = useTheme();
   const { t, tf } = useI18n();
 
@@ -54,9 +54,7 @@ export default function ListsScreen() {
   const [shareUsername, setShareUsername] = useState('');
   const [sharing, setSharing] = useState(false);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: t('lists.title') });
-  }, [navigation, t]);
+  useReliableBackHeader({ title: t('lists.title') });
 
   const applyScopeFromCache = useCallback((nextScope: Scope) => {
     const cached = getCachedListsSync(nextScope);

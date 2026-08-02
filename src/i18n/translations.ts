@@ -117,6 +117,7 @@ type TranslationKey =
   | 'profile.signedInApi'
   | 'profile.localMode'
   | 'profile.logOut'
+  | 'profile.loggingOut'
   | 'profile.xp'
   | 'profile.xpProgress'
   | 'profile.xpToNext'
@@ -125,6 +126,7 @@ type TranslationKey =
   | 'profile.xpHistoryEmpty'
   | 'profile.xpReasonBarcode'
   | 'profile.xpReasonSubmission'
+  | 'profile.xpReasonImage'
   | 'profile.xpReasonWrongInfo'
   | 'profile.xpReasonMerge'
   | 'profile.xpReasonOther'
@@ -310,6 +312,7 @@ type TranslationKey =
   | 'result.lookupFailed'
   | 'result.productImageA11y'
   | 'result.country'
+  | 'result.pendingLocal'
   | 'result.allergenWarnTitle'
   | 'result.allergenContains'
   | 'result.allergenMayContain'
@@ -376,6 +379,8 @@ type TranslationKey =
   | 'result.notFoundUser'
   | 'result.notFoundGuest'
   | 'result.addOrLink'
+  | 'result.checkWithAi'
+  | 'result.noResult'
   | 'add.signInRequired'
   | 'add.signInRequiredBody'
   | 'add.adminRequired'
@@ -414,6 +419,14 @@ type TranslationKey =
   | 'add.ingredients'
   | 'add.ingredientsPlaceholder'
   | 'add.scanWithAi'
+  | 'add.aiFocusTitle'
+  | 'add.aiFocusLead'
+  | 'add.aiFocusExampleCaption'
+  | 'add.aiFocusAllergensReady'
+  | 'add.aiFocusMoreAllergens'
+  | 'add.aiFocusAllergensHint'
+  | 'add.aiFocusScrollHint'
+  | 'add.aiFocusBarcode'
   | 'add.scanWithAiHint'
   | 'add.scanWithAiPickTitle'
   | 'add.scanWithAiPickBody'
@@ -587,6 +600,7 @@ const en: Record<TranslationKey, string> = {
   'profile.signedInApi': 'Signed in to AltUten.',
   'profile.localMode': 'Local mode — no remote account required.',
   'profile.logOut': 'Log out',
+  'profile.loggingOut': 'Logging out…',
   'profile.xp': 'XP',
   'profile.xpProgress': 'Level {level}',
   'profile.xpToNext': '{remaining} XP to level up',
@@ -595,6 +609,7 @@ const en: Record<TranslationKey, string> = {
   'profile.xpHistoryEmpty': 'No XP earned yet. Report barcodes to earn rewards.',
   'profile.xpReasonBarcode': 'Barcode report applied{detail}',
   'profile.xpReasonSubmission': 'Product submission applied{detail}',
+  'profile.xpReasonImage': 'Product photo approved{detail}',
   'profile.xpReasonWrongInfo': 'Wrong-info report approved{detail}',
   'profile.xpReasonMerge': 'Merge suggestion accepted{detail}',
   'profile.xpReasonOther': 'XP reward',
@@ -793,6 +808,8 @@ const en: Record<TranslationKey, string> = {
   'result.lookupFailed': 'Lookup failed.',
   'result.productImageA11y': 'product image',
   'result.country': 'Country of origin',
+  'result.pendingLocal':
+    'Your submission — visible here while awaiting approval',
   'result.allergenWarnTitle': 'Allergen warning',
   'result.allergenContains': 'Contains {name}',
   'result.allergenMayContain': 'May contain {name}',
@@ -868,6 +885,8 @@ const en: Record<TranslationKey, string> = {
   'result.notFoundGuest':
     'This product is not in the catalog yet. Sign in to add products.',
   'result.addOrLink': 'Add product with AI',
+  'result.checkWithAi': 'Check with AI',
+  'result.noResult': 'No result',
   'add.signInRequired': 'Sign in required',
   'add.signInRequiredBody':
     'Log in to submit a product. Non-admin submissions wait for admin approval.',
@@ -911,6 +930,17 @@ const en: Record<TranslationKey, string> = {
   'add.ingredientsPlaceholder':
     "List the ingredients and any 'produced in a facility that also handles wheat' notes.",
   'add.scanWithAi': 'Scan with AI',
+  'add.aiFocusTitle': 'Get product info in 1-2-3',
+  'add.aiFocusLead':
+    'Photograph the label and AI fills allergens and product info right away.',
+  'add.aiFocusExampleCaption':
+    'Follow the example above. The red boxes show what must be in the photo: producer, product name and ingredients.',
+  'add.aiFocusAllergensReady': 'Allergens from your label',
+  'add.aiFocusMoreAllergens': 'More allergens?',
+  'add.aiFocusAllergensHint':
+    'Know of any more allergens? Add them by tapping the ones that apply.',
+  'add.aiFocusScrollHint': 'Scroll down to save',
+  'add.aiFocusBarcode': 'Barcode from scan',
   'add.scanWithAiHint':
     'Photo tip first: producer, product name and ingredients must be clear in one shot (max 30 cm away).',
   'add.scanWithAiPickTitle': 'Label photo',
@@ -1097,6 +1127,7 @@ const nb: Record<TranslationKey, string> = {
   'profile.signedInApi': 'Innlogget i AltUten.',
   'profile.localMode': 'Lokal modus — ingen ekstern konto kreves.',
   'profile.logOut': 'Logg ut',
+  'profile.loggingOut': 'Logger ut…',
   'profile.xp': 'XP',
   'profile.xpProgress': 'Nivå {level}',
   'profile.xpToNext': '{remaining} XP til neste nivå',
@@ -1105,6 +1136,7 @@ const nb: Record<TranslationKey, string> = {
   'profile.xpHistoryEmpty': 'Ingen XP ennå. Rapporter strekkoder for å tjene poeng.',
   'profile.xpReasonBarcode': 'Strekkoderapport godkjent{detail}',
   'profile.xpReasonSubmission': 'Produktforslag godkjent{detail}',
+  'profile.xpReasonImage': 'Produktbilde godkjent{detail}',
   'profile.xpReasonWrongInfo': 'Feilrapport godkjent{detail}',
   'profile.xpReasonMerge': 'Sammenslåingsforslag godtatt{detail}',
   'profile.xpReasonOther': 'XP-belønning',
@@ -1303,6 +1335,8 @@ const nb: Record<TranslationKey, string> = {
   'result.lookupFailed': 'Oppslag feilet.',
   'result.productImageA11y': 'produktbilde',
   'result.country': 'Opprinnelsesland',
+  'result.pendingLocal':
+    'Din innsending — synlig her mens den venter på godkjenning',
   'result.allergenWarnTitle': 'Allergenvarsel',
   'result.allergenContains': 'Inneholder {name}',
   'result.allergenMayContain': 'Kan inneholde {name}',
@@ -1378,6 +1412,8 @@ const nb: Record<TranslationKey, string> = {
   'result.notFoundGuest':
     'Dette produktet er ikke i katalogen ennå. Logg inn for å legge til produkter.',
   'result.addOrLink': 'Legg til produkt med AI',
+  'result.checkWithAi': 'Sjekk med AI',
+  'result.noResult': 'Ingen resultat',
   'add.signInRequired': 'Innlogging kreves',
   'add.signInRequiredBody':
     'Logg inn for å sende inn et produkt. Innsendinger fra ikke-admin venter på godkjenning.',
@@ -1421,6 +1457,17 @@ const nb: Record<TranslationKey, string> = {
   'add.ingredientsPlaceholder':
     'List opp ingrediensene og eventuelle merknader om «produsert i anlegg som også håndterer hvete».',
   'add.scanWithAi': 'Scann med AI',
+  'add.aiFocusTitle': 'Få produktinfo på 1-2-3',
+  'add.aiFocusLead':
+    'Fotografer etiketten, så fyller AI inn allergener og produktinfo med en gang.',
+  'add.aiFocusExampleCaption':
+    'Følg eksempelet over. De røde boksene viser hva som må være med: produsent, produktnavn og ingredienser.',
+  'add.aiFocusAllergensReady': 'Allergener fra etiketten',
+  'add.aiFocusMoreAllergens': 'Flere allergener?',
+  'add.aiFocusAllergensHint':
+    'Vet du om flere allergener? Legg dem til ved å trykke på dem.',
+  'add.aiFocusScrollHint': 'Scroll ned for å lagre',
+  'add.aiFocusBarcode': 'Strekkode fra skann',
   'add.scanWithAiHint':
     'Først et tips: produsent, produktnavn og ingredienser må være tydelige på ett bilde (maks 30 cm unna).',
   'add.scanWithAiPickTitle': 'Bilde av etikett',

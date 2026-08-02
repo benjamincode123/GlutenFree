@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +23,7 @@ import { getProductRepository } from '../src/data/repository';
 import { Product } from '../src/db/types';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 
 type Row = {
@@ -33,7 +34,6 @@ type Row = {
 
 export default function ListDetailScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { colors } = useTheme();
   const { t, tf } = useI18n();
   const params = useLocalSearchParams<{ id?: string }>();
@@ -47,9 +47,7 @@ export default function ListDetailScreen() {
   const [shareUsername, setShareUsername] = useState('');
   const [sharing, setSharing] = useState(false);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: list?.name ?? t('lists.title') });
-  }, [navigation, t, list?.name]);
+  useReliableBackHeader({ title: list?.name ?? t('lists.title') });
 
   const load = useCallback(async () => {
     if (!Number.isFinite(listId) || listId <= 0) {

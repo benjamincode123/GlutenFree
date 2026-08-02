@@ -1,9 +1,12 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Dimensions,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -34,6 +37,7 @@ import { GlutenBadge } from '../src/components/GlutenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ScanWithAiTutorialModal } from '../src/components/ScanWithAiTutorialModal';
 import { getProductRepository } from '../src/data/repository';
+import { cachePendingProduct } from '../src/data/pendingProductCache';
 import { MIN_PRODUCT_SEARCH_CHARS } from '../src/data/searchLimits';
 import { useI18n } from '../src/i18n/I18nContext';
 import {
@@ -56,6 +60,7 @@ import {
   shouldShowScanWithAiTutorial,
 } from '../src/media/scanWithAiTutorialPrefs';
 import { userFacingError } from '../src/errors/userFacingError';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 function parseCatalog(value: string | undefined): ProductCatalog | null {
   if (
@@ -71,10 +76,11 @@ function parseCatalog(value: string | undefined): ProductCatalog | null {
 
 const CONTAINS_CHIP = { color: '#B3261E', backgroundColor: '#FBE5E4' };
 const TRACES_CHIP = { color: '#B26A00', backgroundColor: '#FCF0DA' };
+const AI_FOCUS_EXAMPLE_IMAGE = require('../assets/scan-with-ai-tutorial.png');
+const AI_FOCUS_EXAMPLE_HEIGHT = Math.round(Dimensions.get('window').height * 0.55);
 
 export default function AddProductScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { user, isAdmin } = useAuth();
   const { colors } = useTheme();
   const { t, tf } = useI18n();
@@ -82,8 +88,13 @@ export default function AddProductScreen() {
     barcode?: string;
     id?: string;
     catalog?: string;
+    aiFocus?: string;
   }>();
   const initialBarcode = (params.barcode ?? '').toString();
+  const aiFocus =
+    params.aiFocus === '1' ||
+    params.aiFocus === 'true' ||
+    params.aiFocus === 'yes';
   const editCatalog = parseCatalog((params.catalog ?? '').toString());
   const editId = Number.parseInt((params.id ?? '').toString(), 10);
   const hasEditTarget =
@@ -119,7 +130,9 @@ export default function AddProductScreen() {
   const [ocrScanning, setOcrScanning] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrTutorialVisible, setOcrTutorialVisible] = useState(false);
+  const [ocrDone, setOcrDone] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const scrollHintBounce = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!formError) return;
@@ -129,9 +142,35 @@ export default function AddProductScreen() {
     });
   }, [formError]);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: t('nav.add') });
-  }, [navigation, t]);
+  // After AI check: nudge toward save — no back / swipe-away without submitting.
+  const lockExitAfterAi = aiFocus && ocrDone;
+
+  useReliableBackHeader({
+    title: aiFocus ? t('result.checkWithAi') : t('nav.add'),
+    lockExit: lockExitAfterAi,
+  });
+
+  useEffect(() => {
+    if (!aiFocus || !ocrDone) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scrollHintBounce, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scrollHintBounce, {
+          toValue: 0,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [aiFocus, ocrDone, scrollHintBounce]);
 
   // Prefill when editing an existing catalog product.
   useEffect(() => {
@@ -316,6 +355,21 @@ export default function AddProductScreen() {
         id: isEditing && editingId ? editingId : undefined,
         catalog: isEditing && editingCatalog ? editingCatalog : undefined,
       });
+      // Keep pending submissions on-device so the next scan still shows this product
+      // until it (hopefully) lands in the live catalog within ~2 days.
+      if (saved.pending || !isAdmin) {
+        await cachePendingProduct({
+          ...saved,
+          barcode: barcodeValue,
+          name: name.trim(),
+          produsent: produsent.trim() || null,
+          ingredients: ingredients.trim() || null,
+          glutenRating: effectiveRating,
+          allergens: statusesToAllergens(allergenStatuses),
+          imageUrl: saved.imageUrl ?? submissionImageBase64 ?? null,
+          pending: true,
+        });
+      }
       Alert.alert(
         saved.pending ? t('add.submittedTitle') : t('add.savedTitle'),
         saved.pending
@@ -396,6 +450,13 @@ export default function AddProductScreen() {
           setRating(ratingFromGlutenStatus(gluten));
           return next;
         });
+      }
+
+      setOcrDone(true);
+      // In AI-focus flow, reuse the label photo as the product submission image.
+      if (aiFocus && !submissionImageBase64) {
+        setSubmissionImageBase64(picked.dataUri);
+        setPhotoMissingError(false);
       }
 
       if (result.parseWarning) {
@@ -493,6 +554,24 @@ export default function AddProductScreen() {
     },
   ];
 
+  const showFullForm = !aiFocus || ocrDone;
+  const containsSelected = ALLERGEN_OPTIONS.filter(
+    (a) => (allergenStatuses[a] ?? 'free') === 'contains'
+  );
+  const tracesSelected = ALLERGEN_OPTIONS.filter(
+    (a) => (allergenStatuses[a] ?? 'free') === 'mayContain'
+  );
+
+  async function startScanWithAi() {
+    setOcrError(null);
+    const showTutorial = await shouldShowScanWithAiTutorial();
+    if (showTutorial) {
+      setOcrTutorialVisible(true);
+      return;
+    }
+    await handleScanWithAi();
+  }
+
   return (
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: colors.background }]}
@@ -504,46 +583,6 @@ export default function AddProductScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.heading, { color: colors.text }]}>
-          {isEditing ? t('add.editTitle') : t('add.addTitle')}
-        </Text>
-
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {t('add.barcode')}
-        </Text>
-        <View style={styles.barcodeInputRow}>
-          <AppTextInput
-            style={[...inputStyle, styles.barcodeInput]}
-            placeholder={t('add.barcodePlaceholder')}
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="number-pad"
-            value={barcode}
-            onChangeText={setBarcode}
-            editable={!barcodeLocked}
-          />
-          {!barcodeLocked ? (
-            <Pressable
-              style={[
-                styles.barcodeScanButton,
-                {
-                  borderColor: colors.primary,
-                  backgroundColor: colors.surface,
-                },
-              ]}
-              onPress={() => setScanModalVisible(true)}
-              accessibilityRole="button"
-              accessibilityLabel={t('result.scanBarcode')}
-            >
-              <MaterialCommunityIcons name="camera" size={22} color={colors.primary} />
-            </Pressable>
-          ) : null}
-        </View>
-        {barcodeLocked ? (
-          <Text style={[styles.hint, { color: colors.textSecondary }]}>
-            {t('add.barcodeFromScan')}
-          </Text>
-        ) : null}
-
         <BarcodeCaptureModal
           visible={scanModalVisible}
           onClose={() => setScanModalVisible(false)}
@@ -566,59 +605,165 @@ export default function AddProductScreen() {
           }}
         />
 
-        <View
-          style={[
-            styles.ocrCard,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Text style={[styles.label, { color: colors.textSecondary, marginTop: 0 }]}>
-            {t('add.scanWithAi')}
-          </Text>
-          <Text style={[styles.hint, { color: colors.textSecondary }]}>
-            {t('add.scanWithAiHint')}
-          </Text>
-          <Pressable
-            style={[
-              styles.ocrButton,
-              {
-                borderColor: colors.primary,
-                backgroundColor: colors.background,
-                opacity: ocrScanning ? 0.6 : 1,
-              },
-            ]}
-            disabled={ocrScanning}
-            onPress={() => {
-              setOcrError(null);
-              void (async () => {
-                const showTutorial = await shouldShowScanWithAiTutorial();
-                if (showTutorial) {
-                  setOcrTutorialVisible(true);
-                  return;
-                }
-                await handleScanWithAi();
-              })();
-            }}
-          >
-            {ocrScanning ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (
-              <MaterialCommunityIcons
-                name="text-recognition"
-                size={20}
-                color={colors.primary}
-              />
-            )}
-            <Text style={[styles.ocrButtonText, { color: colors.primary }]}>
-              {ocrScanning ? t('add.scanWithAiWorking') : t('add.scanWithAi')}
+        {aiFocus && !ocrDone ? (
+          <View style={styles.aiFocusHero}>
+            <Text style={[styles.heading, styles.aiFocusHeading, { color: colors.text }]}>
+              {t('add.aiFocusTitle')}
             </Text>
-          </Pressable>
-          {ocrError ? (
-            <ErrorText style={styles.ocrError}>{ocrError}</ErrorText>
-          ) : null}
-        </View>
+            <View style={styles.aiFocusExampleWrap}>
+              <Image
+                source={AI_FOCUS_EXAMPLE_IMAGE}
+                style={styles.aiFocusExampleImage}
+                resizeMode="cover"
+                accessibilityLabel={t('add.scanWithAiTutorialImageA11y')}
+              />
+              <Text
+                style={[styles.aiFocusExampleCaption, { color: colors.textSecondary }]}
+              >
+                {t('add.aiFocusExampleCaption')}
+              </Text>
+            </View>
+            {barcode.trim() ? (
+              <View
+                style={[
+                  styles.barcodeChip,
+                  styles.aiFocusBarcodeChip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="barcode"
+                  size={18}
+                  color={colors.textSecondary}
+                />
+                <Text style={[styles.barcodeChipText, { color: colors.text }]}>
+                  {t('add.aiFocusBarcode')}: {barcode.trim()}
+                </Text>
+              </View>
+            ) : null}
+            <Pressable
+              style={[
+                styles.aiFocusScanButton,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: ocrScanning ? 0.7 : 1,
+                },
+              ]}
+              disabled={ocrScanning}
+              onPress={() => void startScanWithAi()}
+            >
+              {ocrScanning ? (
+                <ActivityIndicator color={colors.onPrimary} />
+              ) : (
+                <MaterialCommunityIcons
+                  name="sparkles"
+                  size={24}
+                  color={colors.onPrimary}
+                />
+              )}
+              <Text style={[styles.aiFocusScanLabel, { color: colors.onPrimary }]}>
+                {ocrScanning ? t('add.scanWithAiWorking') : t('add.scanWithAi')}
+              </Text>
+            </Pressable>
+            {ocrError ? (
+              <ErrorText style={styles.ocrError}>{ocrError}</ErrorText>
+            ) : null}
+          </View>
+        ) : null}
 
-        {!isEditing && (
+        {!aiFocus ? (
+          <>
+            <Text style={[styles.heading, { color: colors.text }]}>
+              {isEditing ? t('add.editTitle') : t('add.addTitle')}
+            </Text>
+
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('add.barcode')}
+            </Text>
+            <View style={styles.barcodeInputRow}>
+              <AppTextInput
+                style={[...inputStyle, styles.barcodeInput]}
+                placeholder={t('add.barcodePlaceholder')}
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="number-pad"
+                value={barcode}
+                onChangeText={setBarcode}
+                editable={!barcodeLocked}
+              />
+              {!barcodeLocked ? (
+                <Pressable
+                  style={[
+                    styles.barcodeScanButton,
+                    {
+                      borderColor: colors.primary,
+                      backgroundColor: colors.surface,
+                    },
+                  ]}
+                  onPress={() => setScanModalVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('result.scanBarcode')}
+                >
+                  <MaterialCommunityIcons
+                    name="camera"
+                    size={22}
+                    color={colors.primary}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+            {barcodeLocked ? (
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                {t('add.barcodeFromScan')}
+              </Text>
+            ) : null}
+
+            <View
+              style={[
+                styles.ocrCard,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Text
+                style={[styles.label, { color: colors.textSecondary, marginTop: 0 }]}
+              >
+                {t('add.scanWithAi')}
+              </Text>
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                {t('add.scanWithAiHint')}
+              </Text>
+              <Pressable
+                style={[
+                  styles.ocrButton,
+                  {
+                    borderColor: colors.primary,
+                    backgroundColor: colors.background,
+                    opacity: ocrScanning ? 0.6 : 1,
+                  },
+                ]}
+                disabled={ocrScanning}
+                onPress={() => void startScanWithAi()}
+              >
+                {ocrScanning ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <MaterialCommunityIcons
+                    name="text-recognition"
+                    size={20}
+                    color={colors.primary}
+                  />
+                )}
+                <Text style={[styles.ocrButtonText, { color: colors.primary }]}>
+                  {ocrScanning ? t('add.scanWithAiWorking') : t('add.scanWithAi')}
+                </Text>
+              </Pressable>
+              {ocrError ? (
+                <ErrorText style={styles.ocrError}>{ocrError}</ErrorText>
+              ) : null}
+            </View>
+          </>
+        ) : null}
+
+        {!aiFocus && !isEditing && (
           <View
             style={[
               styles.linkCard,
@@ -798,52 +943,169 @@ export default function AddProductScreen() {
           </View>
         )}
 
-        {!isEditing && (
+        {showFullForm ? (
+          <>
+        {aiFocus ? (
+          <View style={styles.aiFocusAfterScan}>
+            {barcode.trim() ? (
+              <View
+                style={[
+                  styles.barcodeChip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="barcode"
+                  size={18}
+                  color={colors.textSecondary}
+                />
+                <Text style={[styles.barcodeChipText, { color: colors.text }]}>
+                  {t('add.aiFocusBarcode')}: {barcode.trim()}
+                </Text>
+              </View>
+            ) : null}
+            <Text style={[styles.aiFocusReadyTitle, { color: colors.text }]}>
+              {t('add.aiFocusAllergensReady')}
+            </Text>
+            {(containsSelected.length > 0 || tracesSelected.length > 0) && (
+              <View style={styles.aiFocusSummary}>
+                {containsSelected.map((name) => (
+                  <View
+                    key={`sum-c-${name}`}
+                    style={[
+                      styles.aiFocusSummaryChip,
+                      {
+                        backgroundColor: CONTAINS_CHIP.backgroundColor,
+                        borderColor: CONTAINS_CHIP.color,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.aiFocusSummaryChipText,
+                        { color: CONTAINS_CHIP.color },
+                      ]}
+                    >
+                      {name}
+                    </Text>
+                  </View>
+                ))}
+                {tracesSelected.map((name) => (
+                  <View
+                    key={`sum-m-${name}`}
+                    style={[
+                      styles.aiFocusSummaryChip,
+                      {
+                        backgroundColor: TRACES_CHIP.backgroundColor,
+                        borderColor: TRACES_CHIP.color,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.aiFocusSummaryChipText,
+                        { color: TRACES_CHIP.color },
+                      ]}
+                    >
+                      {name}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {ocrError ? (
+              <ErrorText style={styles.ocrError}>{ocrError}</ErrorText>
+            ) : null}
+          </View>
+        ) : null}
+
+        {aiFocus && ocrDone ? (
+          <Animated.View
+            style={[
+              styles.aiFocusScrollHint,
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.surface,
+                transform: [
+                  {
+                    translateY: scrollHintBounce.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 6],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="chevron-down"
+              size={20}
+              color={colors.primary}
+            />
+            <Text
+              style={[styles.aiFocusScrollHintText, { color: colors.primary }]}
+              numberOfLines={1}
+            >
+              {t('add.aiFocusScrollHint')}
+            </Text>
+            <MaterialCommunityIcons
+              name="chevron-down"
+              size={20}
+              color={colors.primary}
+            />
+          </Animated.View>
+        ) : null}
+
+        {!aiFocus && !isEditing && (
           <Text style={[styles.orDivider, { color: colors.textSecondary }]}>
             {isAdmin ? t('add.orCreate') : t('add.newSubmission')}
           </Text>
         )}
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {t('add.produsent')}
-        </Text>
-        <AppTextInput
-          style={inputStyle}
-          placeholder={t('add.produsentPlaceholder')}
-          placeholderTextColor={colors.textSecondary}
-          value={produsent}
-          onChangeText={setProdusent}
-        />
+        {!aiFocus ? (
+          <>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('add.produsent')}
+            </Text>
+            <AppTextInput
+              style={inputStyle}
+              placeholder={t('add.produsentPlaceholder')}
+              placeholderTextColor={colors.textSecondary}
+              value={produsent}
+              onChangeText={setProdusent}
+            />
+
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('add.productName')}
+            </Text>
+            <AppTextInput
+              style={inputStyle}
+              placeholder={t('add.namePlaceholder')}
+              placeholderTextColor={colors.textSecondary}
+              value={name}
+              onChangeText={setName}
+            />
+
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('add.ingredients')}
+            </Text>
+            <AppTextInput
+              style={[...inputStyle, styles.multiline]}
+              placeholder={t('add.ingredientsPlaceholder')}
+              placeholderTextColor={colors.textSecondary}
+              value={ingredients}
+              onChangeText={setIngredients}
+              multiline
+              textAlignVertical="top"
+            />
+          </>
+        ) : null}
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {t('add.productName')}
-        </Text>
-        <AppTextInput
-          style={inputStyle}
-          placeholder={t('add.namePlaceholder')}
-          placeholderTextColor={colors.textSecondary}
-          value={name}
-          onChangeText={setName}
-        />
-
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {t('add.ingredients')}
-        </Text>
-        <AppTextInput
-          style={[...inputStyle, styles.multiline]}
-          placeholder={t('add.ingredientsPlaceholder')}
-          placeholderTextColor={colors.textSecondary}
-          value={ingredients}
-          onChangeText={setIngredients}
-          multiline
-          textAlignVertical="top"
-        />
-
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {t('add.allergens')}
+          {aiFocus ? t('add.aiFocusMoreAllergens') : t('add.allergens')}
         </Text>
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          {t('add.allergensHint')}
+          {aiFocus ? t('add.aiFocusAllergensHint') : t('add.allergensHint')}
         </Text>
 
         <Text style={[styles.allergenGroupLabel, { color: CONTAINS_CHIP.color }]}>
@@ -933,6 +1195,32 @@ export default function AddProductScreen() {
             );
           })}
         </View>
+
+        {aiFocus ? (
+          <>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('add.produsent')}
+            </Text>
+            <AppTextInput
+              style={inputStyle}
+              placeholder={t('add.produsentPlaceholder')}
+              placeholderTextColor={colors.textSecondary}
+              value={produsent}
+              onChangeText={setProdusent}
+            />
+
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {t('add.productName')}
+            </Text>
+            <AppTextInput
+              style={inputStyle}
+              placeholder={t('add.namePlaceholder')}
+              placeholderTextColor={colors.textSecondary}
+              value={name}
+              onChangeText={setName}
+            />
+          </>
+        ) : null}
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>
           {!isAdmin ? t('add.photoRequired') : t('add.photoOptional')}
@@ -1026,6 +1314,8 @@ export default function AddProductScreen() {
         {formError ? (
           <ErrorText style={styles.formError}>{formError}</ErrorText>
         ) : null}
+          </>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -1049,6 +1339,101 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 16,
+  },
+  aiFocusHero: {
+    paddingTop: 0,
+    paddingBottom: 4,
+  },
+  aiFocusHeading: {
+    marginBottom: 6,
+  },
+  aiFocusExampleWrap: {
+    width: '100%',
+    alignSelf: 'center',
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  aiFocusExampleImage: {
+    width: '100%',
+    height: AI_FOCUS_EXAMPLE_HEIGHT,
+  },
+  aiFocusExampleCaption: {
+    fontSize: 13,
+    lineHeight: 18,
+    paddingTop: 6,
+  },
+  aiFocusBarcodeChip: {
+    marginBottom: 10,
+  },
+  barcodeChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 20,
+  },
+  barcodeChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  aiFocusScanButton: {
+    minHeight: 58,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  aiFocusScanLabel: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  aiFocusAfterScan: {
+    marginBottom: 8,
+  },
+  aiFocusReadyTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  aiFocusSummary: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  aiFocusSummaryChip: {
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  aiFocusSummaryChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  aiFocusScrollHint: {
+    marginTop: 4,
+    marginBottom: 4,
+    minHeight: 40,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  aiFocusScrollHintText: {
+    fontSize: 14,
+    fontWeight: '700',
+    flexShrink: 1,
   },
   formError: {
     marginTop: 12,

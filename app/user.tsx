@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -29,6 +29,7 @@ import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
 import type { TranslationKey } from '../src/i18n/translations';
 import { askPickProfileImage } from '../src/media/pickProductImage';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 import { formatApiDateTime } from '../src/time/formatApiDate';
 
@@ -45,6 +46,7 @@ function formatXpDate(iso: string, locale: string): string {
 function historyReasonKey(reason: string): TranslationKey {
   if (reason === 'barcode_report') return 'profile.xpReasonBarcode';
   if (reason === 'product_submission') return 'profile.xpReasonSubmission';
+  if (reason === 'product_image') return 'profile.xpReasonImage';
   if (reason === 'wrong_info_report') return 'profile.xpReasonWrongInfo';
   if (reason === 'merge_suggestion') return 'profile.xpReasonMerge';
   return 'profile.xpReasonOther';
@@ -62,7 +64,6 @@ const PROFILE_REFRESH_COOLDOWN_MS = 20_000;
 
 export default function UserScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const {
     user,
     isAdmin,
@@ -84,13 +85,12 @@ export default function UserScreen() {
   const [privacyError, setPrivacyError] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [adminPendingTotal, setAdminPendingTotal] = useState(0);
   const lastRefreshAtRef = useRef(0);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: t('nav.profile') });
-  }, [navigation, t]);
+  useReliableBackHeader({ title: t('nav.profile') });
 
   // Hydrate XP from device cache only — never hit the API on page open.
   // Admins also refresh the pending-queue badge count.
@@ -174,9 +174,15 @@ export default function UserScreen() {
   }
 
   async function handleSignOut() {
-    await signOut();
-    if (authEnabled) {
-      router.replace('/login');
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+      if (authEnabled) {
+        router.replace('/login');
+      }
+    } finally {
+      setSigningOut(false);
     }
   }
 
@@ -198,6 +204,7 @@ export default function UserScreen() {
     setPhotoError(null);
     const uri = await askPickProfileImage();
     if (!uri) return;
+    // Optimistic preview is applied inside setProfileImage; keep spinner only for upload.
     setPhotoBusy(true);
     try {
       await setProfileImage(uri);
@@ -492,11 +499,18 @@ export default function UserScreen() {
           style={[
             styles.logoutButton,
             // Dark theme `danger` is a pale text color — use a solid fill for the button.
-            { backgroundColor: isDark ? '#E53935' : colors.danger },
+            {
+              backgroundColor: isDark ? '#E53935' : colors.danger,
+              opacity: signingOut ? 0.7 : 1,
+            },
           ]}
-          onPress={handleSignOut}
+          onPress={() => void handleSignOut()}
+          disabled={signingOut}
+          accessibilityState={{ busy: signingOut }}
         >
-          <Text style={styles.logoutButtonText}>{t('profile.logOut')}</Text>
+          <Text style={styles.logoutButtonText}>
+            {signingOut ? t('profile.loggingOut') : t('profile.logOut')}
+          </Text>
         </Pressable>
       )}
     </ScrollView>

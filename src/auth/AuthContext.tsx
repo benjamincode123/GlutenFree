@@ -14,12 +14,19 @@ import * as authApi from '../data/authApi';
 import { AuthUser, FavoriteProductRef } from '../data/authApi';
 import {
   clearProfileCache,
+  clearProfileCacheMemory,
   loadCachedUser,
   loadCachedXpProfile,
   saveCachedUser,
   saveCachedXpProfile,
 } from './profileCache';
-import { clearToken, getAuthToken, loadToken, saveToken } from './session';
+import {
+  clearToken,
+  getAuthToken,
+  loadToken,
+  saveToken,
+  setAuthToken,
+} from './session';
 import { clearCachedLeaderboard } from '../data/leaderboardCache';
 import { clearCachedLists } from '../data/listsCache';
 
@@ -116,6 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const latestFavoritesRef = useRef<FavoriteProductRef[]>([]);
   const favoritesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const favoritesSyncGenerationRef = useRef(0);
+  /** Bumps on sign-in/out so in-flight profile refreshes cannot re-login after logout. */
+  const authGenerationRef = useRef(0);
 
   const rememberSyncedFavorites = useCallback((favorites: FavoriteProductRef[]) => {
     const cloned = cloneFavorites(favorites);
@@ -255,27 +264,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (username: string, password: string) => {
     const result = await authApi.login(username.trim(), password);
-    await clearProfileCache();
+    const generation = ++authGenerationRef.current;
+    const token = result.token;
+
+    // Critical path: activate session in memory and navigate — no SecureStore awaits.
+    setAuthToken(token);
+    clearProfileCacheMemory();
     clearCachedLeaderboard();
     clearCachedLists();
-    await saveToken(result.token);
-    const profile = await fetchAndCacheProfile(result.token, result.user);
-    rememberSyncedFavorites(profile.favorites);
-    setUser(profile);
+    rememberSyncedFavorites(result.user.favorites ?? []);
+    setUser(result.user);
+
+    // Persist + refresh profile/photo/XP off the login spinner.
+    void (async () => {
+      try {
+        await Promise.all([saveToken(token), clearProfileCache()]);
+        // Re-apply memory after clearProfileCache wiped it.
+        setAuthToken(token);
+        await saveCachedUser(result.user);
+      } catch {
+        // Disk persistence is best-effort.
+      }
+      try {
+        const profile = await fetchAndCacheProfile(token, result.user);
+        if (authGenerationRef.current !== generation) return;
+        if (getAuthToken() !== token) return;
+        rememberSyncedFavorites(profile.favorites);
+        setUser((prev) => {
+          if (!prev || prev.id !== profile.id) return profile;
+          return {
+            ...prev,
+            ...profile,
+            favorites: profile.favorites,
+          };
+        });
+      } catch {
+        // Background refresh failed — user can still use the app with login data.
+      }
+    })();
   }, [rememberSyncedFavorites]);
 
   const signOut = useCallback(async () => {
     clearFavoritesSyncTimer();
     favoritesSyncGenerationRef.current += 1;
+    authGenerationRef.current += 1;
     const token = getAuthToken();
-    if (token) {
-      try {
-        await authApi.setPushToken(token, null);
-      } catch {
-        // Best-effort clear of device push registration.
-      }
-      await authApi.logout(token);
-    }
+
+    // Clear local session first so the UI never waits on network.
     await clearToken();
     await clearProfileCache();
     clearCachedLeaderboard();
@@ -283,6 +318,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     syncedFavoritesRef.current = [];
     latestFavoritesRef.current = [];
     setUser(null);
+
+    // Best-effort server cleanup in the background (may hang on bad network).
+    if (token) {
+      void (async () => {
+        try {
+          await authApi.setPushToken(token, null);
+        } catch {
+          // ignore
+        }
+        try {
+          await authApi.logout(token);
+        } catch {
+          // ignore
+        }
+      })();
+    }
   }, [clearFavoritesSyncTimer]);
 
   const refreshUser = useCallback(async () => {
@@ -343,17 +394,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!token) {
       throw new Error('unauthorized');
     }
-    const updated = await authApi.setProfileImage(token, imageBase64);
+
+    // Show the new photo immediately while the upload finishes.
+    let previousUrl: string | null = null;
     setUser((prev) => {
-      if (!prev) return updated;
-      const next = {
-        ...updated,
-        favorites: prev.favorites,
-        profileImageUrl: updated.profileImageUrl,
-      };
+      if (!prev) return prev;
+      previousUrl = prev.profileImageUrl ?? null;
+      const next = { ...prev, profileImageUrl: imageBase64 };
       void saveCachedUser(next);
       return next;
     });
+
+    try {
+      const updated = await authApi.setProfileImage(token, imageBase64);
+      setUser((prev) => {
+        if (!prev) return updated;
+        const next = {
+          ...prev,
+          ...updated,
+          favorites: prev.favorites,
+          // Prefer server blob URL; fall back to the local preview we already show.
+          profileImageUrl: updated.profileImageUrl ?? imageBase64,
+        };
+        void saveCachedUser(next);
+        return next;
+      });
+    } catch (err) {
+      setUser((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev, profileImageUrl: previousUrl };
+        void saveCachedUser(next);
+        return next;
+      });
+      throw err;
+    }
   }, []);
 
   const addFavorite = useCallback(

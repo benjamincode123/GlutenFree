@@ -1,5 +1,5 @@
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -21,13 +21,13 @@ import {
 } from '../src/data/leaderboardCache';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 import { formatApiDateTime } from '../src/time/formatApiDate';
 
 type PeriodKey = 'day' | 'week' | 'month';
 
 export default function LeaderboardScreen() {
-  const navigation = useNavigation();
   const router = useRouter();
   const { authEnabled, user } = useAuth();
   const { colors } = useTheme();
@@ -41,9 +41,7 @@ export default function LeaderboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: t('nav.leaderboard') });
-  }, [navigation, t]);
+  useReliableBackHeader({ title: t('nav.leaderboard') });
 
   const loadFromNetwork = useCallback(async () => {
     const token = getAuthToken();

@@ -2,11 +2,17 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert, Platform } from 'react-native';
 
-/** Max decoded image size accepted for uploads. */
+/** Max decoded image size accepted for product uploads / OCR. */
 export const MAX_PRODUCT_IMAGE_BYTES = 1 * 1024 * 1024;
 
+/** Max decoded image size for profile photos. */
+export const MAX_PROFILE_IMAGE_BYTES = 500 * 1024;
+
 /** Longest side after resize — enough for product review, keeps payloads small. */
-const MAX_IMAGE_EDGE = 1280;
+const MAX_PRODUCT_IMAGE_EDGE = 1280;
+
+/** Profile avatars are small on screen — keep edge tight for faster upload. */
+const MAX_PROFILE_IMAGE_EDGE = 720;
 
 function estimateDecodedBytes(base64Payload: string): number {
   const cleaned = base64Payload.replace(/\s/g, '');
@@ -15,21 +21,23 @@ function estimateDecodedBytes(base64Payload: string): number {
 }
 
 /**
- * Resize + JPEG-compress until at or under {@link MAX_PRODUCT_IMAGE_BYTES}.
+ * Resize + JPEG-compress until at or under {@link maxBytes}.
  */
 async function compressToMaxBytes(
   uri: string,
+  maxBytes: number,
+  maxEdgeLimit: number,
   sourceWidth?: number,
   sourceHeight?: number
 ): Promise<string | null> {
   const hasSize = Boolean(sourceWidth && sourceHeight);
   const longest = hasSize
     ? Math.max(sourceWidth!, sourceHeight!)
-    : MAX_IMAGE_EDGE;
-  let maxEdge = Math.min(MAX_IMAGE_EDGE, longest);
-  const qualities = [0.72, 0.58, 0.45, 0.35, 0.25];
+    : maxEdgeLimit;
+  let maxEdge = Math.min(maxEdgeLimit, longest);
+  const qualities = [0.72, 0.58, 0.45, 0.35, 0.25, 0.18];
 
-  for (let pass = 0; pass < 6; pass++) {
+  for (let pass = 0; pass < 8; pass++) {
     for (const quality of qualities) {
       const needsResize = !hasSize || maxEdge < longest;
       const actions: ImageManipulator.Action[] = needsResize
@@ -51,12 +59,12 @@ async function compressToMaxBytes(
       }
 
       const bytes = estimateDecodedBytes(result.base64);
-      if (bytes <= MAX_PRODUCT_IMAGE_BYTES) {
+      if (bytes <= maxBytes) {
         return `data:image/jpeg;base64,${result.base64}`;
       }
     }
     // Still too large — shrink dimensions and retry.
-    maxEdge = Math.max(480, Math.floor(maxEdge * 0.75));
+    maxEdge = Math.max(320, Math.floor(maxEdge * 0.75));
   }
 
   return null;
@@ -134,6 +142,8 @@ export async function pickProductImageDetailed(
   try {
     const dataUri = await compressToMaxBytes(
       asset.uri,
+      MAX_PRODUCT_IMAGE_BYTES,
+      MAX_PRODUCT_IMAGE_EDGE,
       asset.width,
       asset.height
     );
@@ -150,6 +160,35 @@ export async function pickProductImageDetailed(
       width: asset.width,
       height: asset.height,
     };
+  } catch {
+    Alert.alert('Could not process image', 'Try another photo.');
+    return null;
+  }
+}
+
+/** Camera/gallery → JPEG data-URI compressed to max 500 KB. */
+export async function pickProfileImage(
+  source: 'camera' | 'library'
+): Promise<string | null> {
+  const asset = await pickProductImageAsset(source);
+  if (!asset) return null;
+
+  try {
+    const dataUri = await compressToMaxBytes(
+      asset.uri,
+      MAX_PROFILE_IMAGE_BYTES,
+      MAX_PROFILE_IMAGE_EDGE,
+      asset.width,
+      asset.height
+    );
+    if (!dataUri) {
+      Alert.alert(
+        'Image too large',
+        'Could not compress this photo under 500 KB. Try another photo.'
+      );
+      return null;
+    }
+    return dataUri;
   } catch {
     Alert.alert('Could not process image', 'Try another photo.');
     return null;
@@ -208,18 +247,18 @@ export function askPickIngredientsOcrImage(
 
 export function askPickProfileImage(): Promise<string | null> {
   return new Promise((resolve) => {
-    Alert.alert('Profile photo', 'Choose a photo (max 1 MB).', [
+    Alert.alert('Profile photo', 'Choose a photo (max 500 KB).', [
       { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
       {
         text: 'Camera',
         onPress: () => {
-          void pickProductImage('camera').then(resolve);
+          void pickProfileImage('camera').then(resolve);
         },
       },
       {
         text: Platform.OS === 'ios' ? 'Photo Library' : 'Gallery',
         onPress: () => {
-          void pickProductImage('library').then(resolve);
+          void pickProfileImage('library').then(resolve);
         },
       },
     ]);

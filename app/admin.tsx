@@ -1,5 +1,6 @@
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+
 import {
   ActivityIndicator,
   Image,
@@ -42,6 +43,7 @@ import {
 import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
 import type { TranslationKey } from '../src/i18n/translations';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 import { formatApiDateTime } from '../src/time/formatApiDate';
 
@@ -139,7 +141,6 @@ function imageUri(imageUrl: string): string {
 }
 
 export default function AdminScreen() {
-  const navigation = useNavigation();
   const router = useRouter();
   const { isAdmin, authEnabled } = useAuth();
   const { colors } = useTheme();
@@ -189,9 +190,7 @@ export default function AdminScreen() {
   const [notifySending, setNotifySending] = useState(false);
   const [notifySuccess, setNotifySuccess] = useState<string | null>(null);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: t('nav.admin') });
-  }, [navigation, t]);
+  useReliableBackHeader({ title: t('nav.admin') });
 
   const applyProductList = useCallback((result: adminApi.ProductSubmissionList) => {
     setItems(result.items);

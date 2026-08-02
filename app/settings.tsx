@@ -1,6 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from 'expo-router';
-import { useLayoutEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Linking,
   Modal,
@@ -17,11 +16,11 @@ import { CountrySelector } from '../src/components/CountrySelector';
 import { SmoothSwitch } from '../src/components/SmoothSwitch';
 import { TermsDocumentModal } from '../src/components/TermsAcceptanceScreen';
 import { useI18n } from '../src/i18n/I18nContext';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useNotificationPrefs } from '../src/notifications/NotificationPrefsContext';
 import { useTheme } from '../src/theme/ThemeContext';
 
 export default function SettingsScreen() {
-  const navigation = useNavigation();
   const { colors, isDark, setMode } = useTheme();
   const { t, locale, setLocale } = useI18n();
   const { isSelected, toggle } = useAllergenPrefs();
@@ -34,9 +33,7 @@ export default function SettingsScreen() {
   } = useNotificationPrefs();
   const [termsOpen, setTermsOpen] = useState(false);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: t('nav.settings') });
-  }, [navigation, t]);
+  useReliableBackHeader({ title: t('nav.settings') });
 
   return (
     <ScrollView

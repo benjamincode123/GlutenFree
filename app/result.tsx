@@ -1,10 +1,9 @@
 import {
   useFocusEffect,
   useLocalSearchParams,
-  useNavigation,
   useRouter,
 } from 'expo-router';
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -23,10 +22,15 @@ import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
 import { AddToListModal } from '../src/components/AddToListModal';
 import { ErrorText } from '../src/components/ErrorText';
 import { AllergenBadge } from '../src/components/AllergenBadge';
+import { CheckWithAiCta } from '../src/components/CheckWithAiCta';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ReportWrongInfoModal } from '../src/components/ReportWrongInfoModal';
 import { SuggestMergeModal } from '../src/components/SuggestMergeModal';
 import { getProductRepository } from '../src/data/repository';
+import {
+  clearPendingProduct,
+  getPendingProductByBarcode,
+} from '../src/data/pendingProductCache';
 import { useCountryPrefs } from '../src/country/CountryPrefsContext';
 import { useI18n } from '../src/i18n/I18nContext';
 import {
@@ -37,6 +41,7 @@ import {
 import { askPickProductImage } from '../src/media/pickProductImage';
 import { userFacingError } from '../src/errors/userFacingError';
 import { goHome } from '../src/navigation/goHome';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 
 type LoadState = 'loading' | 'found' | 'not_found' | 'error';
@@ -73,7 +78,6 @@ function productImageUri(imageUrl: string | null | undefined): string | null {
 
 export default function ResultScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { user, isAdmin, addFavorite, removeFavorite } = useAuth();
   const { selected: warnAllergens } = useAllergenPrefs();
   const { t } = useI18n();
@@ -103,9 +107,7 @@ export default function ResultScreen() {
   const [wrongInfoOpen, setWrongInfoOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: t('nav.result') });
-  }, [navigation, t]);
+  useReliableBackHeader({ title: t('nav.result') });
 
   useFocusEffect(
     useCallback(() => {
@@ -121,6 +123,12 @@ export default function ResultScreen() {
             found = await repo.getById(catalogParam, idParam);
           } else if (barcode) {
             found = await repo.getByBarcode(barcode, { countries });
+            if (found) {
+              // Live catalog wins — drop any stale local pending copy.
+              void clearPendingProduct(barcode);
+            } else {
+              found = await getPendingProductByBarcode(barcode);
+            }
           }
 
           if (cancelled) return;
@@ -326,6 +334,23 @@ export default function ResultScreen() {
           <Text style={[styles.productName, { color: colors.text }]}>
             {product.name}
           </Text>
+          {product.pending ? (
+            <View
+              style={[
+                styles.pendingBanner,
+                { backgroundColor: colors.primaryMuted ?? colors.surface },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="clock-outline"
+                size={18}
+                color={colors.primary}
+              />
+              <Text style={[styles.pendingBannerText, { color: colors.primary }]}>
+                {t('result.pendingLocal')}
+              </Text>
+            </View>
+          ) : null}
           {product.productionCountry?.trim() ? (
             <Text style={[styles.country, { color: colors.textSecondary }]}>
               {t('result.country')}: {product.productionCountry.trim()}
@@ -740,37 +765,20 @@ export default function ResultScreen() {
 
       {state === 'not_found' && (
         <View style={[styles.productCard, { backgroundColor: colors.background }]}>
-          <Text style={[styles.notFoundTitle, { color: colors.text }]}>
-            {t('result.notFound')}
-          </Text>
-          <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-            {user
-              ? isAdmin
-                ? t('result.notFoundAdmin')
-                : t('result.notFoundUser')
-              : t('result.notFoundGuest')}
-          </Text>
-          {user ? (
-            <Pressable
-              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-              onPress={() =>
-                router.push({ pathname: '/add', params: { barcode } })
+          <CheckWithAiCta
+            subtitle={t('result.noResult')}
+            label={t('result.checkWithAi')}
+            onPress={() => {
+              if (user) {
+                router.push({
+                  pathname: '/add',
+                  params: { barcode, aiFocus: '1' },
+                });
+              } else {
+                router.push('/login');
               }
-            >
-              <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
-                {t('result.addOrLink')}
-              </Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/login')}
-            >
-              <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
-                {t('nav.signIn')}
-              </Text>
-            </Pressable>
-          )}
+            }}
+          />
         </View>
       )}
 
@@ -881,6 +889,21 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     marginBottom: 12,
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  pendingBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   statusBlock: {
     alignSelf: 'stretch',

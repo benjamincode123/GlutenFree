@@ -1,6 +1,5 @@
-import { HeaderBackButton } from '@react-navigation/elements';
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -20,7 +19,7 @@ import type { UserNotificationItem } from '../src/data/notificationsApi';
 import { NOTIFICATIONS_PAGE_SIZE } from '../src/data/notificationsApi';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
-import { goBackOrHome } from '../src/navigation/goHome';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 import { formatApiDateTime } from '../src/time/formatApiDate';
 
@@ -29,7 +28,6 @@ function formatDate(iso: string, locale: string): string {
 }
 
 export default function NotificationsScreen() {
-  const navigation = useNavigation();
   const router = useRouter();
   const { authEnabled, user, removeUnreadMessage } = useAuth();
   const { colors } = useTheme();
@@ -43,25 +41,7 @@ export default function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleBack = useCallback(() => {
-    goBackOrHome(router);
-  }, [router]);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      title: t('nav.notifications'),
-      // Always leave this screen — stack history can be empty after replaces,
-      // which makes the default header back control appear stuck.
-      headerLeft: (props) => (
-        <HeaderBackButton
-          {...props}
-          tintColor={colors.text}
-          onPress={handleBack}
-        />
-      ),
-      gestureEnabled: true,
-    });
-  }, [navigation, t, colors.text, handleBack]);
+  useReliableBackHeader({ title: t('nav.notifications') });
 
   const loadInbox = useCallback(async (pageNumber: number) => {
     const token = getAuthToken();

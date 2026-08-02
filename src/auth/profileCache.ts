@@ -90,9 +90,14 @@ export async function saveCachedXpProfile(profile: XpProfile): Promise<void> {
   }
 }
 
-export async function clearProfileCache(): Promise<void> {
+/** Drop in-memory profile/XP immediately (no disk I/O). */
+export function clearProfileCacheMemory(): void {
   memoryUser = null;
   memoryXp = null;
+}
+
+export async function clearProfileCache(): Promise<void> {
+  clearProfileCacheMemory();
   try {
     await SecureStore.deleteItemAsync(USER_KEY);
   } catch {

@@ -1,5 +1,5 @@
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -18,6 +18,7 @@ import { getProductRepository } from '../src/data/repository';
 import { Product } from '../src/db/types';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useI18n } from '../src/i18n/I18nContext';
+import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 
 type FavoriteRow = {
@@ -27,7 +28,6 @@ type FavoriteRow = {
 
 export default function FavoritesScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const { user } = useAuth();
   const { t } = useI18n();
   const { colors } = useTheme();
@@ -40,9 +40,7 @@ export default function FavoritesScreen() {
   const favorites = user?.favorites ?? [];
   const favoritesKey = JSON.stringify(favorites);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: t('favorites.title') });
-  }, [navigation, t]);
+  useReliableBackHeader({ title: t('favorites.title') });
 
   useFocusEffect(
     useCallback(() => {
