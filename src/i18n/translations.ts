@@ -316,9 +316,11 @@ type TranslationKey =
   | 'result.allergenMayContain'
   | 'result.allergenBadgeContains'
   | 'result.allergenBadgeMayContain'
+  | 'result.allergenBadgeFree'
   | 'result.allergensTitle'
   | 'result.allergensContainsLabel'
   | 'result.allergensMayContainLabel'
+  | 'result.allergensFreeLabel'
   | 'result.allergensNone'
   | 'result.allergensFilterOff'
   | 'result.allergensNoMatch'
@@ -815,9 +817,11 @@ const en: Record<TranslationKey, string> = {
   'result.allergenMayContain': 'May contain {name}',
   'result.allergenBadgeContains': 'Contains {name}',
   'result.allergenBadgeMayContain': 'Traces of {name}',
+  'result.allergenBadgeFree': 'Without {name}',
   'result.allergensTitle': 'Allergens',
   'result.allergensContainsLabel': 'Contains',
   'result.allergensMayContainLabel': 'May contain',
+  'result.allergensFreeLabel': 'Without',
   'result.allergensNone': 'No allergen information for this product.',
   'result.allergensFilterOff':
     'You have no allergen filter on. If you want to see allergens, go to Settings.',
@@ -1345,9 +1349,11 @@ const nb: Record<TranslationKey, string> = {
   'result.allergenMayContain': 'Kan inneholde {name}',
   'result.allergenBadgeContains': 'Med {name}',
   'result.allergenBadgeMayContain': 'Spor av {name}',
+  'result.allergenBadgeFree': 'Uten {name}',
   'result.allergensTitle': 'Allergener',
   'result.allergensContainsLabel': 'Inneholder',
   'result.allergensMayContainLabel': 'Kan inneholde',
+  'result.allergensFreeLabel': 'Uten',
   'result.allergensNone': 'Ingen allergeninformasjon for dette produktet.',
   'result.allergensFilterOff':
     'Du har ingen allergenfilter på. Hvis du vil se allergener, gå til Innstillinger.',

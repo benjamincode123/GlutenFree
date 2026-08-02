@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../src/auth/AuthContext';
-import { findAllergenWarnings } from '../src/allergens/allergenPrefs';
+import { findUserAllergenHits } from '../src/allergens/allergenPrefs';
 import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { AddToListModal } from '../src/components/AddToListModal';
 import { AllergenBadge } from '../src/components/AllergenBadge';
@@ -351,7 +351,11 @@ export default function ProductsScreen() {
           renderItem={({ item }) => {
             const favorited = isFavorite(item);
             const showActions = !!user && canFavoriteProduct(item);
-            const warnings = findAllergenWarnings(warnAllergens, item.allergens);
+            const allergenHits = findUserAllergenHits(
+              warnAllergens,
+              item.allergens,
+              item.glutenRating
+            );
             return (
               <Pressable
                 style={[styles.row, { backgroundColor: colors.background }]}
@@ -380,9 +384,9 @@ export default function ProductsScreen() {
                       {item.productionCountry.trim()}
                     </Text>
                   ) : null}
-                  {warnings.length > 0 ? (
+                  {allergenHits.length > 0 ? (
                     <View style={styles.badgeWrap}>
-                      {warnings.map((hit) => (
+                      {allergenHits.map((hit) => (
                         <AllergenBadge
                           key={`${hit.kind}-${hit.selected}`}
                           name={hit.selected}

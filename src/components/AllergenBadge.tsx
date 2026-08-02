@@ -12,17 +12,25 @@ interface AllergenBadgeProps {
   showKindPrefix?: boolean;
 }
 
-const CONTAINS = {
-  color: '#B3261E',
-  backgroundColor: '#FBE5E4',
+const KIND_STYLE: Record<
+  AllergenHitKind,
+  { color: string; backgroundColor: string }
+> = {
+  contains: {
+    color: '#B3261E',
+    backgroundColor: '#FBE5E4',
+  },
+  mayContain: {
+    color: '#B26A00',
+    backgroundColor: '#FCF0DA',
+  },
+  free: {
+    color: '#1B7F3B',
+    backgroundColor: '#E4F6E9',
+  },
 };
 
-const MAY_CONTAIN = {
-  color: '#B26A00',
-  backgroundColor: '#FCF0DA',
-};
-
-/** Badge matching GlutenBadge look — one per allergen warning. */
+/** Badge matching GlutenBadge look — one per user allergen status. */
 export function AllergenBadge({
   name,
   kind,
@@ -30,13 +38,15 @@ export function AllergenBadge({
   showKindPrefix = true,
 }: AllergenBadgeProps) {
   const { tf } = useI18n();
-  const meta = kind === 'contains' ? CONTAINS : MAY_CONTAIN;
+  const meta = KIND_STYLE[kind];
   const isLarge = size === 'large';
   const label = !showKindPrefix
     ? name
     : kind === 'contains'
       ? tf('result.allergenBadgeContains', { name })
-      : tf('result.allergenBadgeMayContain', { name });
+      : kind === 'mayContain'
+        ? tf('result.allergenBadgeMayContain', { name })
+        : tf('result.allergenBadgeFree', { name });
 
   return (
     <View

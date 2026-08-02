@@ -15,7 +15,10 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { findAllergenWarnings } from '../src/allergens/allergenPrefs';
+import {
+  findUserAllergenHits,
+  productHasAllergenData,
+} from '../src/allergens/allergenPrefs';
 import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { useAuth } from '../src/auth/AuthContext';
 import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
@@ -243,12 +246,14 @@ export default function ResultScreen() {
     product.id > 0 &&
     isWritableCatalog(product.catalog);
 
-  const productHasAllergenData =
-    (product?.allergens?.inneholder?.length ?? 0) > 0 ||
-    (product?.allergens?.kanInneholde?.length ?? 0) > 0;
+  const hasDeclaration = productHasAllergenData(product?.allergens);
   const allergenFilterOn = warnAllergens.length > 0;
   const allergenHits = allergenFilterOn
-    ? findAllergenWarnings(warnAllergens, product?.allergens)
+    ? findUserAllergenHits(
+        warnAllergens,
+        product?.allergens,
+        product?.glutenRating
+      )
     : [];
   const containsAllergens = allergenHits
     .filter((h) => h.kind === 'contains')
@@ -256,8 +261,10 @@ export default function ResultScreen() {
   const mayContainAllergens = allergenHits
     .filter((h) => h.kind === 'mayContain')
     .map((h) => h.selected);
-  const hasFilteredAllergens =
-    containsAllergens.length > 0 || mayContainAllergens.length > 0;
+  const freeAllergens = allergenHits
+    .filter((h) => h.kind === 'free')
+    .map((h) => h.selected);
+  const hasFilteredAllergens = allergenHits.length > 0;
 
   const isFavorite =
     canFavorite &&
@@ -399,10 +406,6 @@ export default function ResultScreen() {
               <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
                 {t('result.allergensFilterOff')}
               </Text>
-            ) : !productHasAllergenData ? (
-              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-                {t('result.allergensNone')}
-              </Text>
             ) : hasFilteredAllergens ? (
               <View style={styles.allergenLists}>
                 {containsAllergens.length > 0 ? (
@@ -441,7 +444,29 @@ export default function ResultScreen() {
                     </View>
                   </View>
                 ) : null}
+                {freeAllergens.length > 0 ? (
+                  <View style={styles.allergenGroup}>
+                    <Text style={[styles.allergenGroupLabel, { color: colors.text }]}>
+                      {t('result.allergensFreeLabel')}
+                    </Text>
+                    <View style={styles.badgeWrap}>
+                      {freeAllergens.map((name) => (
+                        <AllergenBadge
+                          key={`f-${name}`}
+                          name={name}
+                          kind="free"
+                          size="large"
+                          showKindPrefix={false}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
               </View>
+            ) : !hasDeclaration ? (
+              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
+                {t('result.allergensNone')}
+              </Text>
             ) : (
               <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
                 {t('result.allergensNoMatch')}

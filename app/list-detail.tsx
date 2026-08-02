@@ -12,10 +12,12 @@ import {
   View,
 } from 'react-native';
 
+import { findUserAllergenHits } from '../src/allergens/allergenPrefs';
+import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { getAuthToken } from '../src/auth/session';
+import { AllergenBadge } from '../src/components/AllergenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ErrorText } from '../src/components/ErrorText';
-import { GlutenBadge } from '../src/components/GlutenBadge';
 import * as listsApi from '../src/data/listsApi';
 import type { ProductListSummary } from '../src/data/listsApi';
 import { upsertCachedList } from '../src/data/listsCache';
@@ -36,6 +38,7 @@ export default function ListDetailScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { t, tf } = useI18n();
+  const { selected: warnAllergens } = useAllergenPrefs();
   const params = useLocalSearchParams<{ id?: string }>();
   const listId = Number.parseInt((params.id ?? '').toString(), 10);
 
@@ -194,42 +197,62 @@ export default function ListDetailScreen() {
         ListEmptyComponent={
           <Text style={[styles.empty, { color: colors.textSecondary }]}>{t('lists.emptyProducts')}</Text>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            style={[styles.row, { backgroundColor: colors.background, borderColor: colors.border }]}
-            onPress={() => {
-              if (!item.product) return;
-              router.push({
-                pathname: '/result',
-                params: {
-                  id: String(item.product.id),
-                  catalog: item.product.catalog ?? item.catalog,
-                  barcode: item.product.barcode,
-                },
-              });
-            }}
-          >
-            <View style={styles.rowMain}>
-              {item.product?.produsent?.trim() ? (
-                <Text style={[styles.produsent, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {item.product.produsent.trim()}
+        renderItem={({ item }) => {
+          const hits = item.product
+            ? findUserAllergenHits(
+                warnAllergens,
+                item.product.allergens,
+                item.product.glutenRating
+              )
+            : [];
+          return (
+            <Pressable
+              style={[styles.row, { backgroundColor: colors.background, borderColor: colors.border }]}
+              onPress={() => {
+                if (!item.product) return;
+                router.push({
+                  pathname: '/result',
+                  params: {
+                    id: String(item.product.id),
+                    catalog: item.product.catalog ?? item.catalog,
+                    barcode: item.product.barcode,
+                  },
+                });
+              }}
+            >
+              <View style={styles.rowMain}>
+                {item.product?.produsent?.trim() ? (
+                  <Text style={[styles.produsent, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {item.product.produsent.trim()}
+                  </Text>
+                ) : null}
+                <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
+                  {item.product?.name?.trim() || `${item.catalog} #${item.id}`}
                 </Text>
-              ) : null}
-              <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
-                {item.product?.name?.trim() || `${item.catalog} #${item.id}`}
-              </Text>
-              {item.product?.productionCountry?.trim() ? (
-                <Text style={[styles.produsent, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {item.product.productionCountry.trim()}
-                </Text>
-              ) : null}
-              {item.product ? <GlutenBadge rating={item.product.glutenRating} size="small" /> : null}
-            </View>
-            <Pressable hitSlop={10} onPress={() => confirmRemoveProduct(item)}>
-              <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                {item.product?.productionCountry?.trim() ? (
+                  <Text style={[styles.produsent, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {item.product.productionCountry.trim()}
+                  </Text>
+                ) : null}
+                {hits.length > 0 ? (
+                  <View style={styles.badgeWrap}>
+                    {hits.map((hit) => (
+                      <AllergenBadge
+                        key={`${hit.kind}-${hit.selected}`}
+                        name={hit.selected}
+                        kind={hit.kind}
+                        size="small"
+                      />
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+              <Pressable hitSlop={10} onPress={() => confirmRemoveProduct(item)}>
+                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+              </Pressable>
             </Pressable>
-          </Pressable>
-        )}
+          );
+        }}
       />
 
       <Modal visible={shareOpen} transparent animationType="fade" onRequestClose={() => setShareOpen(false)}>
@@ -304,6 +327,12 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, gap: 4 },
   produsent: { fontSize: 12, fontWeight: '600' },
   name: { fontSize: 16, fontWeight: '600' },
+  badgeWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',

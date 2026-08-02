@@ -1,4 +1,4 @@
-import type { ProductAllergens } from '../db/types';
+import { GlutenRating, type ProductAllergens } from '../db/types';
 
 /** EU major allergens used for warn-filter preferences (labels match dbo.products JSON). */
 export const ALLERGEN_OPTIONS = [
@@ -83,68 +83,130 @@ export function allergenLabelMatches(selected: string, declared: string): boolea
   return false;
 }
 
-export type AllergenHitKind = 'contains' | 'mayContain';
+export type AllergenHitKind = 'contains' | 'mayContain' | 'free';
 
 export interface AllergenWarnHit {
   selected: string;
+  /** Declared label from product when known; for free hits, the preference label. */
   declared: string;
   kind: AllergenHitKind;
 }
 
-/** Compare user warn prefs against product allergen declaration.
- * One hit per selected allergen + kind (contains wins over may-contain duplicates).
+/** True when the product has any structured allergen declaration to evaluate. */
+export function productHasAllergenData(
+  allergens: ProductAllergens | null | undefined
+): boolean {
+  if (!allergens) return false;
+  return (
+    (allergens.inneholder?.length ?? 0) > 0 ||
+    (allergens.kanInneholde?.length ?? 0) > 0 ||
+    (allergens.inneholderIkke?.length ?? 0) > 0
+  );
+}
+
+function glutenKindFromRating(rating: GlutenRating): AllergenHitKind {
+  if (rating === GlutenRating.GlutenContent) return 'contains';
+  if (rating === GlutenRating.GlutenTrace) return 'mayContain';
+  return 'free';
+}
+
+/**
+ * Compare user allergen prefs against product declaration.
+ * One hit per selected allergen: contains > may contain > free (not listed).
+ * Unselected allergens (e.g. milk when user only tracks gluten) are ignored.
+ * When structured allergens are missing, falls back to glutenRating for Gluten only.
  */
+export function findUserAllergenHits(
+  selected: readonly string[],
+  allergens: ProductAllergens | null | undefined,
+  glutenRating?: GlutenRating | null
+): AllergenWarnHit[] {
+  if (selected.length === 0) return [];
+
+  if (productHasAllergenData(allergens)) {
+    const hits: AllergenWarnHit[] = [];
+
+    for (const pref of selected) {
+      let containsDeclared: string | null = null;
+      for (const declared of allergens!.inneholder ?? []) {
+        if (allergenLabelMatches(pref, declared)) {
+          containsDeclared = declared;
+          break;
+        }
+      }
+      if (containsDeclared) {
+        hits.push({
+          selected: pref,
+          declared: containsDeclared,
+          kind: 'contains',
+        });
+        continue;
+      }
+
+      let mayDeclared: string | null = null;
+      for (const declared of allergens!.kanInneholde ?? []) {
+        if (allergenLabelMatches(pref, declared)) {
+          mayDeclared = declared;
+          break;
+        }
+      }
+      if (mayDeclared) {
+        hits.push({
+          selected: pref,
+          declared: mayDeclared,
+          kind: 'mayContain',
+        });
+        continue;
+      }
+
+      // Not in contains / may-contain → safe for this preference (green).
+      let freeDeclared = pref;
+      for (const declared of allergens!.inneholderIkke ?? []) {
+        if (allergenLabelMatches(pref, declared)) {
+          freeDeclared = declared;
+          break;
+        }
+      }
+      hits.push({
+        selected: pref,
+        declared: freeDeclared,
+        kind: 'free',
+      });
+    }
+
+    return hits;
+  }
+
+  // No structured allergen rows — only glutenRating can speak about Gluten.
+  if (!glutenRating) return [];
+  const glutenPref = selected.find((pref) => allergenLabelMatches(pref, 'Gluten'));
+  if (!glutenPref) return [];
+  return [
+    {
+      selected: glutenPref,
+      declared: 'Gluten',
+      kind: glutenKindFromRating(glutenRating),
+    },
+  ];
+}
+
+/** Warning hits only (contains / may contain) for the user's selected allergens. */
 export function findAllergenWarnings(
   selected: readonly string[],
-  allergens: ProductAllergens | null | undefined
+  allergens: ProductAllergens | null | undefined,
+  glutenRating?: GlutenRating | null
 ): AllergenWarnHit[] {
-  if (!allergens || selected.length === 0) return [];
+  return findUserAllergenHits(selected, allergens, glutenRating).filter(
+    (h) => h.kind === 'contains' || h.kind === 'mayContain'
+  );
+}
 
-  const byPref = new Map<string, AllergenWarnHit>();
-
-  for (const pref of selected) {
-    let containsDeclared: string | null = null;
-    for (const declared of allergens.inneholder ?? []) {
-      if (allergenLabelMatches(pref, declared)) {
-        containsDeclared = declared;
-        break;
-      }
-    }
-    if (containsDeclared) {
-      byPref.set(`c:${pref}`, {
-        selected: pref,
-        declared: containsDeclared,
-        kind: 'contains',
-      });
-      continue;
-    }
-
-    let mayDeclared: string | null = null;
-    for (const declared of allergens.kanInneholde ?? []) {
-      if (allergenLabelMatches(pref, declared)) {
-        mayDeclared = declared;
-        break;
-      }
-    }
-    if (mayDeclared) {
-      byPref.set(`m:${pref}`, {
-        selected: pref,
-        declared: mayDeclared,
-        kind: 'mayContain',
-      });
-    }
-  }
-
-  // Stable order: follow user's selected allergen order.
-  const hits: AllergenWarnHit[] = [];
-  for (const pref of selected) {
-    const contains = byPref.get(`c:${pref}`);
-    if (contains) {
-      hits.push(contains);
-      continue;
-    }
-    const may = byPref.get(`m:${pref}`);
-    if (may) hits.push(may);
-  }
-  return hits;
+/** True when product data exists and none of the user's selected allergens are present or may be present. */
+export function isSafeForUserAllergens(
+  selected: readonly string[],
+  allergens: ProductAllergens | null | undefined,
+  glutenRating?: GlutenRating | null
+): boolean {
+  const hits = findUserAllergenHits(selected, allergens, glutenRating);
+  return hits.length > 0 && hits.every((h) => h.kind === 'free');
 }
