@@ -12,7 +12,6 @@ import {
 
 import { ALLERGEN_OPTIONS } from '../src/allergens/allergenPrefs';
 import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
-import { CountrySelector } from '../src/components/CountrySelector';
 import { SmoothSwitch } from '../src/components/SmoothSwitch';
 import { TermsDocumentModal } from '../src/components/TermsAcceptanceScreen';
 import { useI18n } from '../src/i18n/I18nContext';
@@ -101,27 +100,6 @@ export default function SettingsScreen() {
             onPress={() => setLocale('en')}
             colors={colors}
           />
-        </View>
-      </View>
-
-      <View
-        style={[
-          styles.section,
-          styles.languageSection,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
-      >
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="earth" size={22} color={colors.primary} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            {t('settings.productCountry')}
-          </Text>
-        </View>
-        <Text style={[styles.sectionBody, styles.languageHint, { color: colors.textSecondary }]}>
-          {t('settings.productCountryHint')}
-        </Text>
-        <View style={styles.countryWrap}>
-          <CountrySelector />
         </View>
       </View>
 
@@ -480,9 +458,6 @@ const styles = StyleSheet.create({
     marginTop: 14,
     flexDirection: 'row',
     gap: 10,
-  },
-  countryWrap: {
-    marginTop: 14,
   },
   langChip: {
     flex: 1,

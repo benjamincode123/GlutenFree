@@ -29,7 +29,11 @@ import {
   PRODUCT_SEARCH_PAGE_SIZE,
 } from '../src/data/searchLimits';
 import { userFacingError } from '../src/errors/userFacingError';
-import { useCountryPrefs } from '../src/country/CountryPrefsContext';
+import {
+  PRODUCT_COUNTRIES,
+  toggleProductCountry,
+  type ProductCountry,
+} from '../src/country/productCountries';
 import { useI18n } from '../src/i18n/I18nContext';
 import { isUnknownBarcode, Product, ProductCatalog } from '../src/db/types';
 import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
@@ -52,7 +56,9 @@ export default function ProductsScreen() {
   const { t, tf } = useI18n();
   const { colors } = useTheme();
   const { selected: warnAllergens } = useAllergenPrefs();
-  const { countries } = useCountryPrefs();
+  const [countries, setCountries] = useState<ProductCountry[]>(() => [
+    ...PRODUCT_COUNTRIES,
+  ]);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -185,7 +191,13 @@ export default function ProductsScreen() {
           {t('products.searchLabel')}
         </Text>
         <View style={styles.countryRow}>
-          <CountrySelector compact />
+          <CountrySelector
+            compact
+            selected={countries}
+            onToggle={(code) =>
+              setCountries((prev) => toggleProductCountry(prev, code))
+            }
+          />
         </View>
         <AppTextInput
           style={[

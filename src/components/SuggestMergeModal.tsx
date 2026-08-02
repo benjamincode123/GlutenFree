@@ -16,7 +16,7 @@ import {
 
 import { useAuth } from '../auth/AuthContext';
 import { getAuthToken } from '../auth/session';
-import type { ProductCountry } from '../country/CountryPrefsContext';
+import type { ProductCountry } from '../country/productCountries';
 import type { FavoriteProductRef } from '../data/authApi';
 import * as adminApi from '../data/adminApi';
 import { getProductRepository } from '../data/repository';

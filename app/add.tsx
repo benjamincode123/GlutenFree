@@ -60,6 +60,7 @@ import {
   shouldShowScanWithAiTutorial,
 } from '../src/media/scanWithAiTutorialPrefs';
 import { userFacingError } from '../src/errors/userFacingError';
+import { goHome } from '../src/navigation/goHome';
 import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 function parseCatalog(value: string | undefined): ProductCatalog | null {
@@ -428,7 +429,8 @@ export default function AddProductScreen() {
         if (parsed.ingredients) setIngredients(parsed.ingredients);
 
         setAllergenStatuses((prev) => {
-          const next = { ...prev };
+          // Retake starts clean so previous AI allergens do not stick around.
+          const next = ocrDone ? { ...defaultAllergenStatuses() } : { ...prev };
           const resolve = (label: string) =>
             ALLERGEN_OPTIONS.find(
               (option) =>
@@ -454,7 +456,7 @@ export default function AddProductScreen() {
 
       setOcrDone(true);
       // In AI-focus flow, reuse the label photo as the product submission image.
-      if (aiFocus && !submissionImageBase64) {
+      if (aiFocus) {
         setSubmissionImageBase64(picked.dataUri);
         setPhotoMissingError(false);
       }
@@ -1292,6 +1294,36 @@ export default function AddProductScreen() {
           )}
         </View>
 
+        {ocrDone ? (
+          <Pressable
+            style={[
+              styles.retakeAiButton,
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.surface,
+                opacity: ocrScanning ? 0.6 : 1,
+              },
+            ]}
+            disabled={ocrScanning}
+            onPress={() => void handleScanWithAi()}
+            accessibilityRole="button"
+            accessibilityLabel={t('add.retakeAiPhoto')}
+          >
+            {ocrScanning ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <MaterialCommunityIcons
+                name="camera-retake-outline"
+                size={20}
+                color={colors.primary}
+              />
+            )}
+            <Text style={[styles.retakeAiButtonText, { color: colors.primary }]}>
+              {ocrScanning ? t('add.scanWithAiWorking') : t('add.retakeAiPhoto')}
+            </Text>
+          </Pressable>
+        ) : null}
+
         <Pressable
           style={[
             styles.saveButton,
@@ -1311,6 +1343,45 @@ export default function AddProductScreen() {
                   : t('add.submitReview')}
           </Text>
         </Pressable>
+
+        {ocrDone ? (
+          <Pressable
+            style={[
+              styles.discardAiButton,
+              {
+                borderColor: colors.danger,
+                opacity: saving || ocrScanning ? 0.5 : 1,
+              },
+            ]}
+            disabled={saving || ocrScanning}
+            onPress={() => {
+              Alert.alert(
+                t('add.discardAiTitle'),
+                t('add.discardAiBody'),
+                [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  {
+                    text: t('add.discardAiConfirm'),
+                    style: 'destructive',
+                    onPress: () => goHome(router),
+                  },
+                ]
+              );
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={t('add.discardAi')}
+          >
+            <MaterialCommunityIcons
+              name="close-circle-outline"
+              size={20}
+              color={colors.danger}
+            />
+            <Text style={[styles.discardAiButtonText, { color: colors.danger }]}>
+              {t('add.discardAi')}
+            </Text>
+          </Pressable>
+        ) : null}
+
         {formError ? (
           <ErrorText style={styles.formError}>{formError}</ErrorText>
         ) : null}
@@ -1624,6 +1695,37 @@ const styles = StyleSheet.create({
   linkPhotoClearText: {
     fontWeight: '600',
     fontSize: 14,
+  },
+  retakeAiButton: {
+    marginTop: 12,
+    minHeight: 48,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  retakeAiButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  discardAiButton: {
+    marginTop: 12,
+    marginBottom: 8,
+    minHeight: 48,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  discardAiButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   linkButton: {
     marginTop: 14,

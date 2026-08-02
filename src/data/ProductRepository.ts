@@ -1,4 +1,4 @@
-import type { ProductCountry } from '../country/CountryPrefsContext';
+import type { ProductCountry } from '../country/productCountries';
 import { NewProduct, Product, ProductCatalog } from '../db/types';
 
 /** Paginated product name search result. */

@@ -62,8 +62,6 @@ type TranslationKey =
   | 'settings.languageHint'
   | 'settings.norwegian'
   | 'settings.english'
-  | 'settings.productCountry'
-  | 'settings.productCountryHint'
   | 'country.no'
   | 'country.se'
   | 'country.dk'
@@ -433,6 +431,11 @@ type TranslationKey =
   | 'add.scanWithAiWorking'
   | 'add.scanWithAiResult'
   | 'add.scanWithAiFailed'
+  | 'add.retakeAiPhoto'
+  | 'add.discardAi'
+  | 'add.discardAiTitle'
+  | 'add.discardAiBody'
+  | 'add.discardAiConfirm'
   | 'add.scanWithAiTutorialTitle'
   | 'add.scanWithAiTutorialLead'
   | 'add.scanWithAiTutorialImageA11y'
@@ -536,9 +539,6 @@ const en: Record<TranslationKey, string> = {
   'settings.languageHint': 'Choose Norwegian or English.',
   'settings.norwegian': 'Norwegian',
   'settings.english': 'English',
-  'settings.productCountry': 'Product countries',
-  'settings.productCountryHint':
-    'Select one or more countries to search and scan. Tap to toggle.',
   'country.no': 'Norway',
   'country.se': 'Sweden',
   'country.dk': 'Denmark',
@@ -950,6 +950,12 @@ const en: Record<TranslationKey, string> = {
   'add.scanWithAiResult': 'OCR text',
   'add.scanWithAiFailed':
     'Could not read text from the photo. Try a clearer close-up (max 30 cm) with producer, name and ingredients visible.',
+  'add.retakeAiPhoto': 'Retake AI photo',
+  'add.discardAi': 'Discard without saving',
+  'add.discardAiTitle': 'Discard product?',
+  'add.discardAiBody':
+    'Nothing will be saved. You will return to the scanner.',
+  'add.discardAiConfirm': 'Discard',
   'add.scanWithAiTutorialTitle': 'How to photograph the label',
   'add.scanWithAiTutorialLead':
     'Follow the example below. The red boxes show what must be in the photo: producer, product name and ingredients.',
@@ -1063,9 +1069,6 @@ const nb: Record<TranslationKey, string> = {
   'settings.languageHint': 'Velg norsk eller engelsk.',
   'settings.norwegian': 'Norsk',
   'settings.english': 'Engelsk',
-  'settings.productCountry': 'Produktland',
-  'settings.productCountryHint':
-    'Velg ett eller flere land for skanning og søk. Trykk for å slå av/på.',
   'country.no': 'Norge',
   'country.se': 'Sverige',
   'country.dk': 'Danmark',
@@ -1477,6 +1480,12 @@ const nb: Record<TranslationKey, string> = {
   'add.scanWithAiResult': 'OCR-tekst',
   'add.scanWithAiFailed':
     'Kunne ikke lese tekst fra bildet. Prøv et klarere nærbilde (maks 30 cm) der produsent, navn og ingredienser synes.',
+  'add.retakeAiPhoto': 'Ta bilde på nytt',
+  'add.discardAi': 'Glem uten å lagre',
+  'add.discardAiTitle': 'Glemme produktet?',
+  'add.discardAiBody':
+    'Ingenting blir lagret. Du går tilbake til skanneren.',
+  'add.discardAiConfirm': 'Glem',
   'add.scanWithAiTutorialTitle': 'Slik fotograferer du etiketten',
   'add.scanWithAiTutorialLead':
     'Følg eksempelet under. De røde boksene viser hva som må være med: produsent, produktnavn og ingredienser.',

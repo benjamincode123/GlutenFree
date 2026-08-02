@@ -8,7 +8,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import { AllergenPrefsProvider } from '../src/allergens/AllergenPrefsContext';
-import { CountryPrefsProvider } from '../src/country/CountryPrefsContext';
 import { TermsAcceptanceScreen } from '../src/components/TermsAcceptanceScreen';
 import { config } from '../src/config';
 import { I18nProvider, useI18n } from '../src/i18n/I18nContext';
@@ -84,13 +83,11 @@ export default function RootLayout() {
         <ThemeProvider>
           <I18nProvider>
             <AllergenPrefsProvider>
-              <CountryPrefsProvider>
-                <AuthProvider>
-                  <NotificationPrefsProvider>
-                    <RootNavigator />
-                  </NotificationPrefsProvider>
-                </AuthProvider>
-              </CountryPrefsProvider>
+              <AuthProvider>
+                <NotificationPrefsProvider>
+                  <RootNavigator />
+                </NotificationPrefsProvider>
+              </AuthProvider>
             </AllergenPrefsProvider>
           </I18nProvider>
         </ThemeProvider>

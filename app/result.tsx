@@ -31,7 +31,6 @@ import {
   clearPendingProduct,
   getPendingProductByBarcode,
 } from '../src/data/pendingProductCache';
-import { useCountryPrefs } from '../src/country/CountryPrefsContext';
 import { useI18n } from '../src/i18n/I18nContext';
 import {
   isUnknownBarcode,
@@ -82,7 +81,6 @@ export default function ResultScreen() {
   const { selected: warnAllergens } = useAllergenPrefs();
   const { t } = useI18n();
   const { colors } = useTheme();
-  const { countries } = useCountryPrefs();
   const params = useLocalSearchParams<{
     barcode?: string;
     id?: string;
@@ -122,7 +120,8 @@ export default function ResultScreen() {
           if (catalogParam && Number.isFinite(idParam) && idParam > 0) {
             found = await repo.getById(catalogParam, idParam);
           } else if (barcode) {
-            found = await repo.getByBarcode(barcode, { countries });
+            // Search all catalog countries by default (no settings filter).
+            found = await repo.getByBarcode(barcode);
             if (found) {
               // Live catalog wins — drop any stale local pending copy.
               void clearPendingProduct(barcode);
@@ -150,7 +149,7 @@ export default function ResultScreen() {
       return () => {
         cancelled = true;
       };
-    }, [barcode, catalogParam, idParam, countries, t])
+    }, [barcode, catalogParam, idParam, t])
   );
 
   const submitBarcodeReport = async () => {

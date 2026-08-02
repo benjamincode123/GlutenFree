@@ -1,5 +1,8 @@
 import { getAuthToken } from '../auth/session';
-import type { ProductCountry } from '../country/CountryPrefsContext';
+import {
+  PRODUCT_COUNTRIES,
+  type ProductCountry,
+} from '../country/productCountries';
 import { isGlutenRating, NewProduct, Product, ProductCatalog } from '../db/types';
 import {
   AppError,
@@ -22,7 +25,8 @@ function resolveCountries(options?: ProductLookupOptions): ProductCountry[] {
   if (options?.country) {
     return [options.country];
   }
-  return ['no'];
+  // Default: search every catalog country (scanner / barcode / unfiltered).
+  return [...PRODUCT_COUNTRIES];
 }
 
 /** Raw JSON shape returned by the .NET API (camelCase). */

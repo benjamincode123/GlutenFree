@@ -3,8 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   PRODUCT_COUNTRIES,
   ProductCountry,
-  useCountryPrefs,
-} from '../country/CountryPrefsContext';
+} from '../country/productCountries';
 import { useI18n } from '../i18n/I18nContext';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -18,21 +17,26 @@ const LABEL_KEYS: Record<
   de: 'country.de',
 };
 
-/** Multi-select NO / SE / DK / DE control bound to shared country preferences. */
-export function CountrySelector({ compact = false }: { compact?: boolean }) {
+type Props = {
+  selected: ProductCountry[];
+  onToggle: (country: ProductCountry) => void;
+  compact?: boolean;
+};
+
+/** Multi-select NO / SE / DK / DE chips (used on the products search page). */
+export function CountrySelector({ selected, onToggle, compact = false }: Props) {
   const { colors } = useTheme();
   const { t } = useI18n();
-  const { countries, toggleCountry } = useCountryPrefs();
 
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <View style={styles.row}>
         {PRODUCT_COUNTRIES.map((code) => {
-          const active = countries.includes(code);
+          const active = selected.includes(code);
           return (
             <Pressable
               key={code}
-              onPress={() => toggleCountry(code)}
+              onPress={() => onToggle(code)}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               accessibilityLabel={t(LABEL_KEYS[code])}
