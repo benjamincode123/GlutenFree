@@ -20,7 +20,9 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan grocery barcodes and photograph products for review.",
         "NSPhotoLibraryUsageDescription": "This app lets you attach a product photo when reporting a barcode.",
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -76,7 +78,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {
