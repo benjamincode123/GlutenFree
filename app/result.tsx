@@ -3,7 +3,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -20,13 +20,18 @@ import {
   productHasAllergenData,
 } from '../src/allergens/allergenPrefs';
 import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
+import {
+  CONTAINS_CHIP,
+  FREE_CHIP,
+  TRACES_CHIP,
+} from '../src/allergens/allergenChipColors';
 import { useAuth } from '../src/auth/AuthContext';
 import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
 import { AddToListModal } from '../src/components/AddToListModal';
 import { ErrorText } from '../src/components/ErrorText';
-import { AllergenBadge } from '../src/components/AllergenBadge';
-import { CheckWithAiCta } from '../src/components/CheckWithAiCta';
+import { AllergnomShelfLoader } from '../src/components/AllergnomShelfLoader';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
+import { InfoCard, InfoChipRow, InfoRow } from '../src/components/ProductInfoCard';
 import { ReportWrongInfoModal } from '../src/components/ReportWrongInfoModal';
 import { SuggestMergeModal } from '../src/components/SuggestMergeModal';
 import { getProductRepository } from '../src/data/repository';
@@ -104,6 +109,7 @@ export default function ResultScreen() {
     text: string;
   } | null>(null);
   const [scanModalVisible, setScanModalVisible] = useState(false);
+  const [reportSectionOpen, setReportSectionOpen] = useState(false);
   const [listPickerOpen, setListPickerOpen] = useState(false);
   const [wrongInfoOpen, setWrongInfoOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -155,6 +161,17 @@ export default function ResultScreen() {
     }, [barcode, catalogParam, idParam, t])
   );
 
+  // No catalog match: skip the "not found" step and jump straight into the
+  // AI scan instead of making the user tap through an extra screen.
+  useEffect(() => {
+    if (state !== 'not_found') return;
+    if (user) {
+      router.replace({ pathname: '/add', params: { barcode, aiFocus: '1' } });
+    } else {
+      router.replace('/login');
+    }
+  }, [state, user, barcode, router]);
+
   const submitBarcodeReport = async () => {
     if (!product?.catalog) return;
     const suggested = reportBarcode.trim();
@@ -186,8 +203,11 @@ export default function ResultScreen() {
     }
   };
 
-  const submitProductPhoto = async () => {
-    if (!product?.catalog || !reportImageBase64) return;
+  /** Pick a photo and send it straight away — no separate submit step. */
+  const pickAndSubmitProductPhoto = async () => {
+    if (!product?.catalog) return;
+    const picked = await askPickProductImage();
+    if (!picked) return;
 
     setReporting(true);
     setReportFeedback(null);
@@ -195,12 +215,11 @@ export default function ResultScreen() {
       const result = await getProductRepository().submitProductImage(
         product.catalog,
         product.id,
-        reportImageBase64
+        picked
       );
       if (result.product) {
         setProduct(result.product);
       }
-      setReportImageBase64(null);
       setReportFeedback({
         kind: 'success',
         text: result.pending ? t('result.photoPending') : t('result.photoSaved'),
@@ -221,12 +240,12 @@ export default function ResultScreen() {
     isUnknownBarcode(product.barcode) &&
     !!product.catalog;
 
-  const showPhotoSubmit =
+  const canAddPhoto =
+    !!user &&
     state === 'found' &&
-    product &&
+    !!product &&
     !!product.catalog &&
-    !isUnknownBarcode(product.barcode) &&
-    (!productImageUri(product.imageUrl) || isAdmin);
+    !isUnknownBarcode(product.barcode);
 
   const canFavorite =
     !!user &&
@@ -306,12 +325,9 @@ export default function ResultScreen() {
         </Text>
       </View>
 
-      {state === 'loading' && (
+      {(state === 'loading' || state === 'not_found') && (
         <View style={styles.centerBlock}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-            {t('result.lookingUp')}
-          </Text>
+          <AllergnomShelfLoader label={t('result.lookingUp')} />
         </View>
       )}
 
@@ -324,22 +340,47 @@ export default function ResultScreen() {
 
       {state === 'found' && product && (
         <View style={[styles.productCard, { backgroundColor: colors.background }]}>
-          {!!productImageUri(product.imageUrl) && (
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+            {t('result.productPhotoLabel')}
+          </Text>
+          {productImageUri(product.imageUrl) ? (
             <Image
               source={{ uri: productImageUri(product.imageUrl)! }}
               style={[styles.productImage, { backgroundColor: colors.surface }]}
               resizeMode="contain"
               accessibilityLabel={`${product.name} ${t('result.productImageA11y')}`}
             />
+          ) : (
+            <Pressable
+              style={[
+                styles.photoPlaceholder,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+              onPress={() => void pickAndSubmitProductPhoto()}
+              disabled={!canAddPhoto || reporting}
+              accessibilityRole="button"
+              accessibilityLabel={t('result.tapToAddPhoto')}
+            >
+              {reporting ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <>
+                  <MaterialCommunityIcons
+                    name="camera-plus-outline"
+                    size={34}
+                    color={colors.textSecondary}
+                  />
+                  <Text
+                    style={[styles.photoPlaceholderText, { color: colors.textSecondary }]}
+                  >
+                    {canAddPhoto
+                      ? t('result.tapToAddPhoto')
+                      : t('result.signInToAddPhoto')}
+                  </Text>
+                </>
+              )}
+            </Pressable>
           )}
-          {product.produsent?.trim() ? (
-            <Text style={[styles.produsent, { color: colors.textSecondary }]}>
-              {product.produsent.trim()}
-            </Text>
-          ) : null}
-          <Text style={[styles.productName, { color: colors.text }]}>
-            {product.name}
-          </Text>
           {product.pending ? (
             <View
               style={[
@@ -357,11 +398,76 @@ export default function ResultScreen() {
               </Text>
             </View>
           ) : null}
-          {product.productionCountry?.trim() ? (
-            <Text style={[styles.country, { color: colors.textSecondary }]}>
-              {t('result.country')}: {product.productionCountry.trim()}
-            </Text>
-          ) : null}
+
+          <InfoCard>
+            <InfoRow
+              label={t('add.produsent')}
+              value={product.produsent ?? ''}
+              emptyLabel={t('add.aiResultNoneFound')}
+            />
+            <InfoRow
+              label={t('add.productName')}
+              value={product.name}
+              emptyLabel={t('add.aiResultNoneFound')}
+            />
+            {product.productionCountry?.trim() ? (
+              <InfoRow
+                label={t('result.country')}
+                value={product.productionCountry}
+                emptyLabel={t('add.aiResultNoneFound')}
+              />
+            ) : null}
+            <InfoRow
+              label={t('result.ingredients')}
+              value={product.ingredients ?? ''}
+              emptyLabel={t('result.noIngredients')}
+            />
+
+            {!allergenFilterOn ? (
+              <InfoRow
+                label={t('result.allergensTitle')}
+                value=""
+                emptyLabel={t('result.allergensFilterOff')}
+              />
+            ) : hasFilteredAllergens ? (
+              <>
+                {containsAllergens.length > 0 ? (
+                  <InfoChipRow
+                    label={t('result.allergensContainsLabel')}
+                    names={containsAllergens}
+                    accent={CONTAINS_CHIP}
+                    emptyLabel=""
+                  />
+                ) : null}
+                {mayContainAllergens.length > 0 ? (
+                  <InfoChipRow
+                    label={t('result.allergensMayContainLabel')}
+                    names={mayContainAllergens}
+                    accent={TRACES_CHIP}
+                    emptyLabel=""
+                  />
+                ) : null}
+                {freeAllergens.length > 0 ? (
+                  <InfoChipRow
+                    label={t('result.allergensFreeLabel')}
+                    names={freeAllergens}
+                    accent={FREE_CHIP}
+                    emptyLabel=""
+                  />
+                ) : null}
+              </>
+            ) : (
+              <InfoRow
+                label={t('result.allergensTitle')}
+                value=""
+                emptyLabel={
+                  !hasDeclaration
+                    ? t('result.allergensNone')
+                    : t('result.allergensNoMatch')
+                }
+              />
+            )}
+          </InfoCard>
 
           <View style={styles.statusBlock}>
             <View style={styles.reportActions}>
@@ -399,84 +505,6 @@ export default function ResultScreen() {
               ) : null}
             </View>
 
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-              {t('result.allergensTitle')}
-            </Text>
-            {!allergenFilterOn ? (
-              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-                {t('result.allergensFilterOff')}
-              </Text>
-            ) : hasFilteredAllergens ? (
-              <View style={styles.allergenLists}>
-                {containsAllergens.length > 0 ? (
-                  <View style={styles.allergenGroup}>
-                    <Text style={[styles.allergenGroupLabel, { color: colors.text }]}>
-                      {t('result.allergensContainsLabel')}
-                    </Text>
-                    <View style={styles.badgeWrap}>
-                      {containsAllergens.map((name) => (
-                        <AllergenBadge
-                          key={`c-${name}`}
-                          name={name}
-                          kind="contains"
-                          size="large"
-                          showKindPrefix={false}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-                {mayContainAllergens.length > 0 ? (
-                  <View style={styles.allergenGroup}>
-                    <Text style={[styles.allergenGroupLabel, { color: colors.text }]}>
-                      {t('result.allergensMayContainLabel')}
-                    </Text>
-                    <View style={styles.badgeWrap}>
-                      {mayContainAllergens.map((name) => (
-                        <AllergenBadge
-                          key={`m-${name}`}
-                          name={name}
-                          kind="mayContain"
-                          size="large"
-                          showKindPrefix={false}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-                {freeAllergens.length > 0 ? (
-                  <View style={styles.allergenGroup}>
-                    <Text style={[styles.allergenGroupLabel, { color: colors.text }]}>
-                      {t('result.allergensFreeLabel')}
-                    </Text>
-                    <View style={styles.badgeWrap}>
-                      {freeAllergens.map((name) => (
-                        <AllergenBadge
-                          key={`f-${name}`}
-                          name={name}
-                          kind="free"
-                          size="large"
-                          showKindPrefix={false}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-            ) : !hasDeclaration ? (
-              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-                {t('result.allergensNone')}
-              </Text>
-            ) : (
-              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-                {t('result.allergensNoMatch')}
-              </Text>
-            )}
-            {allergenFilterOn ? (
-              <Text style={[styles.allergenHint, { color: colors.textSecondary }]}>
-                {t('result.allergenLimitHint')}
-              </Text>
-            ) : null}
           </View>
 
           {canFavorite ? (
@@ -528,22 +556,27 @@ export default function ResultScreen() {
             </>
           ) : null}
 
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-            {t('result.ingredients')}
-          </Text>
-          <Text style={[styles.ingredients, { color: colors.text }]}>
-            {product.ingredients?.trim()
-              ? product.ingredients
-              : t('result.noIngredients')}
-          </Text>
-
           {showReportForm && (
             <View style={[styles.reportBlock, { borderTopColor: colors.border }]}>
-              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-                {t('result.reportBarcode')}
-              </Text>
+              <Pressable
+                style={styles.reportHeader}
+                onPress={() => setReportSectionOpen((open) => !open)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: reportSectionOpen }}
+                accessibilityLabel={t('result.reportBarcode')}
+              >
+                <Text style={[styles.reportHeaderText, { color: colors.text }]}>
+                  {t('result.reportBarcode')}
+                </Text>
+                <MaterialCommunityIcons
+                  name={reportSectionOpen ? 'chevron-up' : 'chevron-down'}
+                  size={24}
+                  color={colors.text}
+                />
+              </Pressable>
+
+              {reportSectionOpen ? (
+                <>
               <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
                 {t('result.reportHint')}
               </Text>
@@ -601,20 +634,17 @@ export default function ResultScreen() {
                     }}
                   />
 
-                  <Text
-                    style={[
-                      styles.sectionLabel,
-                      { marginTop: 16, color: colors.textSecondary },
-                    ]}
-                  >
-                    {t('result.photoOptional')}
-                  </Text>
-                  {productImageUri(product.imageUrl) && !isAdmin ? (
-                    <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-                      {t('result.photoLocked')}
-                    </Text>
-                  ) : (
+                  {/* Nothing to offer here once the product already has a photo. */}
+                  {!productImageUri(product.imageUrl) || isAdmin ? (
                     <>
+                      <Text
+                        style={[
+                          styles.sectionLabel,
+                          { marginTop: 16, color: colors.textSecondary },
+                        ]}
+                      >
+                        {t('result.photoOptional')}
+                      </Text>
                       {reportImageBase64 ? (
                         <Image
                           source={{ uri: reportImageBase64 }}
@@ -649,7 +679,7 @@ export default function ResultScreen() {
                         )}
                       </View>
                     </>
-                  )}
+                  ) : null}
 
                   <Pressable
                     style={[
@@ -668,83 +698,9 @@ export default function ResultScreen() {
                   </Pressable>
                 </>
               )}
-              {reportFeedback &&
-                (reportFeedback.kind === 'error' ? (
-                  <ErrorText style={styles.reportMessage}>{reportFeedback.text}</ErrorText>
-                ) : (
-                  <Text style={[styles.reportMessage, { color: colors.primary }]}>
-                    {reportFeedback.text}
-                  </Text>
-                ))}
-            </View>
-          )}
-
-          {showPhotoSubmit && (
-            <View style={[styles.reportBlock, { borderTopColor: colors.border }]}>
-              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-                {t('result.photoOptional')}
-              </Text>
-              <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-                {t('result.addPhotoHint')}
-              </Text>
-              {!user ? (
-                <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-                  {t('result.signInToAddPhoto')}
-                </Text>
-              ) : (
-                <>
-                  {reportImageBase64 ? (
-                    <Image
-                      source={{ uri: reportImageBase64 }}
-                      style={[styles.reportPhoto, { backgroundColor: colors.surface }]}
-                      resizeMode="contain"
-                    />
-                  ) : null}
-                  <View style={styles.reportPhotoRow}>
-                    <Pressable
-                      style={[styles.photoButton, { borderColor: colors.primary }]}
-                      onPress={() => {
-                        void askPickProductImage().then((uri) => {
-                          if (uri) setReportImageBase64(uri);
-                        });
-                      }}
-                    >
-                      <Text style={[styles.photoButtonText, { color: colors.primary }]}>
-                        {reportImageBase64
-                          ? t('result.changePhoto')
-                          : t('result.addPhoto')}
-                      </Text>
-                    </Pressable>
-                    {reportImageBase64 && (
-                      <Pressable
-                        style={styles.clearPhotoButton}
-                        onPress={() => setReportImageBase64(null)}
-                      >
-                        <Text style={[styles.clearPhotoText, { color: colors.danger }]}>
-                          {t('result.removePhoto')}
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-                  <Pressable
-                    style={[
-                      styles.primaryButton,
-                      { backgroundColor: colors.primary },
-                      (!reportImageBase64 || reporting) && {
-                        backgroundColor: colors.primaryMuted,
-                      },
-                    ]}
-                    disabled={!reportImageBase64 || reporting}
-                    onPress={() => void submitProductPhoto()}
-                  >
-                    <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
-                      {reporting ? t('common.saving') : t('result.submitPhoto')}
-                    </Text>
-                  </Pressable>
                 </>
-              )}
+              ) : null}
               {reportFeedback &&
-                !showReportForm &&
                 (reportFeedback.kind === 'error' ? (
                   <ErrorText style={styles.reportMessage}>{reportFeedback.text}</ErrorText>
                 ) : (
@@ -775,7 +731,7 @@ export default function ResultScreen() {
             </Pressable>
           )}
 
-          {reportFeedback && !showReportForm && !showPhotoSubmit ? (
+          {reportFeedback && !showReportForm ? (
             reportFeedback.kind === 'error' ? (
               <ErrorText style={styles.reportMessage}>{reportFeedback.text}</ErrorText>
             ) : (
@@ -784,25 +740,6 @@ export default function ResultScreen() {
               </Text>
             )
           ) : null}
-        </View>
-      )}
-
-      {state === 'not_found' && (
-        <View style={[styles.productCard, { backgroundColor: colors.background }]}>
-          <CheckWithAiCta
-            subtitle={t('result.noResult')}
-            label={t('result.checkWithAi')}
-            onPress={() => {
-              if (user) {
-                router.push({
-                  pathname: '/add',
-                  params: { barcode, aiFocus: '1' },
-                });
-              } else {
-                router.push('/login');
-              }
-            }}
-          />
         </View>
       )}
 
@@ -909,10 +846,22 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
   },
-  productName: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 12,
+  photoPlaceholder: {
+    width: '100%',
+    height: 160,
+    marginBottom: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+  },
+  photoPlaceholderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   pendingBanner: {
     flexDirection: 'row',
@@ -940,42 +889,9 @@ const styles = StyleSheet.create({
     gap: 4,
     alignSelf: 'stretch',
   },
-  badgeWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    gap: 8,
-  },
-  allergenLists: {
-    gap: 12,
-  },
-  allergenGroup: {
-    gap: 8,
-  },
-  allergenGroupLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  allergenHint: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '500',
-    marginTop: 2,
-  },
   wrongInfoButton: {
     padding: 4,
     alignSelf: 'flex-end',
-  },
-  produsent: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  country: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 12,
   },
   favoriteButton: {
     marginTop: 16,
@@ -993,10 +909,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    marginVertical: 16,
-  },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '700',
@@ -1004,14 +916,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 6,
   },
-  ingredients: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
   reportBlock: {
     marginTop: 20,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  reportHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    minHeight: 44,
+  },
+  reportHeaderText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
   },
   input: {
     marginTop: 12,

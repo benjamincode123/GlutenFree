@@ -110,7 +110,7 @@ export function NotificationPrefsProvider({ children }: { children: ReactNode })
     };
   }, [refreshPermission]);
 
-  // Sync from /me prefs + register push token when signed in.
+  // Sync prefs + request OS permission / register push token when signed in.
   useEffect(() => {
     if (!ready || !config.useBackend || !user) {
       syncedUserIdRef.current = null;
@@ -141,10 +141,19 @@ export function NotificationPrefsProvider({ children }: { children: ReactNode })
         // Keep local defaults.
       }
 
-      const permission = await getNotificationPermissionStatus();
-      if ((next.notifyInbox || next.notifyXp) && permission === 'granted') {
-        await syncPushTokenWithBackend(token);
+      if (cancelled) return;
+
+      if (next.notifyInbox || next.notifyXp) {
+        // Ask for permission on login (not only from Settings), then register token.
+        const permission = await getNotificationPermissionStatus();
+        if (permission === 'undetermined' || permission === 'granted') {
+          if (permission === 'undetermined') {
+            await requestNotificationPermission();
+          }
+          await syncPushTokenWithBackend(token);
+        }
       }
+
       if (!cancelled) {
         await refreshPermission();
       }

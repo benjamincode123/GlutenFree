@@ -6,6 +6,9 @@ import { Platform } from 'react-native';
 import { config } from '../config';
 import * as authApi from '../data/authApi';
 
+/** Android channel for heads-up alerts (importance is frozen after first create). */
+export const ANDROID_ALERTS_CHANNEL_ID = 'alerts';
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -16,11 +19,16 @@ Notifications.setNotificationHandler({
 });
 
 function resolveProjectId(): string | undefined {
+  const fromEnv = process.env.EXPO_PUBLIC_EAS_PROJECT_ID?.trim();
+  if (fromEnv) return fromEnv;
+
   const easProjectId =
     Constants.easConfig?.projectId ??
     (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas
       ?.projectId;
-  return typeof easProjectId === 'string' && easProjectId.length > 0
+  return typeof easProjectId === 'string' &&
+    easProjectId.length > 0 &&
+    !easProjectId.startsWith('REPLACE_')
     ? easProjectId
     : undefined;
 }
@@ -34,9 +42,13 @@ export async function getNotificationPermissionStatus(): Promise<
 
 export async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
-  await Notifications.setNotificationChannelAsync('default', {
-    name: 'Default',
-    importance: Notifications.AndroidImportance.DEFAULT,
+  await Notifications.setNotificationChannelAsync(ANDROID_ALERTS_CHANNEL_ID, {
+    name: 'Alerts',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    sound: 'default',
+    enableVibrate: true,
+    showBadge: true,
   });
 }
 
@@ -52,7 +64,13 @@ export async function requestNotificationPermission(): Promise<boolean> {
     return true;
   }
 
-  const requested = await Notifications.requestPermissionsAsync();
+  const requested = await Notifications.requestPermissionsAsync({
+    ios: {
+      allowAlert: true,
+      allowBadge: true,
+      allowSound: true,
+    },
+  });
   return requested.granted || requested.status === 'granted';
 }
 
@@ -68,18 +86,38 @@ export async function getExpoPushTokenAsync(): Promise<string | null> {
 
   await ensureAndroidChannel();
   const projectId = resolveProjectId();
+  if (!projectId) {
+    if (__DEV__) {
+      console.warn(
+        '[push] Missing Expo projectId. Set EXPO_PUBLIC_EAS_PROJECT_ID or app.json extra.eas.projectId (eas init).'
+      );
+    }
+    return null;
+  }
+
   try {
-    const result = projectId
-      ? await Notifications.getExpoPushTokenAsync({ projectId })
-      : await Notifications.getExpoPushTokenAsync();
+    const result = await Notifications.getExpoPushTokenAsync({ projectId });
     const token = result.data?.trim() ?? '';
     return token.length > 0 ? token : null;
-  } catch {
+  } catch (err) {
+    if (__DEV__) {
+      console.warn('[push] getExpoPushTokenAsync failed', err);
+    }
     return null;
   }
 }
 
-/** Registers (or clears) the Expo push token with the backend when logged in. */
+let lastRegisteredPushToken: string | null = null;
+
+/** True after a successful Expo push token upload this session. */
+export function hasRegisteredPushToken(): boolean {
+  return !!lastRegisteredPushToken;
+}
+
+/**
+ * Registers the Expo push token with the backend when logged in.
+ * Never clears a stored token when fetch fails — only clear on logout.
+ */
 export async function syncPushTokenWithBackend(
   token: string | null | undefined,
   clear = false
@@ -90,13 +128,43 @@ export async function syncPushTokenWithBackend(
 
   try {
     if (clear) {
+      lastRegisteredPushToken = null;
       await authApi.setPushToken(authToken, null);
       return;
     }
 
     const pushToken = await getExpoPushTokenAsync();
+    if (!pushToken) {
+      // Keep any existing server token; do not wipe on permission/projectId failure.
+      return;
+    }
     await authApi.setPushToken(authToken, pushToken);
+    lastRegisteredPushToken = pushToken;
   } catch {
     // Best-effort; settings toggles still work locally / via prefs API.
   }
+}
+
+/** Immediate local OS alert (works even when Expo remote push token is missing). */
+export async function presentLocalAlert(params: {
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}): Promise<void> {
+  const granted = await requestNotificationPermission();
+  if (!granted) return;
+
+  await ensureAndroidChannel();
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: params.title,
+      body: params.body,
+      sound: 'default',
+      data: params.data,
+      ...(Platform.OS === 'android'
+        ? { channelId: ANDROID_ALERTS_CHANNEL_ID }
+        : null),
+    },
+    trigger: null,
+  });
 }

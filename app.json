@@ -64,7 +64,7 @@
         {
           "icon": "./assets/icon.png",
           "color": "#000000",
-          "defaultChannel": "default"
+          "defaultChannel": "alerts"
         }
       ],
       "expo-secure-store",
@@ -78,6 +78,11 @@
         }
       ]
     ],
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+      }
+    },
     "experiments": {
       "typedRoutes": true
     }

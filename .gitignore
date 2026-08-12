@@ -46,3 +46,6 @@ yarn-error.*
 **/obj/
 *.log
 scripts/**/import-run*.log
+
+# Dev artifact
+expo-qr.png

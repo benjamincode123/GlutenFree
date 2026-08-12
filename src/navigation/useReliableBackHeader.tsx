@@ -1,4 +1,7 @@
-import { HeaderBackButton } from '@react-navigation/elements';
+import {
+  HeaderBackButton,
+  type HeaderBackButtonProps,
+} from '@react-navigation/elements';
 import { useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect } from 'react';
 import { BackHandler } from 'react-native';
@@ -14,6 +17,11 @@ type Options = {
    * if the stack has no history (common after login replace).
    */
   lockExit?: boolean;
+  /**
+   * Override what the back control does (e.g. step out of an in-page edit
+   * mode instead of leaving the screen). Falls back to goBackOrHome.
+   */
+  onBack?: () => void;
 };
 
 /**
@@ -24,11 +32,15 @@ export function useReliableBackHeader(options: Options = {}): void {
   const navigation = useNavigation();
   const router = useRouter();
   const { colors } = useTheme();
-  const { title, lockExit = false } = options;
+  const { title, lockExit = false, onBack } = options;
 
   const handleBack = useCallback(() => {
+    if (onBack) {
+      onBack();
+      return;
+    }
     goBackOrHome(router);
-  }, [router]);
+  }, [router, onBack]);
 
   useLayoutEffect(() => {
     if (lockExit) {
@@ -47,7 +59,7 @@ export function useReliableBackHeader(options: Options = {}): void {
       // or native-stack shows two back buttons.
       headerBackVisible: false,
       gestureEnabled: true,
-      headerLeft: (props) => (
+      headerLeft: (props: HeaderBackButtonProps) => (
         <HeaderBackButton
           {...props}
           tintColor={colors.text}

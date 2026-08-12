@@ -51,6 +51,7 @@ export default function ScannerScreen() {
 
   const drawerWidth = screenWidth * 0.25;
   const menuProgress = useRef(new Animated.Value(0)).current;
+  const scanPulse = useRef(new Animated.Value(1)).current;
 
   // Prevents the camera from firing many navigations for one physical scan.
   const lockRef = useRef(false);
@@ -80,6 +81,12 @@ export default function ScannerScreen() {
   const goMenuLink = useCallback(
     (href: '/add' | '/products' | '/user' | '/leaderboard' | '/settings') => {
       setMenuOpen(false);
+      if (href === '/add') {
+        // Manual "add product" entry point now also goes through the
+        // Scan-with-AI flow instead of the old, all-fields-at-once form.
+        router.push({ pathname: '/add', params: { aiFocus: '1' } });
+        return;
+      }
       router.push(href);
     },
     [router]
@@ -190,6 +197,36 @@ export default function ScannerScreen() {
     holdingRef.current = false;
     setHoldingToScan(false);
   }, []);
+
+  // Soft pulse on the scan button while idle (not held).
+  useEffect(() => {
+    if (holdingToScan || !isFocused || !permission?.granted) {
+      scanPulse.stopAnimation();
+      scanPulse.setValue(holdingToScan ? 0.94 : 1);
+      return;
+    }
+
+    scanPulse.setValue(1);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanPulse, {
+          toValue: 1.1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scanPulse, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      scanPulse.setValue(1);
+    };
+  }, [holdingToScan, isFocused, permission?.granted, scanPulse]);
 
   if (!permission) {
     return (
@@ -383,26 +420,29 @@ export default function ScannerScreen() {
             </View>
 
             <View style={styles.scanButtonWrap}>
-              <Pressable
-                onPressIn={startHolding}
-                onPressOut={stopHolding}
-                accessibilityRole="button"
-                accessibilityLabel={t('scanner.holdA11y')}
-                style={({ pressed }) => [
-                  styles.scanButton,
-                  {
-                    backgroundColor: scanInk,
-                    borderColor: isDark ? 'rgba(15,17,21,0.35)' : 'rgba(255,255,255,0.85)',
-                  },
-                  (pressed || holdingToScan) && styles.scanButtonActive,
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="barcode-scan"
-                  size={36}
-                  color={scanOnInk}
-                />
-              </Pressable>
+              <Animated.View style={{ transform: [{ scale: scanPulse }] }}>
+                <Pressable
+                  onPressIn={startHolding}
+                  onPressOut={stopHolding}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('scanner.holdA11y')}
+                  style={[
+                    styles.scanButton,
+                    {
+                      backgroundColor: scanInk,
+                      borderColor: isDark
+                        ? 'rgba(15,17,21,0.35)'
+                        : 'rgba(255,255,255,0.85)',
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="barcode-scan"
+                    size={36}
+                    color={scanOnInk}
+                  />
+                </Pressable>
+              </Animated.View>
             </View>
           </View>
         </View>
@@ -484,7 +524,7 @@ export default function ScannerScreen() {
         <View style={styles.linksRow}>
           {authEnabled && user && (
             <Link
-              href="/add"
+              href={{ pathname: '/add', params: { aiFocus: '1' } }}
               style={[
                 styles.linkButton,
                 {
@@ -761,9 +801,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 8,
     elevation: 6,
-  },
-  scanButtonActive: {
-    transform: [{ scale: 0.94 }],
   },
   noCamera: {
     backgroundColor: '#1A1D22',

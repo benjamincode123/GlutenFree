@@ -14,6 +14,7 @@ import { I18nProvider, useI18n } from '../src/i18n/I18nContext';
 import { initDatabase } from '../src/db/database';
 import { hasAcceptedCurrentTerms } from '../src/legal/termsAcceptance';
 import { NotificationPrefsProvider } from '../src/notifications/NotificationPrefsContext';
+import { InboxAlertWatcher } from '../src/notifications/InboxAlertWatcher';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
 void SplashScreen.preventAutoHideAsync();
@@ -85,6 +86,7 @@ export default function RootLayout() {
             <AllergenPrefsProvider>
               <AuthProvider>
                 <NotificationPrefsProvider>
+                  <InboxAlertWatcher />
                   <RootNavigator />
                 </NotificationPrefsProvider>
               </AuthProvider>

@@ -1,6 +1,11 @@
 export type Locale = 'en' | 'nb';
 
 type TranslationKey =
+  | 'allergnom.introGreeting'
+  | 'allergnom.introExplain'
+  | 'allergnom.introCta'
+  | 'allergnom.introContinue'
+  | 'allergnom.introImageA11y'
   | 'nav.scanner'
   | 'nav.result'
   | 'nav.add'
@@ -11,6 +16,8 @@ type TranslationKey =
   | 'nav.leaderboard'
   | 'nav.notifications'
   | 'notifications.empty'
+  | 'notifications.localAlertOne'
+  | 'notifications.localAlertMany'
   | 'nav.signIn'
   | 'common.loading'
   | 'common.guest'
@@ -291,13 +298,14 @@ type TranslationKey =
   | 'terms.saveFailed'
   | 'terms.openInSettings'
   | 'products.searchLabel'
+  | 'products.searching'
+  | 'products.freeFromAll'
   | 'products.searchPlaceholder'
   | 'products.hint'
   | 'products.recentTitle'
   | 'products.results'
   | 'products.resultOne'
   | 'products.empty'
-  | 'products.barcodeUnknown'
   | 'products.searchFailed'
   | 'products.prevPage'
   | 'products.nextPage'
@@ -324,7 +332,6 @@ type TranslationKey =
   | 'result.allergensNone'
   | 'result.allergensFilterOff'
   | 'result.allergensNoMatch'
-  | 'result.allergenLimitHint'
   | 'result.backHome'
   | 'result.ingredients'
   | 'result.noIngredients'
@@ -359,7 +366,6 @@ type TranslationKey =
   | 'result.enterBarcode'
   | 'result.scanBarcode'
   | 'result.photoOptional'
-  | 'result.photoLocked'
   | 'result.addPhoto'
   | 'result.changePhoto'
   | 'result.removePhoto'
@@ -368,6 +374,8 @@ type TranslationKey =
   | 'result.photoSaved'
   | 'result.addPhotoHint'
   | 'result.signInToAddPhoto'
+  | 'result.productPhotoLabel'
+  | 'result.tapToAddPhoto'
   | 'result.submitBarcode'
   | 'result.reportPending'
   | 'result.reportSaved'
@@ -419,6 +427,7 @@ type TranslationKey =
   | 'add.ingredients'
   | 'add.ingredientsPlaceholder'
   | 'add.scanWithAi'
+  | 'add.takePhoto'
   | 'add.aiFocusTitle'
   | 'add.aiFocusLead'
   | 'add.aiFocusExampleCaption'
@@ -455,6 +464,18 @@ type TranslationKey =
   | 'add.allergenContains'
   | 'add.allergenMayContain'
   | 'add.allergenFree'
+  | 'add.aiFinishButton'
+  | 'add.aiResultHeading'
+  | 'add.aiResultNoneFound'
+  | 'add.aiEditPrompt'
+  | 'add.aiEditSectionTitle'
+  | 'add.aiEmptyTitle'
+  | 'add.aiEmptyBody'
+  | 'add.aiEmptyManualButton'
+  | 'add.allergenPickerContainsTitle'
+  | 'add.allergenPickerMayContainTitle'
+  | 'add.allergenPickerDone'
+  | 'add.allergenNoneSelected'
   | 'add.saving'
   | 'add.saveChanges'
   | 'add.saveNew'
@@ -480,6 +501,12 @@ type TranslationKey =
   | 'add.couldNotSave';
 
 const en: Record<TranslationKey, string> = {
+  'allergnom.introGreeting': '"Hey there, it\'s me!" 👋',
+  'allergnom.introExplain':
+    '"I\'m Allergnom! When we don\'t have a product yet, I\'ll take a quick look at the label and figure out the allergens for you!"',
+  'allergnom.introCta': '"Snap a photo of the label and I\'ll take it from there!"',
+  'allergnom.introContinue': "Let's go",
+  'allergnom.introImageA11y': "Allergnom, the app's gnome mascot",
   'nav.scanner': 'AltUten',
   'nav.result': 'Scan Result',
   'nav.add': 'Add Product',
@@ -490,6 +517,8 @@ const en: Record<TranslationKey, string> = {
   'nav.leaderboard': 'Leaderboard',
   'nav.notifications': 'Notifications',
   'notifications.empty': 'No notifications yet.',
+  'notifications.localAlertOne': 'You have a new notification.',
+  'notifications.localAlertMany': 'You have {count} new notifications.',
   'nav.signIn': 'Sign In',
   'common.loading': 'Loading...',
   'common.guest': 'Guest',
@@ -797,7 +826,8 @@ const en: Record<TranslationKey, string> = {
   'products.results': '{count} results',
   'products.resultOne': '1 result',
   'products.empty': 'No products matched.',
-  'products.barcodeUnknown': 'Barcode: unknown',
+  'products.freeFromAll': 'Free of all',
+  'products.searching': 'Allergnom is searching the shelves …',
   'products.searchFailed': 'Search failed.',
   'products.prevPage': 'Previous',
   'products.nextPage': 'Next',
@@ -827,8 +857,6 @@ const en: Record<TranslationKey, string> = {
     'You have no allergen filter on. If you want to see allergens, go to Settings.',
   'result.allergensNoMatch':
     'None of your selected allergens are listed for this product.',
-  'result.allergenLimitHint':
-    'To change which allergens you see, go to Settings.',
   'result.backHome': 'Back to AltUten',
   'result.ingredients': 'Ingredients',
   'result.noIngredients': 'No ingredients recorded.',
@@ -864,7 +892,6 @@ const en: Record<TranslationKey, string> = {
   'result.enterBarcode': 'Enter barcode digits',
   'result.scanBarcode': 'Scan barcode',
   'result.photoOptional': 'Product photo (optional)',
-  'result.photoLocked': 'This product already has a photo.',
   'result.addPhoto': 'Add photo',
   'result.changePhoto': 'Change photo',
   'result.removePhoto': 'Remove',
@@ -874,6 +901,8 @@ const en: Record<TranslationKey, string> = {
   'result.addPhotoHint':
     'This product is missing a photo. Add one so we can review it before we make it visible.',
   'result.signInToAddPhoto': 'Sign in to submit a photo for this product.',
+  'result.productPhotoLabel': 'Product photo',
+  'result.tapToAddPhoto': 'Tap to add a product photo',
   'result.submitBarcode': 'Submit barcode',
   'result.reportPending':
     'Thanks — suggestion recorded. It applies when reporters’ combined levels reach 100, or an admin approves it.',
@@ -883,13 +912,13 @@ const en: Record<TranslationKey, string> = {
   'result.editProduct': 'Edit this product',
   'result.notFound': "Oops, we didn't have this one",
   'result.notFoundAdmin':
-    'Add it in 1-2-3 with AI and get allergens and info right away.',
+    'Add it in 1-2-3 with Allergnom and get allergens and info right away.',
   'result.notFoundUser':
-    'Add it in 1-2-3 with AI and get allergens and info right away.',
+    'Add it in 1-2-3 with Allergnom and get allergens and info right away.',
   'result.notFoundGuest':
     'This product is not in the catalog yet. Sign in to add products.',
-  'result.addOrLink': 'Add product with AI',
-  'result.checkWithAi': 'Check with AI',
+  'result.addOrLink': 'Add product with Allergnom',
+  'result.checkWithAi': 'Ask Allergnom',
   'result.noResult': 'No result',
   'add.signInRequired': 'Sign in required',
   'add.signInRequiredBody':
@@ -933,10 +962,11 @@ const en: Record<TranslationKey, string> = {
   'add.ingredients': 'Ingredients / contents',
   'add.ingredientsPlaceholder':
     "List the ingredients and any 'produced in a facility that also handles wheat' notes.",
-  'add.scanWithAi': 'Scan with AI',
-  'add.aiFocusTitle': 'Get product info in 1-2-3',
+  'add.scanWithAi': 'Let Allergnom take a look',
+  'add.takePhoto': 'Take photo',
+  'add.aiFocusTitle': 'We need more info',
   'add.aiFocusLead':
-    'Photograph the label and AI fills allergens and product info right away.',
+    'Photograph the label and Allergnom fills in allergens and product info right away.',
   'add.aiFocusExampleCaption':
     'Follow the example above. The red boxes show what must be in the photo: producer, product name and ingredients.',
   'add.aiFocusAllergensReady': 'Allergens from your label',
@@ -949,12 +979,12 @@ const en: Record<TranslationKey, string> = {
     'Photo tip first: producer, product name and ingredients must be clear in one shot (max 30 cm away).',
   'add.scanWithAiPickTitle': 'Label photo',
   'add.scanWithAiPickBody':
-    'Photograph producer, product name and ingredients up close and in focus (max 30 cm, max 1 MB).',
-  'add.scanWithAiWorking': 'Reading label…',
+    'Photograph producer, product name and ingredients up close and in focus.',
+  'add.scanWithAiWorking': 'Allergnom is reading the label…',
   'add.scanWithAiResult': 'OCR text',
   'add.scanWithAiFailed':
     'Could not read text from the photo. Try a clearer close-up (max 30 cm) with producer, name and ingredients visible.',
-  'add.retakeAiPhoto': 'Retake AI photo',
+  'add.retakeAiPhoto': 'Retake photo',
   'add.discardAi': 'Discard without saving',
   'add.discardAiTitle': 'Discard product?',
   'add.discardAiBody':
@@ -984,6 +1014,19 @@ const en: Record<TranslationKey, string> = {
   'add.allergenContains': 'Contains',
   'add.allergenMayContain': 'Traces of',
   'add.allergenFree': 'Free',
+  'add.aiFinishButton': 'Done',
+  'add.aiResultHeading': '"Hey, here\'s what I found!"',
+  'add.aiResultNoneFound': 'None found',
+  'add.aiEditPrompt': 'Something missing? Tap to add',
+  'add.aiEditSectionTitle': 'Edit details',
+  'add.aiEmptyTitle': "We couldn't find anything",
+  'add.aiEmptyBody':
+    "Allergnom couldn't read this label. You can still help by adding the product yourself.",
+  'add.aiEmptyManualButton': 'Help us by adding the product manually',
+  'add.allergenPickerContainsTitle': 'Which allergens does it contain?',
+  'add.allergenPickerMayContainTitle': 'Which allergens may it contain?',
+  'add.allergenPickerDone': 'Done',
+  'add.allergenNoneSelected': 'None selected',
   'add.saving': 'Saving...',
   'add.saveChanges': 'Save changes',
   'add.saveNew': 'Save new product',
@@ -1012,6 +1055,12 @@ const en: Record<TranslationKey, string> = {
 };
 
 const nb: Record<TranslationKey, string> = {
+  'allergnom.introGreeting': '"Hei, det er meg!" 👋',
+  'allergnom.introExplain':
+    '"Jeg er Allergnomen! Når vi ikke har et produkt fra før, tar jeg en rask titt på etiketten og finner ut allergenene for deg!"',
+  'allergnom.introCta': '"Ta et bilde av etiketten, så tar jeg meg av resten!"',
+  'allergnom.introContinue': 'Sett i gang',
+  'allergnom.introImageA11y': 'Allergnomen, appens maskot',
   'nav.scanner': 'AltUten',
   'nav.result': 'Skanneresultat',
   'nav.add': 'Legg til produkt',
@@ -1022,6 +1071,8 @@ const nb: Record<TranslationKey, string> = {
   'nav.leaderboard': 'Ledertavle',
   'nav.notifications': 'Varsler',
   'notifications.empty': 'Ingen varsler ennå.',
+  'notifications.localAlertOne': 'Du har et nytt varsel.',
+  'notifications.localAlertMany': 'Du har {count} nye varsler.',
   'nav.signIn': 'Logg inn',
   'common.loading': 'Laster...',
   'common.guest': 'Gjest',
@@ -1329,7 +1380,8 @@ const nb: Record<TranslationKey, string> = {
   'products.results': '{count} resultater',
   'products.resultOne': '1 resultat',
   'products.empty': 'Ingen produkter matchet.',
-  'products.barcodeUnknown': 'Strekkode: ukjent',
+  'products.freeFromAll': 'UtenAlt',
+  'products.searching': 'Allergnomen leter i hyllene …',
   'products.searchFailed': 'Søk feilet.',
   'products.prevPage': 'Forrige',
   'products.nextPage': 'Neste',
@@ -1359,8 +1411,6 @@ const nb: Record<TranslationKey, string> = {
     'Du har ingen allergenfilter på. Hvis du vil se allergener, gå til Innstillinger.',
   'result.allergensNoMatch':
     'Ingen av dine valgte allergener er oppført for dette produktet.',
-  'result.allergenLimitHint':
-    'For å endre hvilke allergener du ser, gå til Innstillinger.',
   'result.backHome': 'Tilbake til AltUten',
   'result.ingredients': 'Ingredienser',
   'result.noIngredients': 'Ingen ingredienser registrert.',
@@ -1396,7 +1446,6 @@ const nb: Record<TranslationKey, string> = {
   'result.enterBarcode': 'Skriv inn strekkodesifre',
   'result.scanBarcode': 'Skann strekkode',
   'result.photoOptional': 'Produktbilde (valgfritt)',
-  'result.photoLocked': 'Dette produktet har allerede et bilde.',
   'result.addPhoto': 'Legg til bilde',
   'result.changePhoto': 'Bytt bilde',
   'result.removePhoto': 'Fjern',
@@ -1406,6 +1455,8 @@ const nb: Record<TranslationKey, string> = {
   'result.addPhotoHint':
     'Dette produktet mangler bilde. Legg til ett som vi kan se over før vi synliggjør det.',
   'result.signInToAddPhoto': 'Logg inn for å sende inn bilde til dette produktet.',
+  'result.productPhotoLabel': 'Produktbilde',
+  'result.tapToAddPhoto': 'Trykk for å legge til produktbilde',
   'result.submitBarcode': 'Send strekkode',
   'result.reportPending':
     'Takk — forslaget er lagret. Det brukes når rapportørers samlede nivå når 100, eller en admin godkjenner det.',
@@ -1415,13 +1466,13 @@ const nb: Record<TranslationKey, string> = {
   'result.editProduct': 'Rediger dette produktet',
   'result.notFound': 'Ops, vi hadde ikke denne',
   'result.notFoundAdmin':
-    'Legg til på 1-2-3 med AI og få allergener og info med en gang.',
+    'Legg til på 1-2-3 med Allergnom og få allergener og info med en gang.',
   'result.notFoundUser':
-    'Legg til på 1-2-3 med AI og få allergener og info med en gang.',
+    'Legg til på 1-2-3 med Allergnom og få allergener og info med en gang.',
   'result.notFoundGuest':
     'Dette produktet er ikke i katalogen ennå. Logg inn for å legge til produkter.',
-  'result.addOrLink': 'Legg til produkt med AI',
-  'result.checkWithAi': 'Sjekk med AI',
+  'result.addOrLink': 'Legg til produkt med Allergnom',
+  'result.checkWithAi': 'Spør Allergnom',
   'result.noResult': 'Ingen resultat',
   'add.signInRequired': 'Innlogging kreves',
   'add.signInRequiredBody':
@@ -1465,10 +1516,11 @@ const nb: Record<TranslationKey, string> = {
   'add.ingredients': 'Ingredienser / innhold',
   'add.ingredientsPlaceholder':
     'List opp ingrediensene og eventuelle merknader om «produsert i anlegg som også håndterer hvete».',
-  'add.scanWithAi': 'Scann med AI',
-  'add.aiFocusTitle': 'Få produktinfo på 1-2-3',
+  'add.scanWithAi': 'La Allergnom se',
+  'add.takePhoto': 'Ta bilde',
+  'add.aiFocusTitle': 'Vi trenger mer info',
   'add.aiFocusLead':
-    'Fotografer etiketten, så fyller AI inn allergener og produktinfo med en gang.',
+    'Fotografer etiketten, så fyller Allergnom inn allergener og produktinfo med en gang.',
   'add.aiFocusExampleCaption':
     'Følg eksempelet over. De røde boksene viser hva som må være med: produsent, produktnavn og ingredienser.',
   'add.aiFocusAllergensReady': 'Allergener fra etiketten',
@@ -1481,8 +1533,8 @@ const nb: Record<TranslationKey, string> = {
     'Først et tips: produsent, produktnavn og ingredienser må være tydelige på ett bilde (maks 30 cm unna).',
   'add.scanWithAiPickTitle': 'Bilde av etikett',
   'add.scanWithAiPickBody':
-    'Fotografer produsent, produktnavn og ingredienser nært og skarpt (maks 30 cm, maks 1 MB).',
-  'add.scanWithAiWorking': 'Leser etikett…',
+    'Fotografer produsent, produktnavn og ingredienser nært og skarpt.',
+  'add.scanWithAiWorking': 'Allergnom leser etiketten…',
   'add.scanWithAiResult': 'OCR-tekst',
   'add.scanWithAiFailed':
     'Kunne ikke lese tekst fra bildet. Prøv et klarere nærbilde (maks 30 cm) der produsent, navn og ingredienser synes.',
@@ -1516,6 +1568,19 @@ const nb: Record<TranslationKey, string> = {
   'add.allergenContains': 'Inneholder',
   'add.allergenMayContain': 'Spor av',
   'add.allergenFree': 'Fri',
+  'add.aiFinishButton': 'Ferdig',
+  'add.aiResultHeading': '"Hei, her er hva jeg fant!"',
+  'add.aiResultNoneFound': 'Ikke funnet',
+  'add.aiEditPrompt': 'Mangler noe? Trykk for å legge til',
+  'add.aiEditSectionTitle': 'Rediger detaljer',
+  'add.aiEmptyTitle': 'Vi fant ingenting',
+  'add.aiEmptyBody':
+    'Allergnom klarte ikke å lese etiketten. Du kan hjelpe oss ved å legge til produktet selv.',
+  'add.aiEmptyManualButton': 'Hjelp oss ved å legge til produktet manuelt',
+  'add.allergenPickerContainsTitle': 'Hvilke allergener inneholder det?',
+  'add.allergenPickerMayContainTitle': 'Hvilke allergener kan det inneholde?',
+  'add.allergenPickerDone': 'Ferdig',
+  'add.allergenNoneSelected': 'Ingen valgt',
   'add.saving': 'Lagrer...',
   'add.saveChanges': 'Lagre endringer',
   'add.saveNew': 'Lagre nytt produkt',

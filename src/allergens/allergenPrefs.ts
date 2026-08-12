@@ -104,6 +104,21 @@ export function productHasAllergenData(
   );
 }
 
+/**
+ * True only when the product actually declares its allergens and none of them
+ * are "contains" or "may contain". A product with no declaration at all is
+ * unknown, not free-from, and must never be labelled as such.
+ */
+export function isFreeFromAllAllergens(
+  allergens: ProductAllergens | null | undefined
+): boolean {
+  if (!productHasAllergenData(allergens)) return false;
+  return (
+    (allergens!.inneholder?.length ?? 0) === 0 &&
+    (allergens!.kanInneholde?.length ?? 0) === 0
+  );
+}
+
 function glutenKindFromRating(rating: GlutenRating): AllergenHitKind {
   if (rating === GlutenRating.GlutenContent) return 'contains';
   if (rating === GlutenRating.GlutenTrace) return 'mayContain';

@@ -192,7 +192,7 @@ export default function SettingsScreen() {
       >
         <View style={styles.sectionHeader}>
           <MaterialCommunityIcons
-            name="food-allergy"
+            name="allergy"
             size={22}
             color={colors.primary}
           />

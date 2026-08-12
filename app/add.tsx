@@ -4,9 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Animated,
-  Dimensions,
-  Easing,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -31,10 +28,15 @@ import {
   ratingFromGlutenStatus,
   statusesToAllergens,
 } from '../src/allergens/allergenForm';
+import { CONTAINS_CHIP, TRACES_CHIP } from '../src/allergens/allergenChipColors';
+import { AllergenPickerModal } from '../src/components/AllergenPickerModal';
+import { AllergnomIntro } from '../src/components/AllergnomIntro';
+import { AllergnomResultGreeting } from '../src/components/AllergnomResultGreeting';
 import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
 import { ErrorText } from '../src/components/ErrorText';
 import { GlutenBadge } from '../src/components/GlutenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
+import { InfoCard, InfoChipRow, InfoRow } from '../src/components/ProductInfoCard';
 import { ScanWithAiTutorialModal } from '../src/components/ScanWithAiTutorialModal';
 import { getProductRepository } from '../src/data/repository';
 import { cachePendingProduct } from '../src/data/pendingProductCache';
@@ -75,10 +77,59 @@ function parseCatalog(value: string | undefined): ProductCatalog | null {
   return null;
 }
 
-const CONTAINS_CHIP = { color: '#B3261E', backgroundColor: '#FBE5E4' };
-const TRACES_CHIP = { color: '#B26A00', backgroundColor: '#FCF0DA' };
-const AI_FOCUS_EXAMPLE_IMAGE = require('../assets/scan-with-ai-tutorial.png');
-const AI_FOCUS_EXAMPLE_HEIGHT = Math.round(Dimensions.get('window').height * 0.55);
+
+type ChipAccent = { color: string; backgroundColor: string };
+
+function AllergenDropdownRow({
+  label,
+  accent,
+  selected,
+  emptyLabel,
+  borderColor,
+  surfaceColor,
+  secondaryColor,
+  onPress,
+}: {
+  label: string;
+  accent: ChipAccent;
+  selected: string[];
+  emptyLabel: string;
+  borderColor: string;
+  surfaceColor: string;
+  secondaryColor: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.dropdownRow, { borderColor, backgroundColor: surfaceColor }]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <View style={styles.dropdownRowText}>
+        <Text style={[styles.dropdownRowLabel, { color: secondaryColor }]}>{label}</Text>
+        {selected.length > 0 ? (
+          <View style={styles.dropdownChipWrap}>
+            {selected.map((name) => (
+              <View
+                key={name}
+                style={[
+                  styles.dropdownChip,
+                  { borderColor: accent.color, backgroundColor: accent.backgroundColor },
+                ]}
+              >
+                <Text style={[styles.dropdownChipText, { color: accent.color }]}>{name}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={[styles.dropdownRowEmpty, { color: secondaryColor }]}>{emptyLabel}</Text>
+        )}
+      </View>
+      <MaterialCommunityIcons name="chevron-down" size={22} color={secondaryColor} />
+    </Pressable>
+  );
+}
 
 export default function AddProductScreen() {
   const router = useRouter();
@@ -132,8 +183,12 @@ export default function AddProductScreen() {
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrTutorialVisible, setOcrTutorialVisible] = useState(false);
   const [ocrDone, setOcrDone] = useState(false);
+  const [capturedPreviewUri, setCapturedPreviewUri] = useState<string | null>(null);
+  const [aiEditMode, setAiEditMode] = useState(false);
+  const [allergenPickerKind, setAllergenPickerKind] = useState<
+    Extract<AllergenStatus, 'contains' | 'mayContain'> | null
+  >(null);
   const scrollRef = useRef<ScrollView>(null);
-  const scrollHintBounce = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!formError) return;
@@ -143,35 +198,15 @@ export default function AddProductScreen() {
     });
   }, [formError]);
 
-  // After AI check: nudge toward save — no back / swipe-away without submitting.
-  const lockExitAfterAi = aiFocus && ocrDone;
-
+  // The AI-focus flow no longer force-blocks exit — with a single Ferdig
+  // button (no separate Discard), the header back button doubles as "leave
+  // without saving". While editing the AI result, back just steps out of
+  // edit mode instead of leaving the screen.
   useReliableBackHeader({
     title: aiFocus ? t('result.checkWithAi') : t('nav.add'),
-    lockExit: lockExitAfterAi,
+    lockExit: false,
+    onBack: aiFocus && ocrDone && aiEditMode ? () => setAiEditMode(false) : undefined,
   });
-
-  useEffect(() => {
-    if (!aiFocus || !ocrDone) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scrollHintBounce, {
-          toValue: 1,
-          duration: 700,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(scrollHintBounce, {
-          toValue: 0,
-          duration: 700,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [aiFocus, ocrDone, scrollHintBounce]);
 
   // Prefill when editing an existing catalog product.
   useEffect(() => {
@@ -317,8 +352,34 @@ export default function AddProductScreen() {
       return;
     }
     if (!name.trim()) {
+      // Ferdig with nothing worth submitting: quietly discard instead of
+      // demanding a name for a scan that didn't find one.
+      if (aiFocus) {
+        goHome(router);
+        return;
+      }
       setFormError(t('add.missingNameBody'));
       return;
+    }
+    if (aiFocus) {
+      const hasContainsAllergen = ALLERGEN_OPTIONS.some(
+        (a) => (allergenStatuses[a] ?? 'free') === 'contains'
+      );
+      const hasTraceAllergen = ALLERGEN_OPTIONS.some(
+        (a) => (allergenStatuses[a] ?? 'free') === 'mayContain'
+      );
+      // Allergens, traces, producer, and ingredients ALL missing: there is
+      // nothing worth submitting even though a name was typed — discard
+      // instead of saving a near-empty product.
+      if (
+        !hasContainsAllergen &&
+        !hasTraceAllergen &&
+        !produsent.trim() &&
+        !ingredients.trim()
+      ) {
+        goHome(router);
+        return;
+      }
     }
     const effectiveRating =
       rating ?? ratingFromGlutenStatus(allergenStatuses.Gluten ?? 'free');
@@ -401,6 +462,7 @@ export default function AddProductScreen() {
       t('add.scanWithAiPickBody')
     );
     if (!picked) return;
+    setCapturedPreviewUri(picked.dataUri);
 
     const token = getAuthToken();
     if (!token) {
@@ -455,6 +517,8 @@ export default function AddProductScreen() {
       }
 
       setOcrDone(true);
+      // Fresh scan (or retake) always starts back in the clean read-only view.
+      setAiEditMode(false);
       // In AI-focus flow, reuse the label photo as the product submission image.
       if (aiFocus) {
         setSubmissionImageBase64(picked.dataUri);
@@ -563,6 +627,13 @@ export default function AddProductScreen() {
   const tracesSelected = ALLERGEN_OPTIONS.filter(
     (a) => (allergenStatuses[a] ?? 'free') === 'mayContain'
   );
+  const aiFoundAnything = Boolean(
+    produsent.trim() ||
+      name.trim() ||
+      ingredients.trim() ||
+      containsSelected.length > 0 ||
+      tracesSelected.length > 0
+  );
 
   async function startScanWithAi() {
     setOcrError(null);
@@ -607,70 +678,29 @@ export default function AddProductScreen() {
           }}
         />
 
+        <AllergenPickerModal
+          visible={allergenPickerKind != null}
+          kind={allergenPickerKind ?? 'contains'}
+          statuses={allergenStatuses}
+          onToggle={(allergen) => {
+            const current = allergenStatuses[allergen] ?? 'free';
+            const kind = allergenPickerKind ?? 'contains';
+            const next: AllergenStatus = current === kind ? 'free' : kind;
+            setAllergenStatuses((prev) => ({ ...prev, [allergen]: next }));
+            if (allergen === 'Gluten') {
+              setRating(ratingFromGlutenStatus(next));
+            }
+          }}
+          onClose={() => setAllergenPickerKind(null)}
+        />
+
         {aiFocus && !ocrDone ? (
-          <View style={styles.aiFocusHero}>
-            <Text style={[styles.heading, styles.aiFocusHeading, { color: colors.text }]}>
-              {t('add.aiFocusTitle')}
-            </Text>
-            <View style={styles.aiFocusExampleWrap}>
-              <Image
-                source={AI_FOCUS_EXAMPLE_IMAGE}
-                style={styles.aiFocusExampleImage}
-                resizeMode="cover"
-                accessibilityLabel={t('add.scanWithAiTutorialImageA11y')}
-              />
-              <Text
-                style={[styles.aiFocusExampleCaption, { color: colors.textSecondary }]}
-              >
-                {t('add.aiFocusExampleCaption')}
-              </Text>
-            </View>
-            {barcode.trim() ? (
-              <View
-                style={[
-                  styles.barcodeChip,
-                  styles.aiFocusBarcodeChip,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="barcode"
-                  size={18}
-                  color={colors.textSecondary}
-                />
-                <Text style={[styles.barcodeChipText, { color: colors.text }]}>
-                  {t('add.aiFocusBarcode')}: {barcode.trim()}
-                </Text>
-              </View>
-            ) : null}
-            <Pressable
-              style={[
-                styles.aiFocusScanButton,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: ocrScanning ? 0.7 : 1,
-                },
-              ]}
-              disabled={ocrScanning}
-              onPress={() => void startScanWithAi()}
-            >
-              {ocrScanning ? (
-                <ActivityIndicator color={colors.onPrimary} />
-              ) : (
-                <MaterialCommunityIcons
-                  name="sparkles"
-                  size={24}
-                  color={colors.onPrimary}
-                />
-              )}
-              <Text style={[styles.aiFocusScanLabel, { color: colors.onPrimary }]}>
-                {ocrScanning ? t('add.scanWithAiWorking') : t('add.scanWithAi')}
-              </Text>
-            </Pressable>
-            {ocrError ? (
-              <ErrorText style={styles.ocrError}>{ocrError}</ErrorText>
-            ) : null}
-          </View>
+          <AllergnomIntro
+            onScan={() => void startScanWithAi()}
+            scanning={ocrScanning}
+            error={ocrError}
+            capturedPreviewUri={capturedPreviewUri}
+          />
         ) : null}
 
         {!aiFocus ? (
@@ -949,113 +979,204 @@ export default function AddProductScreen() {
           <>
         {aiFocus ? (
           <View style={styles.aiFocusAfterScan}>
-            {barcode.trim() ? (
-              <View
-                style={[
-                  styles.barcodeChip,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="barcode"
-                  size={18}
-                  color={colors.textSecondary}
-                />
-                <Text style={[styles.barcodeChipText, { color: colors.text }]}>
-                  {t('add.aiFocusBarcode')}: {barcode.trim()}
+            {!aiEditMode ? (
+              aiFoundAnything ? (
+                <>
+                  <AllergnomResultGreeting
+                    text={t('add.aiResultHeading')}
+                    bubbleBackground={colors.surface}
+                    bubbleBorder={colors.border}
+                    textColor={colors.text}
+                    imageLabel={t('allergnom.introImageA11y')}
+                  />
+                  <InfoCard style={styles.readOnlyCard}>
+                    <InfoRow
+                      label={t('add.produsent')}
+                      value={produsent}
+                      emptyLabel={t('add.aiResultNoneFound')}
+                    />
+                    <InfoRow
+                      label={t('add.productName')}
+                      value={name}
+                      emptyLabel={t('add.aiResultNoneFound')}
+                    />
+                    <InfoRow
+                      label={t('add.ingredients')}
+                      value={ingredients}
+                      emptyLabel={t('add.aiResultNoneFound')}
+                      numberOfLines={3}
+                    />
+                    <InfoChipRow
+                      label={t('add.allergenContains')}
+                      names={containsSelected}
+                      accent={CONTAINS_CHIP}
+                      emptyLabel={t('add.aiResultNoneFound')}
+                    />
+                    <InfoChipRow
+                      label={t('add.allergenMayContain')}
+                      names={tracesSelected}
+                      accent={TRACES_CHIP}
+                      emptyLabel={t('add.aiResultNoneFound')}
+                    />
+                  </InfoCard>
+                  <Pressable
+                    style={[styles.missingButton, { borderColor: colors.primary }]}
+                    onPress={() => setAiEditMode(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('add.aiEditPrompt')}
+                  >
+                    <MaterialCommunityIcons
+                      name="pencil-plus-outline"
+                      size={18}
+                      color={colors.primary}
+                    />
+                    <Text style={[styles.missingButtonText, { color: colors.primary }]}>
+                      {t('add.aiEditPrompt')}
+                    </Text>
+                  </Pressable>
+                </>
+              ) : (
+                <View
+                  style={[
+                    styles.emptyStateWrap,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="text-search"
+                    size={28}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+                    {t('add.aiEmptyTitle')}
+                  </Text>
+                  <Text style={[styles.emptyStateBody, { color: colors.textSecondary }]}>
+                    {t('add.aiEmptyBody')}
+                  </Text>
+                  <Pressable
+                    style={[styles.emptyStateButton, { backgroundColor: colors.primary }]}
+                    onPress={() => setAiEditMode(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('add.aiEmptyManualButton')}
+                  >
+                    <Text
+                      style={[styles.emptyStateButtonText, { color: colors.onPrimary }]}
+                    >
+                      {t('add.aiEmptyManualButton')}
+                    </Text>
+                  </Pressable>
+                </View>
+              )
+            ) : (
+              <>
+                <Text style={[styles.aiFocusReadyTitle, { color: colors.text }]}>
+                  {t('add.aiEditSectionTitle')}
                 </Text>
-              </View>
-            ) : null}
-            <Text style={[styles.aiFocusReadyTitle, { color: colors.text }]}>
-              {t('add.aiFocusAllergensReady')}
-            </Text>
-            {(containsSelected.length > 0 || tracesSelected.length > 0) && (
-              <View style={styles.aiFocusSummary}>
-                {containsSelected.map((name) => (
-                  <View
-                    key={`sum-c-${name}`}
-                    style={[
-                      styles.aiFocusSummaryChip,
-                      {
-                        backgroundColor: CONTAINS_CHIP.backgroundColor,
-                        borderColor: CONTAINS_CHIP.color,
-                      },
-                    ]}
-                  >
-                    <Text
+
+                <Text style={[styles.label, { color: colors.textSecondary }]}>
+                  {t('add.barcode')}
+                </Text>
+                {barcodeLocked ? (
+                  <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                    {barcode.trim()} · {t('add.barcodeFromScan')}
+                  </Text>
+                ) : (
+                  <View style={styles.barcodeInputRow}>
+                    <AppTextInput
+                      style={[...inputStyle, styles.barcodeInput]}
+                      placeholder={t('add.barcodePlaceholder')}
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="number-pad"
+                      value={barcode}
+                      onChangeText={setBarcode}
+                    />
+                    <Pressable
                       style={[
-                        styles.aiFocusSummaryChipText,
-                        { color: CONTAINS_CHIP.color },
+                        styles.barcodeScanButton,
+                        {
+                          borderColor: colors.primary,
+                          backgroundColor: colors.surface,
+                        },
                       ]}
+                      onPress={() => setScanModalVisible(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('result.scanBarcode')}
                     >
-                      {name}
-                    </Text>
+                      <MaterialCommunityIcons
+                        name="camera"
+                        size={22}
+                        color={colors.primary}
+                      />
+                    </Pressable>
                   </View>
-                ))}
-                {tracesSelected.map((name) => (
-                  <View
-                    key={`sum-m-${name}`}
-                    style={[
-                      styles.aiFocusSummaryChip,
-                      {
-                        backgroundColor: TRACES_CHIP.backgroundColor,
-                        borderColor: TRACES_CHIP.color,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.aiFocusSummaryChipText,
-                        { color: TRACES_CHIP.color },
-                      ]}
-                    >
-                      {name}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+                )}
+
+                <Text style={[styles.label, { color: colors.textSecondary }]}>
+                  {t('add.produsent')}
+                </Text>
+                <AppTextInput
+                  style={inputStyle}
+                  placeholder={t('add.produsentPlaceholder')}
+                  placeholderTextColor={colors.textSecondary}
+                  value={produsent}
+                  onChangeText={setProdusent}
+                />
+
+                <Text style={[styles.label, { color: colors.textSecondary }]}>
+                  {t('add.productName')}
+                </Text>
+                <AppTextInput
+                  style={inputStyle}
+                  placeholder={t('add.namePlaceholder')}
+                  placeholderTextColor={colors.textSecondary}
+                  value={name}
+                  onChangeText={setName}
+                />
+
+                <Text style={[styles.label, { color: colors.textSecondary }]}>
+                  {t('add.ingredients')}
+                </Text>
+                <AppTextInput
+                  style={[...inputStyle, styles.multiline]}
+                  placeholder={t('add.ingredientsPlaceholder')}
+                  placeholderTextColor={colors.textSecondary}
+                  value={ingredients}
+                  onChangeText={setIngredients}
+                  multiline
+                  textAlignVertical="top"
+                />
+
+                <Text style={[styles.label, { color: colors.textSecondary }]}>
+                  {t('add.allergens')}
+                </Text>
+                <AllergenDropdownRow
+                  label={t('add.allergenContains')}
+                  accent={CONTAINS_CHIP}
+                  selected={containsSelected}
+                  emptyLabel={t('add.allergenNoneSelected')}
+                  borderColor={colors.border}
+                  surfaceColor={colors.surface}
+                  secondaryColor={colors.textSecondary}
+                  onPress={() => setAllergenPickerKind('contains')}
+                />
+                <View style={styles.dropdownRowGap} />
+                <AllergenDropdownRow
+                  label={t('add.allergenMayContain')}
+                  accent={TRACES_CHIP}
+                  selected={tracesSelected}
+                  emptyLabel={t('add.allergenNoneSelected')}
+                  borderColor={colors.border}
+                  surfaceColor={colors.surface}
+                  secondaryColor={colors.textSecondary}
+                  onPress={() => setAllergenPickerKind('mayContain')}
+                />
+              </>
             )}
+
             {ocrError ? (
               <ErrorText style={styles.ocrError}>{ocrError}</ErrorText>
             ) : null}
           </View>
-        ) : null}
-
-        {aiFocus && ocrDone ? (
-          <Animated.View
-            style={[
-              styles.aiFocusScrollHint,
-              {
-                borderColor: colors.primary,
-                backgroundColor: colors.surface,
-                transform: [
-                  {
-                    translateY: scrollHintBounce.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, 6],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="chevron-down"
-              size={20}
-              color={colors.primary}
-            />
-            <Text
-              style={[styles.aiFocusScrollHintText, { color: colors.primary }]}
-              numberOfLines={1}
-            >
-              {t('add.aiFocusScrollHint')}
-            </Text>
-            <MaterialCommunityIcons
-              name="chevron-down"
-              size={20}
-              color={colors.primary}
-            />
-          </Animated.View>
         ) : null}
 
         {!aiFocus && !isEditing && (
@@ -1103,11 +1224,13 @@ export default function AddProductScreen() {
           </>
         ) : null}
 
+        {!aiFocus ? (
+          <>
         <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {aiFocus ? t('add.aiFocusMoreAllergens') : t('add.allergens')}
+          {t('add.allergens')}
         </Text>
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          {aiFocus ? t('add.aiFocusAllergensHint') : t('add.allergensHint')}
+          {t('add.allergensHint')}
         </Text>
 
         <Text style={[styles.allergenGroupLabel, { color: CONTAINS_CHIP.color }]}>
@@ -1197,131 +1320,81 @@ export default function AddProductScreen() {
             );
           })}
         </View>
-
-        {aiFocus ? (
-          <>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              {t('add.produsent')}
-            </Text>
-            <AppTextInput
-              style={inputStyle}
-              placeholder={t('add.produsentPlaceholder')}
-              placeholderTextColor={colors.textSecondary}
-              value={produsent}
-              onChangeText={setProdusent}
-            />
-
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              {t('add.productName')}
-            </Text>
-            <AppTextInput
-              style={inputStyle}
-              placeholder={t('add.namePlaceholder')}
-              placeholderTextColor={colors.textSecondary}
-              value={name}
-              onChangeText={setName}
-            />
           </>
         ) : null}
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {!isAdmin ? t('add.photoRequired') : t('add.photoOptional')}
-        </Text>
-        <View
-          style={[
-            styles.photoSlot,
-            {
-              backgroundColor: colors.surface,
-              borderColor: photoMissingError ? colors.danger : colors.border,
-              borderWidth: photoMissingError ? 2 : 1,
-            },
-          ]}
-        >
-          {submissionImageBase64 ? (
-            <Image
-              source={{ uri: submissionImageBase64 }}
-              style={styles.submissionPhotoPreview}
-              resizeMode="contain"
-            />
-          ) : (
-            <Text
+        {!aiFocus || aiEditMode ? (
+          <>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              {!isAdmin ? t('add.photoRequired') : t('add.photoOptional')}
+            </Text>
+            <View
               style={[
-                styles.linkEmpty,
-                styles.photoSlotEmpty,
-                { color: colors.textSecondary },
+                styles.photoSlot,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: photoMissingError ? colors.danger : colors.border,
+                  borderWidth: photoMissingError ? 2 : 1,
+                },
               ]}
             >
-              {!isAdmin ? t('add.photoRequiredBody') : t('add.noPhoto')}
-            </Text>
-          )}
-        </View>
-        <View style={styles.linkPhotoRow}>
-          <Pressable
-            style={[
-              styles.linkPhotoButton,
-              {
-                borderColor: photoMissingError ? colors.danger : colors.primary,
-              },
-            ]}
-            onPress={() => {
-              void askPickProductImage().then((uri) => {
-                if (uri) {
-                  setSubmissionImageBase64(uri);
-                  setPhotoMissingError(false);
-                  setFormError(null);
-                }
-              });
-            }}
-          >
-            <Text
-              style={[
-                styles.linkPhotoButtonText,
-                { color: photoMissingError ? colors.danger : colors.primary },
-              ]}
-            >
-              {submissionImageBase64 ? t('add.changePhoto') : t('add.addPhoto')}
-            </Text>
-          </Pressable>
-          {submissionImageBase64 && (
-            <Pressable
-              style={styles.linkPhotoClear}
-              onPress={() => setSubmissionImageBase64(null)}
-            >
-              <Text style={[styles.linkPhotoClearText, { color: colors.danger }]}>
-                {t('add.removePhoto')}
-              </Text>
-            </Pressable>
-          )}
-        </View>
-
-        {ocrDone ? (
-          <Pressable
-            style={[
-              styles.retakeAiButton,
-              {
-                borderColor: colors.primary,
-                backgroundColor: colors.surface,
-                opacity: ocrScanning ? 0.6 : 1,
-              },
-            ]}
-            disabled={ocrScanning}
-            onPress={() => void handleScanWithAi()}
-            accessibilityRole="button"
-            accessibilityLabel={t('add.retakeAiPhoto')}
-          >
-            {ocrScanning ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (
-              <MaterialCommunityIcons
-                name="camera-retake-outline"
-                size={20}
-                color={colors.primary}
-              />
-            )}
-            <Text style={[styles.retakeAiButtonText, { color: colors.primary }]}>
-              {ocrScanning ? t('add.scanWithAiWorking') : t('add.retakeAiPhoto')}
-            </Text>
-          </Pressable>
+              {submissionImageBase64 ? (
+                <Image
+                  source={{ uri: submissionImageBase64 }}
+                  style={styles.submissionPhotoPreview}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Text
+                  style={[
+                    styles.linkEmpty,
+                    styles.photoSlotEmpty,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {!isAdmin ? t('add.photoRequiredBody') : t('add.noPhoto')}
+                </Text>
+              )}
+            </View>
+            <View style={styles.linkPhotoRow}>
+              <Pressable
+                style={[
+                  styles.linkPhotoButton,
+                  {
+                    borderColor: photoMissingError ? colors.danger : colors.primary,
+                  },
+                ]}
+                onPress={() => {
+                  void askPickProductImage().then((uri) => {
+                    if (uri) {
+                      setSubmissionImageBase64(uri);
+                      setPhotoMissingError(false);
+                      setFormError(null);
+                    }
+                  });
+                }}
+              >
+                <Text
+                  style={[
+                    styles.linkPhotoButtonText,
+                    { color: photoMissingError ? colors.danger : colors.primary },
+                  ]}
+                >
+                  {submissionImageBase64 ? t('add.changePhoto') : t('add.addPhoto')}
+                </Text>
+              </Pressable>
+              {submissionImageBase64 && (
+                <Pressable
+                  style={styles.linkPhotoClear}
+                  onPress={() => setSubmissionImageBase64(null)}
+                >
+                  <Text style={[styles.linkPhotoClearText, { color: colors.danger }]}>
+                    {t('add.removePhoto')}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </>
         ) : null}
 
         <Pressable
@@ -1336,15 +1409,17 @@ export default function AddProductScreen() {
           <Text style={[styles.saveButtonText, { color: colors.onPrimary }]}>
             {saving
               ? t('add.saving')
-              : isEditing
-                ? t('add.saveChanges')
-                : isAdmin
-                  ? t('add.saveNew')
-                  : t('add.submitReview')}
+              : aiFocus
+                ? t('add.aiFinishButton')
+                : isEditing
+                  ? t('add.saveChanges')
+                  : isAdmin
+                    ? t('add.saveNew')
+                    : t('add.submitReview')}
           </Text>
         </Pressable>
 
-        {ocrDone ? (
+        {ocrDone && !aiFocus ? (
           <Pressable
             style={[
               styles.discardAiButton,
@@ -1403,6 +1478,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    flexGrow: 1,
     padding: 16,
     paddingBottom: 48,
   },
@@ -1410,60 +1486,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     marginBottom: 16,
-  },
-  aiFocusHero: {
-    paddingTop: 0,
-    paddingBottom: 4,
-  },
-  aiFocusHeading: {
-    marginBottom: 6,
-  },
-  aiFocusExampleWrap: {
-    width: '100%',
-    alignSelf: 'center',
-    marginBottom: 8,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  aiFocusExampleImage: {
-    width: '100%',
-    height: AI_FOCUS_EXAMPLE_HEIGHT,
-  },
-  aiFocusExampleCaption: {
-    fontSize: 13,
-    lineHeight: 18,
-    paddingTop: 6,
-  },
-  aiFocusBarcodeChip: {
-    marginBottom: 10,
-  },
-  barcodeChip: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 20,
-  },
-  barcodeChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  aiFocusScanButton: {
-    minHeight: 58,
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  aiFocusScanLabel: {
-    fontSize: 18,
-    fontWeight: '800',
   },
   aiFocusAfterScan: {
     marginBottom: 8,
@@ -1473,38 +1495,95 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 12,
   },
-  aiFocusSummary: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 14,
+  readOnlyCard: {
+    // Above the greeting row so Allergnom can pop up from behind it.
+    zIndex: 1,
   },
-  aiFocusSummaryChip: {
-    borderWidth: 1.5,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  aiFocusSummaryChipText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  aiFocusScrollHint: {
-    marginTop: 4,
-    marginBottom: 4,
-    minHeight: 40,
+  missingButton: {
+    minHeight: 48,
     borderWidth: 1.5,
     borderRadius: 12,
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 8,
+    marginBottom: 8,
   },
-  aiFocusScrollHintText: {
-    fontSize: 14,
+  missingButtonText: {
+    fontSize: 15,
     fontWeight: '700',
-    flexShrink: 1,
+  },
+  emptyStateWrap: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 20,
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  emptyStateTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emptyStateBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  emptyStateButton: {
+    marginTop: 4,
+    minHeight: 48,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyStateButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  dropdownRow: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dropdownRowGap: {
+    height: 10,
+  },
+  dropdownRowText: {
+    flex: 1,
+    gap: 6,
+  },
+  dropdownRowLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  dropdownRowEmpty: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  dropdownChipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  dropdownChip: {
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  dropdownChipText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   formError: {
     marginTop: 12,
@@ -1695,21 +1774,6 @@ const styles = StyleSheet.create({
   linkPhotoClearText: {
     fontWeight: '600',
     fontSize: 14,
-  },
-  retakeAiButton: {
-    marginTop: 12,
-    minHeight: 48,
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  retakeAiButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
   },
   discardAiButton: {
     marginTop: 12,

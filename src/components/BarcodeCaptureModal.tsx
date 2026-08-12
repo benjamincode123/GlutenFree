@@ -5,6 +5,7 @@ import {
 } from 'expo-camera';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Modal,
   Platform,
   Pressable,
@@ -37,6 +38,7 @@ export function BarcodeCaptureModal({
   const [cameraReady, setCameraReady] = useState(false);
   const lockRef = useRef(false);
   const holdingRef = useRef(false);
+  const scanPulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!visible) {
@@ -81,6 +83,36 @@ export function BarcodeCaptureModal({
     setHolding(false);
   }, []);
 
+  // Soft pulse on the scan button while idle (not held).
+  useEffect(() => {
+    if (!visible || holding || !permission?.granted) {
+      scanPulse.stopAnimation();
+      scanPulse.setValue(holding ? 0.94 : 1);
+      return;
+    }
+
+    scanPulse.setValue(1);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanPulse, {
+          toValue: 1.1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scanPulse, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      scanPulse.setValue(1);
+    };
+  }, [visible, holding, permission?.granted, scanPulse]);
+
   return (
     <Modal
       visible={visible}
@@ -103,26 +135,27 @@ export function BarcodeCaptureModal({
                 {holding ? t('scanner.scanning') : t('scanner.holdToScan')}
               </Text>
               <View style={[styles.scanButtonWrap, { bottom: insets.bottom + 28 }]}>
-                <Pressable
-                  onPressIn={startHold}
-                  onPressOut={stopHold}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('scanner.holdA11y')}
-                  style={({ pressed }) => [
-                    styles.scanButton,
-                    {
-                      backgroundColor: colors.primary,
-                      borderColor: colors.onPrimary,
-                    },
-                    (pressed || holding) && styles.scanButtonActive,
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="barcode-scan"
-                    size={36}
-                    color={colors.onPrimary}
-                  />
-                </Pressable>
+                <Animated.View style={{ transform: [{ scale: scanPulse }] }}>
+                  <Pressable
+                    onPressIn={startHold}
+                    onPressOut={stopHold}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('scanner.holdA11y')}
+                    style={[
+                      styles.scanButton,
+                      {
+                        backgroundColor: colors.primary,
+                        borderColor: colors.onPrimary,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name="barcode-scan"
+                      size={36}
+                      color={colors.onPrimary}
+                    />
+                  </Pressable>
+                </Animated.View>
               </View>
             </View>
           </View>
@@ -199,9 +232,6 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  scanButtonActive: {
-    transform: [{ scale: 0.94 }],
   },
   permissionBox: {
     flex: 1,

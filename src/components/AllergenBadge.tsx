@@ -68,6 +68,34 @@ export function AllergenBadge({
   );
 }
 
+/**
+ * Monochrome badge for products that declare no allergens at all. Kept black
+ * and white so it reads as "nothing to warn about" rather than competing with
+ * the coloured warning badges.
+ */
+export function FreeFromAllBadge({ size = 'small' }: { size?: 'small' | 'large' }) {
+  const { t } = useI18n();
+  const isLarge = size === 'large';
+  return (
+    <View
+      style={[
+        styles.badge,
+        styles.freeAllBadge,
+        isLarge && styles.badgeLarge,
+      ]}
+      accessibilityRole="text"
+      accessibilityLabel={t('products.freeFromAll')}
+    >
+      <View style={[styles.dot, styles.freeAllDot]} />
+      <Text
+        style={[styles.label, styles.freeAllLabel, isLarge && styles.labelLarge]}
+      >
+        {t('products.freeFromAll')}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
@@ -96,5 +124,17 @@ const styles = StyleSheet.create({
   },
   labelLarge: {
     fontSize: 16,
+  },
+  freeAllBadge: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#111111',
+  },
+  freeAllDot: {
+    backgroundColor: '#111111',
+  },
+  freeAllLabel: {
+    color: '#111111',
+    fontWeight: '800',
   },
 });

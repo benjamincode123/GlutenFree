@@ -1,8 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
@@ -11,10 +10,14 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../src/auth/AuthContext';
-import { findUserAllergenHits } from '../src/allergens/allergenPrefs';
+import {
+  findAllergenWarnings,
+  isFreeFromAllAllergens,
+} from '../src/allergens/allergenPrefs';
 import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { AddToListModal } from '../src/components/AddToListModal';
-import { AllergenBadge } from '../src/components/AllergenBadge';
+import { AllergenBadge, FreeFromAllBadge } from '../src/components/AllergenBadge';
+import { AllergnomShelfLoader } from '../src/components/AllergnomShelfLoader';
 import { CountrySelector } from '../src/components/CountrySelector';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ErrorText } from '../src/components/ErrorText';
@@ -68,6 +71,8 @@ export default function ProductsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [listProduct, setListProduct] = useState<FavoriteProductRef | null>(null);
+  /** Guards against out-of-order search responses overwriting newer results. */
+  const searchSeq = useRef(0);
 
   const queryReady = query.trim().length >= MIN_PRODUCT_SEARCH_CHARS;
 
@@ -80,6 +85,13 @@ export default function ProductsScreen() {
   const runSearch = useCallback(
     async (term: string, pageNumber: number) => {
       const trimmed = term.trim();
+      // Debouncing only cancels searches that have not started yet. Once a
+      // request is in flight nothing stops it, so a slow earlier response can
+      // land after a newer one and show results for a term you already
+      // replaced. Only the most recent request is allowed to write state.
+      const seq = ++searchSeq.current;
+      const isStale = () => seq !== searchSeq.current;
+
       if (trimmed.length < MIN_PRODUCT_SEARCH_CHARS) {
         setProducts([]);
         setHasMore(false);
@@ -97,6 +109,7 @@ export default function ProductsScreen() {
           PRODUCT_SEARCH_PAGE_SIZE,
           { page: pageNumber, countries }
         );
+        if (isStale()) return;
         setProducts(result.items);
         if (result.totalCount != null) {
           setTotalCount(result.totalCount);
@@ -104,15 +117,17 @@ export default function ProductsScreen() {
         setHasMore(result.hasMore);
         if (pageNumber === 1) {
           const next = await pushProductSearchHistory(trimmed);
+          if (isStale()) return;
           setRecentSearches(next);
         }
       } catch (err) {
+        if (isStale()) return;
         setProducts([]);
         setHasMore(false);
         setTotalCount(0);
         setError(userFacingError(err, t, 'search_failed'));
       } finally {
-        setLoading(false);
+        if (!isStale()) setLoading(false);
       }
     },
     [t, countries]
@@ -228,7 +243,7 @@ export default function ProductsScreen() {
 
       {loading && (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <AllergnomShelfLoader label={t('products.searching')} />
         </View>
       )}
 
@@ -351,11 +366,16 @@ export default function ProductsScreen() {
           renderItem={({ item }) => {
             const favorited = isFavorite(item);
             const showActions = !!user && canFavoriteProduct(item);
-            const allergenHits = findUserAllergenHits(
+            // Warnings only — the green "Uten X" tags just add noise in a list.
+            const allergenHits = findAllergenWarnings(
               warnAllergens,
               item.allergens,
               item.glutenRating
             );
+            // Only when the product actually declares itself free of everything;
+            // a missing declaration stays blank rather than claiming it is safe.
+            const freeFromAll =
+              allergenHits.length === 0 && isFreeFromAllAllergens(item.allergens);
             return (
               <Pressable
                 style={[styles.row, { backgroundColor: colors.background }]}
@@ -384,25 +404,19 @@ export default function ProductsScreen() {
                       {item.productionCountry.trim()}
                     </Text>
                   ) : null}
-                  {allergenHits.length > 0 ? (
-                    <View style={styles.badgeWrap}>
-                      {allergenHits.map((hit) => (
-                        <AllergenBadge
-                          key={`${hit.kind}-${hit.selected}`}
-                          name={hit.selected}
-                          kind={hit.kind}
-                          size="small"
-                        />
-                      ))}
-                    </View>
-                  ) : null}
                 </View>
                 <View style={styles.rowLine}>
-                  <Text style={[styles.barcode, { color: colors.textSecondary }]}>
-                    {isUnknownBarcode(item.barcode)
-                      ? t('products.barcodeUnknown')
-                      : item.barcode}
-                  </Text>
+                  <View style={styles.badgeWrap}>
+                    {freeFromAll ? <FreeFromAllBadge size="small" /> : null}
+                    {allergenHits.map((hit) => (
+                      <AllergenBadge
+                        key={`${hit.kind}-${hit.selected}`}
+                        name={hit.selected}
+                        kind={hit.kind}
+                        size="small"
+                      />
+                    ))}
+                  </View>
                   {showActions ? (
                     <View style={styles.actionsCol}>
                       <Pressable
@@ -542,6 +556,7 @@ const styles = StyleSheet.create({
   rowLine: {
     flexDirection: 'row',
     alignItems: 'center',
+    // Allergen tags on the left, action icons pinned right.
     justifyContent: 'space-between',
     gap: 12,
   },
@@ -557,6 +572,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   badgeWrap: {
+    // Takes the leftover width so the action icons stay right-aligned
+    // even when a product has no allergen tags.
+    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
@@ -578,10 +596,6 @@ const styles = StyleSheet.create({
     maxWidth: '75%',
     fontSize: 16,
     fontWeight: '700',
-  },
-  barcode: {
-    flex: 1,
-    fontSize: 13,
   },
   pager: {
     marginTop: 8,

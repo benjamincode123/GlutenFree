@@ -66,6 +66,16 @@ export interface ProductRepository {
   ): Promise<Product>;
 
   /**
+   * Submit a photo for an existing product. Returns pending=true when it went
+   * to the admin image-validation queue rather than straight onto the product.
+   */
+  submitProductImage(
+    catalog: ProductCatalog,
+    id: number,
+    imageBase64: string
+  ): Promise<{ pending: boolean; product?: Product }>;
+
+  /**
    * Report that product catalog info is wrong (requires auth on API).
    */
   reportWrongInfo(
