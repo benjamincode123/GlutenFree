@@ -78,8 +78,7 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
-      ],
-      "expo-font"
+      ]
     ],
     "extra": {
       "eas": {
