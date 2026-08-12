@@ -1,19 +1,36 @@
-import { Image as ExpoImage } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Modal, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  Modal,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AllergnomShelfLoader } from './AllergnomShelfLoader';
 import { useI18n } from '../i18n/I18nContext';
 
-const CHECKING_GIF = require('../../assets/allergnom/allergnom-checking.gif');
+// Frame-by-frame instead of an animated GIF: React Native's Image does not
+// animate GIFs on Android, and pulling in a native image library crashed the
+// iOS build. Plain PNG frames animate identically on both platforms.
+const WALK_FRAMES = [
+  require('../../assets/allergnom/walk1.png'),
+  require('../../assets/allergnom/walk2.png'),
+  require('../../assets/allergnom/walk3.png'),
+  require('../../assets/allergnom/walk4.png'),
+  require('../../assets/allergnom/walk5.png'),
+  require('../../assets/allergnom/walk6.png'),
+];
+const WALK_FRAME_MS = 110;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const WALKER_SIZE = 90;
 
-// allergnom-checking.gif is 24 frames @ 100ms (2.4s loop, verified via ffprobe):
-// frames 1-7 (0-700ms) walk, frames 8-18 (700-1800ms) stop and bend down to
-// check the ground with the magnifier, frames 19-24 (1800-2400ms) walk again.
-// Move him only during the walking frames so he visibly stops for the check.
+// The original gif ran 24 frames @ 100ms: walk, stop and inspect, walk again.
+// The pause is kept here so he still stops mid-screen to check the label.
 /** Past this the read counts as slow and the shelf hunt takes over. */
 const SLOW_SCAN_MS = 6000;
 const WALK_1_MS = 700;
@@ -36,6 +53,17 @@ export function AllergnomScanningOverlay({ visible, imageUri }: AllergnomScannin
   const insets = useSafeAreaInsets();
   const walkX = useRef(new Animated.Value(START_X)).current;
   const [takingLong, setTakingLong] = useState(false);
+  const [frame, setFrame] = useState(0);
+
+  // Cycle the walk frames while the overlay is up.
+  useEffect(() => {
+    if (!visible) return;
+    const handle = setInterval(
+      () => setFrame((f) => (f + 1) % WALK_FRAMES.length),
+      WALK_FRAME_MS
+    );
+    return () => clearInterval(handle);
+  }, [visible]);
 
   // A slow read gets the shelf-hunt animation so the wait feels less stuck.
   useEffect(() => {
@@ -83,7 +111,11 @@ export function AllergnomScanningOverlay({ visible, imageUri }: AllergnomScannin
   return (
     <Modal visible={visible} animationType="fade" transparent statusBarTranslucent>
       <View style={styles.root}>
-        <ExpoImage source={{ uri: imageUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <Image
+          source={{ uri: imageUri }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
         <View style={styles.dim} />
 
         {takingLong ? (
@@ -100,7 +132,11 @@ export function AllergnomScanningOverlay({ visible, imageUri }: AllergnomScannin
               },
             ]}
           >
-            <ExpoImage source={CHECKING_GIF} style={styles.walkerImage} contentFit="contain" />
+              <Image
+              source={WALK_FRAMES[frame]}
+              style={styles.walkerImage}
+              resizeMode="contain"
+            />
           </Animated.View>
         )}
 
