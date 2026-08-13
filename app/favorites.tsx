@@ -66,16 +66,15 @@ export default function FavoritesScreen() {
         setError(null);
         try {
           const repo = getProductRepository();
-          const loaded = await Promise.all(
-            refs.map(async (ref) => {
-              try {
-                const product = await repo.getById(ref.catalog, ref.id);
-                return { ref, product };
-              } catch {
-                return { ref, product: null };
-              }
-            })
+          // Lean summaries (no ingredients/images) — enough for the list cards.
+          const summaries = await repo.getSummaries(refs);
+          const byKey = new Map(
+            summaries.map((p) => [`${p.catalog ?? ''}:${p.id}`, p] as const)
           );
+          const loaded = refs.map((ref) => ({
+            ref,
+            product: byKey.get(`${ref.catalog}:${ref.id}`) ?? null,
+          }));
           if (!cancelled) {
             setRows(loaded);
           }
@@ -201,6 +200,7 @@ export default function FavoritesScreen() {
               product={item.product}
               fallbackTitle={`${item.ref.catalog} #${item.ref.id}`}
               onPress={() => openProduct(item)}
+              allergenNav={{ catalog: item.ref.catalog, id: item.ref.id }}
             />
           )}
         />

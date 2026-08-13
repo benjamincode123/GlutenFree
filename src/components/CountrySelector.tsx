@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
+  orderProductCountries,
   PRODUCT_COUNTRIES,
   ProductCountry,
 } from '../country/productCountries';
@@ -21,17 +22,25 @@ type Props = {
   selected: ProductCountry[];
   onToggle: (country: ProductCountry) => void;
   compact?: boolean;
+  /** GPS / preferred country shown first in the chip row. */
+  preferredFirst?: ProductCountry | null;
 };
 
 /** Multi-select NO / SE / DK / DE chips (used on the products search page). */
-export function CountrySelector({ selected, onToggle, compact = false }: Props) {
+export function CountrySelector({
+  selected,
+  onToggle,
+  compact = false,
+  preferredFirst = null,
+}: Props) {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const ordered = orderProductCountries(PRODUCT_COUNTRIES, preferredFirst);
 
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <View style={styles.row}>
-        {PRODUCT_COUNTRIES.map((code) => {
+        {ordered.map((code) => {
           const active = selected.includes(code);
           return (
             <Pressable

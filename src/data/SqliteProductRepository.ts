@@ -56,6 +56,17 @@ export class SqliteProductRepository implements ProductRepository {
     return row ? mapRow(row) : null;
   }
 
+  async getSummaries(
+    refs: ReadonlyArray<{ catalog: ProductCatalog; id: number }>
+  ): Promise<Product[]> {
+    const products: Product[] = [];
+    for (const ref of refs) {
+      const product = await this.getById(ref.catalog, ref.id);
+      if (product) products.push(product);
+    }
+    return products;
+  }
+
   async searchByName(
     query: string,
     limit = 40,
@@ -65,34 +76,12 @@ export class SqliteProductRepository implements ProductRepository {
     const page = Math.max(1, options?.page ?? 1);
     const pageSize = Math.max(1, limit);
     if (q.length < MIN_PRODUCT_SEARCH_CHARS) {
-      return { items: [], page, pageSize, hasMore: false, totalCount: 0 };
+      return { items: [], page, pageSize, hasMore: false, totalCount: null };
     }
     const db = getDatabase();
     const offset = (page - 1) * pageSize;
     const like = `%${q}%`;
-    const countRow = options?.unknownOnly
-      ? await db.getFirstAsync<{ c: number }>(
-          `SELECT COUNT(*) AS c FROM products
-           WHERE (
-               name LIKE ? COLLATE NOCASE
-               OR IFNULL(produsent, '') LIKE ? COLLATE NOCASE
-               OR barcode LIKE ? COLLATE NOCASE
-             )
-             AND lower(barcode) = 'unknown';`,
-          like,
-          like,
-          like
-        )
-      : await db.getFirstAsync<{ c: number }>(
-          `SELECT COUNT(*) AS c FROM products
-           WHERE name LIKE ? COLLATE NOCASE
-              OR IFNULL(produsent, '') LIKE ? COLLATE NOCASE
-              OR barcode LIKE ? COLLATE NOCASE;`,
-          like,
-          like,
-          like
-        );
-    const totalCount = countRow?.c ?? 0;
+    // Fetch pageSize+1 to set hasMore without COUNT(*).
     const rows = options?.unknownOnly
       ? await db.getAllAsync<ProductRow>(
           `SELECT * FROM products
@@ -107,7 +96,7 @@ export class SqliteProductRepository implements ProductRepository {
           like,
           like,
           like,
-          pageSize,
+          pageSize + 1,
           offset
         )
       : await db.getAllAsync<ProductRow>(
@@ -120,15 +109,17 @@ export class SqliteProductRepository implements ProductRepository {
           like,
           like,
           like,
-          pageSize,
+          pageSize + 1,
           offset
         );
+    const hasMore = rows.length > pageSize;
+    const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
     return {
-      items: rows.map(mapRow),
+      items: pageRows.map(mapRow),
       page,
       pageSize,
-      hasMore: offset + rows.length < totalCount,
-      totalCount,
+      hasMore,
+      totalCount: null,
     };
   }
 

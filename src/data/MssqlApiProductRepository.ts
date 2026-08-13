@@ -187,6 +187,27 @@ export class MssqlApiProductRepository implements ProductRepository {
     return mapProduct(data);
   }
 
+  async getSummaries(
+    refs: ReadonlyArray<{ catalog: ProductCatalog; id: number }>
+  ): Promise<Product[]> {
+    if (refs.length === 0) return [];
+    const items = refs
+      .filter((r) => r.id > 0 && !!r.catalog)
+      .map((r) => `${r.catalog}:${r.id}`)
+      .join(',');
+    if (!items) return [];
+    const response = await this.request(
+      this.productsUrl(`/summaries?items=${encodeURIComponent(items)}`),
+      { headers: this.requireAuthHeaders() },
+      'lookup_failed'
+    );
+    if (!response.ok) {
+      await this.throwHttpError(response, 'lookup_failed');
+    }
+    const data = (await response.json()) as ProductApiResponse[];
+    return Array.isArray(data) ? data.map(mapProduct) : [];
+  }
+
   async searchByName(
     query: string,
     limit = 40,
@@ -196,7 +217,7 @@ export class MssqlApiProductRepository implements ProductRepository {
     const page = Math.max(1, options?.page ?? 1);
     const pageSize = Math.max(1, limit);
     if (q.length < MIN_PRODUCT_SEARCH_CHARS) {
-      return { items: [], page, pageSize, hasMore: false, totalCount: 0 };
+      return { items: [], page, pageSize, hasMore: false, totalCount: null };
     }
     const countries = resolveCountries(options);
     const params = new URLSearchParams({

@@ -38,6 +38,7 @@ import { GlutenBadge } from '../src/components/GlutenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { InfoCard, InfoChipRow, InfoRow } from '../src/components/ProductInfoCard';
 import { ScanWithAiTutorialModal } from '../src/components/ScanWithAiTutorialModal';
+import { getPreferredProductCountries } from '../src/country/detectProductCountry';
 import { getProductRepository } from '../src/data/repository';
 import { cachePendingProduct } from '../src/data/pendingProductCache';
 import { MIN_PRODUCT_SEARCH_CHARS } from '../src/data/searchLimits';
@@ -223,7 +224,8 @@ export default function AddProductScreen() {
           existing = await repo.getById(editCatalog, editId);
         }
         if (!existing && initialBarcode) {
-          existing = await repo.getByBarcode(initialBarcode);
+          const countries = await getPreferredProductCountries();
+          existing = await repo.getByBarcode(initialBarcode, { countries });
         }
         if (cancelled) return;
         if (existing) {
@@ -399,7 +401,11 @@ export default function AddProductScreen() {
       const barcodeValue = barcode.trim() || (allowEmptyBarcode ? 'unknown' : '');
       // Block new adds when the barcode already exists in the catalog.
       if (!isEditing && barcodeValue && barcodeValue.toLowerCase() !== 'unknown') {
-        const existing = await getProductRepository().getByBarcode(barcodeValue);
+        const countries = await getPreferredProductCountries();
+        const existing = await getProductRepository().getByBarcode(
+          barcodeValue,
+          { countries }
+        );
         if (existing) {
           setFormError(t('errors.barcodeTaken'));
           return;

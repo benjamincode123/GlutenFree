@@ -300,6 +300,11 @@ type TranslationKey =
   | 'products.searchLabel'
   | 'products.searching'
   | 'products.freeFromAll'
+  | 'products.allergensTitle'
+  | 'products.seeAllAllergens'
+  | 'products.seeAllAllergensCount'
+  | 'products.moreAllergens'
+  | 'products.allergensSectionEmpty'
   | 'products.searchPlaceholder'
   | 'products.hint'
   | 'products.recentTitle'
@@ -310,7 +315,10 @@ type TranslationKey =
   | 'products.prevPage'
   | 'products.nextPage'
   | 'products.pageLabel'
+  | 'products.pageOnly'
   | 'products.resultsProgress'
+  | 'products.resultsShown'
+  | 'products.morePages'
   | 'result.barcode'
   | 'result.scannedBarcode'
   | 'result.lookingUp'
@@ -827,12 +835,20 @@ const en: Record<TranslationKey, string> = {
   'products.resultOne': '1 result',
   'products.empty': 'No products matched.',
   'products.freeFromAll': 'Free of all',
+  'products.allergensTitle': 'Allergens',
+  'products.seeAllAllergens': 'See all allergens',
+  'products.seeAllAllergensCount': 'See all (+{count})',
+  'products.moreAllergens': '+{count} more',
+  'products.allergensSectionEmpty': 'None listed',
   'products.searching': 'Allergnom is searching the shelves …',
   'products.searchFailed': 'Search failed.',
   'products.prevPage': 'Previous',
   'products.nextPage': 'Next',
   'products.pageLabel': 'Page {page} / {totalPages}',
+  'products.pageOnly': 'Page {page}',
   'products.resultsProgress': '{shown} / {total}',
+  'products.resultsShown': '{count} results',
+  'products.morePages': 'More pages',
   'result.barcode': 'Barcode',
   'result.scannedBarcode': 'Scanned barcode',
   'result.lookingUp': 'Looking up product...',
@@ -1381,12 +1397,20 @@ const nb: Record<TranslationKey, string> = {
   'products.resultOne': '1 resultat',
   'products.empty': 'Ingen produkter matchet.',
   'products.freeFromAll': 'UtenAlt',
+  'products.allergensTitle': 'Allergener',
+  'products.seeAllAllergens': 'Se alle allergener',
+  'products.seeAllAllergensCount': 'Se alle (+{count})',
+  'products.moreAllergens': '+{count} til',
+  'products.allergensSectionEmpty': 'Ingen oppgitt',
   'products.searching': 'Allergnomen leter i hyllene …',
   'products.searchFailed': 'Søk feilet.',
   'products.prevPage': 'Forrige',
   'products.nextPage': 'Neste',
   'products.pageLabel': 'Side {page} / {totalPages}',
+  'products.pageOnly': 'Side {page}',
   'products.resultsProgress': '{shown} / {total}',
+  'products.resultsShown': '{count} treff',
+  'products.morePages': 'Flere sider',
   'result.barcode': 'Strekkode',
   'result.scannedBarcode': 'Skannet strekkode',
   'result.lookingUp': 'Slår opp produkt...',

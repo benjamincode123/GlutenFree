@@ -70,16 +70,16 @@ export default function ListDetailScreen() {
       const detail = await listsApi.fetchList(token, listId);
       setList(detail);
       const repo = getProductRepository();
-      const loaded = await Promise.all(
-        detail.products.map(async (ref) => {
-          try {
-            const product = await repo.getById(ref.catalog, ref.id);
-            return { catalog: ref.catalog, id: ref.id, product };
-          } catch {
-            return { catalog: ref.catalog, id: ref.id, product: null };
-          }
-        })
+      // Lean summaries for list cards; full product loads on open.
+      const summaries = await repo.getSummaries(detail.products);
+      const byKey = new Map(
+        summaries.map((p) => [`${p.catalog ?? ''}:${p.id}`, p] as const)
       );
+      const loaded = detail.products.map((ref) => ({
+        catalog: ref.catalog,
+        id: ref.id,
+        product: byKey.get(`${ref.catalog}:${ref.id}`) ?? null,
+      }));
       setRows(loaded);
     } catch (err) {
       setError(userFacingError(err, t, 'generic'));
@@ -213,6 +213,7 @@ export default function ListDetailScreen() {
                 },
               });
             }}
+            allergenNav={{ catalog: item.catalog, id: item.id }}
             trailing={
               <ProductCardActions>
                 <ProductCardIconButton

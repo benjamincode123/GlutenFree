@@ -38,6 +38,14 @@ export interface ProductRepository {
   /** Returns a product by catalog table + id (needed when barcode is unknown). */
   getById(catalog: ProductCatalog, id: number): Promise<Product | null>;
 
+  /**
+   * Lean batch lookup for list screens (name/produsent/allergens only).
+   * Missing refs are omitted from the result.
+   */
+  getSummaries(
+    refs: ReadonlyArray<{ catalog: ProductCatalog; id: number }>
+  ): Promise<Product[]>;
+
   /** Search products by name (case-insensitive contains), paginated. */
   searchByName(
     query: string,

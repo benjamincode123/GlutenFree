@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '../theme/ThemeContext';
+import {
+  ALLERGNOM_LOADER_DELAY_MS,
+  useAllergnomLoaderDelay,
+} from './useAllergnomLoaderDelay';
 
 const SHELF = require('../../assets/allergnom/shelf.png');
 
@@ -59,12 +63,19 @@ const CROSSFADE_MS = 130;
 interface AllergnomShelfLoaderProps {
   /** Optional caption shown under the shelf. */
   label?: string;
+  /** Delay before the animation mounts. Default keeps fast loads feeling instant. */
+  delayMs?: number;
 }
 
 /** Playful loading animation: Allergnom digs through a bookshelf for answers. */
-export function AllergnomShelfLoader({ label }: AllergnomShelfLoaderProps) {
+export function AllergnomShelfLoader({
+  label,
+  delayMs = ALLERGNOM_LOADER_DELAY_MS,
+}: AllergnomShelfLoaderProps) {
+  const ready = useAllergnomLoaderDelay(true, delayMs);
   const { colors } = useTheme();
   const [stepIndex, setStepIndex] = useState(0);
+  const appear = useRef(new Animated.Value(0)).current;
   const slideX = useRef(new Animated.Value(SEQUENCE[0].x)).current;
   const spin = useRef(new Animated.Value(0)).current;
   const stripes = useRef(new Animated.Value(0)).current;
@@ -74,8 +85,22 @@ export function AllergnomShelfLoader({ label }: AllergnomShelfLoaderProps) {
     FRAMES.map((_, index) => new Animated.Value(index === SEQUENCE[0].frame ? 1 : 0))
   ).current;
 
+  useEffect(() => {
+    if (!ready) {
+      appear.setValue(0);
+      return;
+    }
+    Animated.timing(appear, {
+      toValue: 1,
+      duration: 200,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+  }, [ready, appear]);
+
   // A permanent gentle bob keeps him alive between pose changes.
   useEffect(() => {
+    if (!ready) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(bob, {
@@ -94,9 +119,13 @@ export function AllergnomShelfLoader({ label }: AllergnomShelfLoaderProps) {
     );
     loop.start();
     return () => loop.stop();
-  }, [bob]);
+  }, [ready, bob]);
 
   useEffect(() => {
+    if (!ready) {
+      setStepIndex(0);
+      return;
+    }
     const step = SEQUENCE[stepIndex];
 
     Animated.timing(slideX, {
@@ -152,10 +181,12 @@ export function AllergnomShelfLoader({ label }: AllergnomShelfLoaderProps) {
       step.duration
     );
     return () => clearTimeout(handle);
-  }, [stepIndex, slideX, spin, stripes, frameOpacity]);
+  }, [ready, stepIndex, slideX, spin, stripes, frameOpacity]);
+
+  if (!ready) return null;
 
   return (
-    <View style={styles.root}>
+    <Animated.View style={[styles.root, { opacity: appear }]}>
       <View style={styles.stage}>
         <Image source={SHELF} style={styles.shelf} resizeMode="contain" />
 
@@ -233,7 +264,7 @@ export function AllergnomShelfLoader({ label }: AllergnomShelfLoaderProps) {
       {label ? (
         <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 

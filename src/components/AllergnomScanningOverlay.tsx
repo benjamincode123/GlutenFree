@@ -11,8 +11,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AllergnomShelfLoader } from './AllergnomShelfLoader';
 import { useI18n } from '../i18n/I18nContext';
+import {
+  ALLERGNOM_LOADER_DELAY_MS,
+  useAllergnomLoaderDelay,
+} from './useAllergnomLoaderDelay';
 
 // Frame-by-frame instead of an animated GIF: React Native's Image does not
 // animate GIFs on Android, and pulling in a native image library crashed the
@@ -24,7 +27,7 @@ const WALK_FRAMES = [
   require('../../assets/allergnom/walk1.png'),
   require('../../assets/allergnom/walk2.png'),
 ];
-/** The two bend-down / magnifying-glass poses that were missing in TestFlight. */
+/** The two bend-down / magnifying-glass poses. */
 const INSPECT_FRAMES = [
   require('../../assets/allergnom/inspect1.png'),
   require('../../assets/allergnom/inspect2.png'),
@@ -35,8 +38,6 @@ const INSPECT_FRAME_MS = 350;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const WALKER_SIZE = 90;
 
-/** Past this the read counts as slow and the shelf hunt takes over. */
-const SLOW_SCAN_MS = 6000;
 const WALK_1_MS = 700;
 const PAUSE_MS = 1100;
 const WALK_2_MS = 600;
@@ -51,43 +52,39 @@ type WalkPhase = 'walk1' | 'inspect' | 'walk2';
 interface AllergnomScanningOverlayProps {
   visible: boolean;
   imageUri: string | null;
+  /** Delay before the overlay appears. Default keeps fast scans feeling instant. */
+  delayMs?: number;
 }
 
 /** Full-screen "checking your photo" overlay: the label fills the screen, Allergnom walks over it. */
-export function AllergnomScanningOverlay({ visible, imageUri }: AllergnomScanningOverlayProps) {
+export function AllergnomScanningOverlay({
+  visible,
+  imageUri,
+  delayMs = ALLERGNOM_LOADER_DELAY_MS,
+}: AllergnomScanningOverlayProps) {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const walkX = useRef(new Animated.Value(START_X)).current;
-  const [takingLong, setTakingLong] = useState(false);
   const [phase, setPhase] = useState<WalkPhase>('walk1');
   const [frame, setFrame] = useState(0);
+  const show = useAllergnomLoaderDelay(visible && Boolean(imageUri), delayMs);
 
   const activeFrames = phase === 'inspect' ? INSPECT_FRAMES : WALK_FRAMES;
   const frameMs = phase === 'inspect' ? INSPECT_FRAME_MS : WALK_FRAME_MS;
 
   // Cycle the active pose set for the current phase.
   useEffect(() => {
-    if (!visible) return;
+    if (!show) return;
     setFrame(0);
     const handle = setInterval(
       () => setFrame((f) => (f + 1) % activeFrames.length),
       frameMs
     );
     return () => clearInterval(handle);
-  }, [visible, phase, activeFrames.length, frameMs]);
-
-  // A slow read gets the shelf-hunt animation so the wait feels less stuck.
-  useEffect(() => {
-    if (!visible) {
-      setTakingLong(false);
-      return;
-    }
-    const handle = setTimeout(() => setTakingLong(true), SLOW_SCAN_MS);
-    return () => clearTimeout(handle);
-  }, [visible]);
+  }, [show, phase, activeFrames.length, frameMs]);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!show) return;
     walkX.setValue(START_X);
     setPhase('walk1');
 
@@ -132,12 +129,12 @@ export function AllergnomScanningOverlay({ visible, imageUri }: AllergnomScannin
       if (loopTimer) clearTimeout(loopTimer);
       walkX.stopAnimation();
     };
-  }, [visible, walkX]);
+  }, [show, walkX]);
 
   if (!imageUri) return null;
 
   return (
-    <Modal visible={visible} animationType="fade" transparent statusBarTranslucent>
+    <Modal visible={show} animationType="fade" transparent statusBarTranslucent>
       <View style={styles.root}>
         <Image
           source={{ uri: imageUri }}
@@ -146,27 +143,21 @@ export function AllergnomScanningOverlay({ visible, imageUri }: AllergnomScannin
         />
         <View style={styles.dim} />
 
-        {takingLong ? (
-          <View style={styles.slowWrap}>
-            <AllergnomShelfLoader />
-          </View>
-        ) : (
-          <Animated.View
-            style={[
-              styles.walker,
-              {
-                bottom: Math.max(insets.bottom, 24) + 90,
-                transform: [{ translateX: walkX }],
-              },
-            ]}
-          >
-            <Image
-              source={activeFrames[frame % activeFrames.length]}
-              style={styles.walkerImage}
-              resizeMode="contain"
-            />
-          </Animated.View>
-        )}
+        <Animated.View
+          style={[
+            styles.walker,
+            {
+              bottom: Math.max(insets.bottom, 24) + 90,
+              transform: [{ translateX: walkX }],
+            },
+          ]}
+        >
+          <Image
+            source={activeFrames[frame % activeFrames.length]}
+            style={styles.walkerImage}
+            resizeMode="contain"
+          />
+        </Animated.View>
 
         <View style={[styles.captionWrap, { bottom: Math.max(insets.bottom, 24) + 20 }]}>
           <Text style={styles.captionText}>{t('add.scanWithAiWorking')}</Text>
@@ -184,11 +175,6 @@ const styles = StyleSheet.create({
   dim: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.25)',
-  },
-  slowWrap: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   walker: {
     position: 'absolute',

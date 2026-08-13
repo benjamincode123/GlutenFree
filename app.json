@@ -20,6 +20,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan grocery barcodes and photograph products for review.",
         "NSPhotoLibraryUsageDescription": "This app lets you attach a product photo when reporting a barcode.",
+        "NSLocationWhenInUseUsageDescription": "AltUten uses your location to search the product catalog for your country first.",
         "UIBackgroundModes": [
           "remote-notification"
         ]
@@ -39,7 +40,9 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -59,6 +62,12 @@
         {
           "photosPermission": "This app lets you attach a product photo when reporting a barcode.",
           "cameraPermission": "This app uses the camera to photograph products for barcode reports."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "AltUten uses your location to search the product catalog for your country first."
         }
       ],
       [

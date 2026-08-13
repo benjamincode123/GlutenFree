@@ -1,13 +1,14 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import type { ComponentProps, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
-  findAllergenWarnings,
   isFreeFromAllAllergens,
+  productHasAllergenData,
 } from '../allergens/allergenPrefs';
-import { useAllergenPrefs } from '../allergens/AllergenPrefsContext';
-import type { Product, ProductAllergens } from '../db/types';
+import type { Product, ProductAllergens, ProductCatalog } from '../db/types';
+import { useI18n } from '../i18n/I18nContext';
 import { useTheme } from '../theme/ThemeContext';
 import { AllergenBadge, FreeFromAllBadge } from './AllergenBadge';
 
@@ -18,6 +19,31 @@ export type ProductListCardData = Pick<
   allergens?: ProductAllergens | null;
 };
 
+type AllergenChip = {
+  name: string;
+  kind: 'contains' | 'mayContain';
+};
+
+/** Show this many chips when the list fits; above that, show fewer + "see all". */
+const ALLERGEN_CHIP_LIMIT = 3;
+const ALLERGEN_CHIP_PREVIEW = 2;
+
+function buildAllergenChips(
+  allergens: ProductAllergens | null | undefined
+): AllergenChip[] {
+  if (!productHasAllergenData(allergens)) return [];
+  const chips: AllergenChip[] = [];
+  for (const name of allergens!.inneholder ?? []) {
+    const trimmed = name?.trim();
+    if (trimmed) chips.push({ name: trimmed, kind: 'contains' });
+  }
+  for (const name of allergens!.kanInneholde ?? []) {
+    const trimmed = name?.trim();
+    if (trimmed) chips.push({ name: trimmed, kind: 'mayContain' });
+  }
+  return chips;
+}
+
 interface ProductListCardProps {
   product: ProductListCardData | null;
   /** Shown when product name is missing (e.g. catalog #id). */
@@ -25,32 +51,49 @@ interface ProductListCardProps {
   onPress: () => void;
   /** Optional trailing control (favorite / remove / list actions). */
   trailing?: ReactNode;
+  /** When set, truncated allergen rows can open the full allergen screen. */
+  allergenNav?: { catalog: ProductCatalog; id: number } | null;
 }
 
 /**
  * Shared product row used by search results, favorites, and shopping lists.
- * Warnings only — green "Uten X" tags stay off the list to reduce noise.
+ * Allergen chips are capped; "See all" opens the full declaration screen.
  */
 export function ProductListCard({
   product,
   fallbackTitle,
   onPress,
   trailing,
+  allergenNav = null,
 }: ProductListCardProps) {
+  const router = useRouter();
+  const { t, tf } = useI18n();
   const { colors } = useTheme();
-  const { selected: warnAllergens } = useAllergenPrefs();
 
-  const allergenHits = product
-    ? findAllergenWarnings(
-        warnAllergens,
-        product.allergens,
-        product.glutenRating
-      )
-    : [];
+  const chips = buildAllergenChips(product?.allergens);
   const freeFromAll =
     !!product &&
-    allergenHits.length === 0 &&
-    isFreeFromAllAllergens(product.allergens);
+    chips.length === 0 &&
+    (!productHasAllergenData(product.allergens) ||
+      isFreeFromAllAllergens(product.allergens));
+
+  const needsTruncate = chips.length > ALLERGEN_CHIP_LIMIT;
+  const visibleChips = needsTruncate
+    ? chips.slice(0, ALLERGEN_CHIP_PREVIEW)
+    : chips;
+  const hiddenCount = needsTruncate ? chips.length - ALLERGEN_CHIP_PREVIEW : 0;
+
+  const openAllergens = () => {
+    if (!allergenNav) return;
+    router.push({
+      pathname: '/product-allergens',
+      params: {
+        id: String(allergenNav.id),
+        catalog: allergenNav.catalog,
+        name: product?.name?.trim() || fallbackTitle,
+      },
+    });
+  };
 
   return (
     <Pressable
@@ -81,14 +124,51 @@ export function ProductListCard({
       <View style={styles.rowLine}>
         <View style={styles.badgeWrap}>
           {freeFromAll ? <FreeFromAllBadge size="small" /> : null}
-          {allergenHits.map((hit) => (
+          {visibleChips.map((chip) => (
             <AllergenBadge
-              key={`${hit.kind}-${hit.selected}`}
-              name={hit.selected}
-              kind={hit.kind}
+              key={`${chip.kind}-${chip.name}`}
+              name={chip.name}
+              kind={chip.kind}
               size="small"
             />
           ))}
+          {needsTruncate && allergenNav ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                openAllergens();
+              }}
+              style={[
+                styles.seeAllChip,
+                { borderColor: colors.primary, backgroundColor: colors.background },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={t('products.seeAllAllergens')}
+            >
+              <Text style={[styles.seeAllText, { color: colors.primary }]}>
+                {tf('products.seeAllAllergensCount', {
+                  count: String(hiddenCount),
+                })}
+              </Text>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={16}
+                color={colors.primary}
+              />
+            </Pressable>
+          ) : null}
+          {needsTruncate && !allergenNav ? (
+            <View
+              style={[
+                styles.seeAllChip,
+                { borderColor: colors.border, backgroundColor: colors.background },
+              ]}
+            >
+              <Text style={[styles.seeAllText, { color: colors.textSecondary }]}>
+                {tf('products.moreAllergens', { count: String(hiddenCount) })}
+              </Text>
+            </View>
+          ) : null}
         </View>
         {trailing ?? <View style={styles.actionsPlaceholder} />}
       </View>
@@ -138,7 +218,7 @@ const styles = StyleSheet.create({
   },
   rowLine: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: 12,
   },
@@ -159,6 +239,20 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
     marginTop: 4,
+  },
+  seeAllChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1.5,
+  },
+  seeAllText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   actionsCol: {
     flexDirection: 'row',

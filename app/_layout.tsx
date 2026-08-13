@@ -233,6 +233,10 @@ function RootNavigator() {
         <Stack.Screen name="result" options={{ title: t('nav.result') }} />
         <Stack.Screen name="add" options={{ title: t('nav.add') }} />
         <Stack.Screen name="products" options={{ title: t('nav.products') }} />
+        <Stack.Screen
+          name="product-allergens"
+          options={{ title: t('products.allergensTitle') }}
+        />
         <Stack.Screen name="user" options={{ title: t('nav.profile') }} />
         <Stack.Screen name="favorites" options={{ title: t('favorites.title') }} />
         <Stack.Screen name="lists" options={{ title: t('lists.title') }} />

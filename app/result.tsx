@@ -34,6 +34,7 @@ import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { InfoCard, InfoChipRow, InfoRow } from '../src/components/ProductInfoCard';
 import { ReportWrongInfoModal } from '../src/components/ReportWrongInfoModal';
 import { SuggestMergeModal } from '../src/components/SuggestMergeModal';
+import { getPreferredProductCountries } from '../src/country/detectProductCountry';
 import { getProductRepository } from '../src/data/repository';
 import {
   clearPendingProduct,
@@ -129,8 +130,9 @@ export default function ResultScreen() {
           if (catalogParam && Number.isFinite(idParam) && idParam > 0) {
             found = await repo.getById(catalogParam, idParam);
           } else if (barcode) {
-            // Search all catalog countries by default (no settings filter).
-            found = await repo.getByBarcode(barcode);
+            // All catalogs, GPS country first so local products win quickly.
+            const countries = await getPreferredProductCountries();
+            found = await repo.getByBarcode(barcode, { countries });
             if (found) {
               // Live catalog wins — drop any stale local pending copy.
               void clearPendingProduct(barcode);
@@ -340,9 +342,6 @@ export default function ResultScreen() {
 
       {state === 'found' && product && (
         <View style={[styles.productCard, { backgroundColor: colors.background }]}>
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-            {t('result.productPhotoLabel')}
-          </Text>
           {productImageUri(product.imageUrl) ? (
             <Image
               source={{ uri: productImageUri(product.imageUrl)! }}
