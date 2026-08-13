@@ -231,6 +231,7 @@ function RootNavigator() {
         <Stack.Screen name="login" options={{ title: t('nav.signIn'), headerShown: false }} />
         <Stack.Screen name="index" options={{ title: t('nav.scanner') }} />
         <Stack.Screen name="result" options={{ title: t('nav.result') }} />
+        <Stack.Screen name="add-choose" options={{ title: t('nav.add') }} />
         <Stack.Screen name="add" options={{ title: t('nav.add') }} />
         <Stack.Screen name="products" options={{ title: t('nav.products') }} />
         <Stack.Screen

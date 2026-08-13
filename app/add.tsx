@@ -54,14 +54,8 @@ import {
   askPickIngredientsOcrImage,
   askPickProductImage,
 } from '../src/media/pickProductImage';
-import {
-  extractBarcodeFromOcrText,
-  scanBarcodeFromImageUriWithTimeout,
-} from '../src/media/scanBarcodeFromImage';
-import {
-  markScanWithAiTutorialSeen,
-  shouldShowScanWithAiTutorial,
-} from '../src/media/scanWithAiTutorialPrefs';
+import { scanBarcodeFromImageUriWithTimeout } from '../src/media/scanBarcodeFromImage';
+import { markScanWithAiTutorialSeen } from '../src/media/scanWithAiTutorialPrefs';
 import { userFacingError } from '../src/errors/userFacingError';
 import { goHome } from '../src/navigation/goHome';
 import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
@@ -179,9 +173,11 @@ export default function AddProductScreen() {
   const [reportImageBase64, setReportImageBase64] = useState<string | null>(null);
   const [submissionImageBase64, setSubmissionImageBase64] = useState<string | null>(null);
   const [photoMissingError, setPhotoMissingError] = useState(false);
+  const [barcodeMissingError, setBarcodeMissingError] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [ocrScanning, setOcrScanning] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrNoTextFound, setOcrNoTextFound] = useState(false);
   const [ocrTutorialVisible, setOcrTutorialVisible] = useState(false);
   const [ocrDone, setOcrDone] = useState(false);
   const [capturedPreviewUri, setCapturedPreviewUri] = useState<string | null>(null);
@@ -346,13 +342,24 @@ export default function AddProductScreen() {
     }
   }
 
+  function updateBarcode(next: string) {
+    setBarcode(next);
+    if (next.trim()) setBarcodeMissingError(false);
+  }
+
   async function handleSave() {
     setFormError(null);
     const allowEmptyBarcode = isAdmin && isEditing;
-    if (!barcode.trim() && !allowEmptyBarcode) {
+    const barcodeTrimmed = barcode.trim();
+    if (
+      (!barcodeTrimmed || barcodeTrimmed.toLowerCase() === 'unknown') &&
+      !allowEmptyBarcode
+    ) {
+      setBarcodeMissingError(true);
       setFormError(t('add.missingBarcodeBody'));
       return;
     }
+    setBarcodeMissingError(false);
     if (!name.trim()) {
       // Ferdig with nothing worth submitting: quietly discard instead of
       // demanding a name for a scan that didn't find one.
@@ -461,8 +468,13 @@ export default function AddProductScreen() {
     }
   }
 
+  function isNoTextOcrError(message: string): boolean {
+    return /no text found/i.test(message);
+  }
+
   async function handleScanWithAi() {
     setOcrError(null);
+    setOcrNoTextFound(false);
     const picked = await askPickIngredientsOcrImage(
       t('add.scanWithAiPickTitle'),
       t('add.scanWithAiPickBody')
@@ -481,12 +493,27 @@ export default function AddProductScreen() {
       !(Boolean(initialBarcode) && !(isAdmin && isEditing));
 
     setOcrScanning(true);
+    // Decode barcode bars in parallel with OCR — walks the whole image
+    // (same expo-camera types as home scanner + ZXing). iOS scanFromURLAsync
+    // only supports QR, so ZXing is required for EAN/GTIN there.
+    const barcodeFromImagePromise = canFillBarcode
+      ? scanBarcodeFromImageUriWithTimeout(picked.localUri, {
+          width: picked.width,
+          height: picked.height,
+          timeoutMs: 15000,
+        })
+      : Promise.resolve<string | null>(null);
+    if (canFillBarcode) {
+      void barcodeFromImagePromise.then((code) => {
+        if (code) updateBarcode(code);
+      });
+    }
+
     try {
-      // OCR/AI first — do not wait on barcode decode.
       const result = await ocrApi.readImageText(token, picked.dataUri);
 
       if (!result.text.trim()) {
-        setOcrError(t('add.scanWithAiFailed'));
+        setOcrNoTextFound(true);
         return;
       }
 
@@ -535,25 +562,13 @@ export default function AddProductScreen() {
         setOcrError(result.parseWarning);
       }
 
-      // Prefer GTIN from OCR text immediately (instant, local).
-      if (canFillBarcode) {
-        const fromText = extractBarcodeFromOcrText(result.text);
-        if (fromText) {
-          setBarcode(fromText);
-        } else {
-          // Downscaled image scan in background — never blocks the AI result UI.
-          void scanBarcodeFromImageUriWithTimeout(picked.localUri, {
-            width: picked.width,
-            height: picked.height,
-            timeoutMs: 2500,
-          }).then((code) => {
-            if (code) setBarcode(code);
-          });
-        }
-      }
     } catch (err) {
       if (err instanceof ocrApi.OcrRequestError) {
-        setOcrError(err.message);
+        if (isNoTextOcrError(err.message)) {
+          setOcrNoTextFound(true);
+        } else {
+          setOcrError(err.message);
+        }
       } else {
         setOcrError(
           userFacingError(err, t, 'unauthorized') || t('add.scanWithAiFailed')
@@ -643,13 +658,79 @@ export default function AddProductScreen() {
 
   async function startScanWithAi() {
     setOcrError(null);
-    const showTutorial = await shouldShowScanWithAiTutorial();
-    if (showTutorial) {
-      setOcrTutorialVisible(true);
-      return;
-    }
-    await handleScanWithAi();
+    // Always show the how-to photo tips before the camera — good label
+    // photos matter more than skipping a short reminder.
+    setOcrTutorialVisible(true);
   }
+
+  const aiBarcodeCard = (
+    <View
+      style={[
+        styles.aiBarcodeCard,
+        {
+          backgroundColor: colors.surface,
+          borderColor: barcodeMissingError ? colors.danger : colors.border,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.aiBarcodeLabel,
+          {
+            color: barcodeMissingError ? colors.danger : colors.textSecondary,
+          },
+        ]}
+      >
+        {t('add.barcode')}
+      </Text>
+      {barcodeLocked ? (
+        <Text style={[styles.aiBarcodeLocked, { color: colors.text }]}>
+          {barcode.trim()} · {t('add.barcodeFromScan')}
+        </Text>
+      ) : (
+        <View style={styles.barcodeInputRow}>
+          <AppTextInput
+            style={[
+              ...inputStyle,
+              styles.barcodeInput,
+              {
+                backgroundColor: colors.background,
+                borderColor: barcodeMissingError ? colors.danger : colors.border,
+              },
+            ]}
+            placeholder={t('add.barcodePlaceholder')}
+            placeholderTextColor={colors.textSecondary}
+            keyboardType="number-pad"
+            value={barcode}
+            onChangeText={updateBarcode}
+          />
+          <Pressable
+            style={[
+              styles.barcodeScanButton,
+              {
+                borderColor: barcodeMissingError ? colors.danger : colors.primary,
+                backgroundColor: colors.background,
+              },
+            ]}
+            onPress={() => setScanModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('result.scanBarcode')}
+          >
+            <MaterialCommunityIcons
+              name="camera"
+              size={22}
+              color={barcodeMissingError ? colors.danger : colors.primary}
+            />
+          </Pressable>
+        </View>
+      )}
+      {barcodeMissingError ? (
+        <Text style={[styles.aiBarcodeError, { color: colors.danger }]}>
+          {t('add.missingBarcodeBody')}
+        </Text>
+      ) : null}
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView
@@ -666,7 +747,7 @@ export default function AddProductScreen() {
           visible={scanModalVisible}
           onClose={() => setScanModalVisible(false)}
           onCaptured={(code) => {
-            setBarcode(code.trim());
+            updateBarcode(code.trim());
             setFormError(null);
           }}
         />
@@ -704,6 +785,7 @@ export default function AddProductScreen() {
           <AllergnomIntro
             onScan={() => void startScanWithAi()}
             scanning={ocrScanning}
+            noTextFound={ocrNoTextFound}
             error={ocrError}
             capturedPreviewUri={capturedPreviewUri}
           />
@@ -720,12 +802,16 @@ export default function AddProductScreen() {
             </Text>
             <View style={styles.barcodeInputRow}>
               <AppTextInput
-                style={[...inputStyle, styles.barcodeInput]}
+                style={[
+                  ...inputStyle,
+                  styles.barcodeInput,
+                  barcodeMissingError && { borderColor: colors.danger },
+                ]}
                 placeholder={t('add.barcodePlaceholder')}
                 placeholderTextColor={colors.textSecondary}
                 keyboardType="number-pad"
                 value={barcode}
-                onChangeText={setBarcode}
+                onChangeText={updateBarcode}
                 editable={!barcodeLocked}
               />
               {!barcodeLocked ? (
@@ -733,7 +819,9 @@ export default function AddProductScreen() {
                   style={[
                     styles.barcodeScanButton,
                     {
-                      borderColor: colors.primary,
+                      borderColor: barcodeMissingError
+                        ? colors.danger
+                        : colors.primary,
                       backgroundColor: colors.surface,
                     },
                   ]}
@@ -744,7 +832,7 @@ export default function AddProductScreen() {
                   <MaterialCommunityIcons
                     name="camera"
                     size={22}
-                    color={colors.primary}
+                    color={barcodeMissingError ? colors.danger : colors.primary}
                   />
                 </Pressable>
               ) : null}
@@ -1025,6 +1113,7 @@ export default function AddProductScreen() {
                       emptyLabel={t('add.aiResultNoneFound')}
                     />
                   </InfoCard>
+                  {aiBarcodeCard}
                   <Pressable
                     style={[styles.missingButton, { borderColor: colors.primary }]}
                     onPress={() => setAiEditMode(true)}
@@ -1042,81 +1131,52 @@ export default function AddProductScreen() {
                   </Pressable>
                 </>
               ) : (
-                <View
-                  style={[
-                    styles.emptyStateWrap,
-                    { backgroundColor: colors.surface, borderColor: colors.border },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="text-search"
-                    size={28}
-                    color={colors.textSecondary}
-                  />
-                  <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
-                    {t('add.aiEmptyTitle')}
-                  </Text>
-                  <Text style={[styles.emptyStateBody, { color: colors.textSecondary }]}>
-                    {t('add.aiEmptyBody')}
-                  </Text>
-                  <Pressable
-                    style={[styles.emptyStateButton, { backgroundColor: colors.primary }]}
-                    onPress={() => setAiEditMode(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('add.aiEmptyManualButton')}
+                <>
+                  <View
+                    style={[
+                      styles.emptyStateWrap,
+                      { backgroundColor: colors.surface, borderColor: colors.border },
+                    ]}
                   >
-                    <Text
-                      style={[styles.emptyStateButtonText, { color: colors.onPrimary }]}
-                    >
-                      {t('add.aiEmptyManualButton')}
+                    <MaterialCommunityIcons
+                      name="text-search"
+                      size={28}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+                      {t('add.aiEmptyTitle')}
                     </Text>
-                  </Pressable>
-                </View>
+                    <Text style={[styles.emptyStateBody, { color: colors.textSecondary }]}>
+                      {t('add.aiEmptyBody')}
+                    </Text>
+                    <Pressable
+                      style={[
+                        styles.emptyStateButton,
+                        { backgroundColor: colors.primary },
+                      ]}
+                      onPress={() => setAiEditMode(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('add.aiEmptyManualButton')}
+                    >
+                      <Text
+                        style={[
+                          styles.emptyStateButtonText,
+                          { color: colors.onPrimary },
+                        ]}
+                      >
+                        {t('add.aiEmptyManualButton')}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  {aiBarcodeCard}
+                </>
               )
             ) : (
               <>
                 <Text style={[styles.aiFocusReadyTitle, { color: colors.text }]}>
                   {t('add.aiEditSectionTitle')}
                 </Text>
-
-                <Text style={[styles.label, { color: colors.textSecondary }]}>
-                  {t('add.barcode')}
-                </Text>
-                {barcodeLocked ? (
-                  <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                    {barcode.trim()} · {t('add.barcodeFromScan')}
-                  </Text>
-                ) : (
-                  <View style={styles.barcodeInputRow}>
-                    <AppTextInput
-                      style={[...inputStyle, styles.barcodeInput]}
-                      placeholder={t('add.barcodePlaceholder')}
-                      placeholderTextColor={colors.textSecondary}
-                      keyboardType="number-pad"
-                      value={barcode}
-                      onChangeText={setBarcode}
-                    />
-                    <Pressable
-                      style={[
-                        styles.barcodeScanButton,
-                        {
-                          borderColor: colors.primary,
-                          backgroundColor: colors.surface,
-                        },
-                      ]}
-                      onPress={() => setScanModalVisible(true)}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('result.scanBarcode')}
-                    >
-                      <MaterialCommunityIcons
-                        name="camera"
-                        size={22}
-                        color={colors.primary}
-                      />
-                    </Pressable>
-                  </View>
-                )}
-
+                {aiBarcodeCard}
                 <Text style={[styles.label, { color: colors.textSecondary }]}>
                   {t('add.produsent')}
                 </Text>
@@ -1504,6 +1564,28 @@ const styles = StyleSheet.create({
   readOnlyCard: {
     // Above the greeting row so Allergnom can pop up from behind it.
     zIndex: 1,
+  },
+  aiBarcodeCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    gap: 10,
+  },
+  aiBarcodeLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  aiBarcodeLocked: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  aiBarcodeError: {
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   missingButton: {
     minHeight: 48,

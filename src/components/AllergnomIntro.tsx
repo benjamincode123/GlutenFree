@@ -18,7 +18,7 @@ import { useTheme } from '../theme/ThemeContext';
 
 const CORNER_IMAGE = require('../../assets/allergnom/allergnom-corner.png');
 
-const BUBBLE_KEYS = [
+const INTRO_BUBBLE_KEYS = [
   'allergnom.introGreeting',
   'allergnom.introExplain',
   'allergnom.introCta',
@@ -42,6 +42,8 @@ const CORNER_OFFSCREEN_X = -(CORNER_WIDTH + 120);
 interface AllergnomIntroProps {
   onScan: () => void;
   scanning: boolean;
+  /** When true, Allergnom adds a "no text found — try again" chat bubble. */
+  noTextFound?: boolean;
   error: string | null;
   capturedPreviewUri: string | null;
 }
@@ -50,6 +52,7 @@ interface AllergnomIntroProps {
 export function AllergnomIntro({
   onScan,
   scanning,
+  noTextFound = false,
   error,
   capturedPreviewUri,
 }: AllergnomIntroProps) {
@@ -58,6 +61,7 @@ export function AllergnomIntro({
   // Bubbles are mounted one at a time (not just faded in) so the chat column
   // actually grows as he "talks" — that growth is what walks him down the page.
   const [visibleCount, setVisibleCount] = useState(1);
+  const [showNoTextBubble, setShowNoTextBubble] = useState(false);
   const slideX = useRef(new Animated.Value(0)).current;
   const exitStripes = useRef(new Animated.Value(0)).current;
   const enterStripes = useRef(new Animated.Value(0)).current;
@@ -71,7 +75,7 @@ export function AllergnomIntro({
   }, []);
 
   useEffect(() => {
-    if (visibleCount >= BUBBLE_KEYS.length) return;
+    if (visibleCount >= INTRO_BUBBLE_KEYS.length) return;
 
     const handle = setTimeout(() => {
       // Dash off the left edge…
@@ -114,6 +118,57 @@ export function AllergnomIntro({
     return () => clearTimeout(handle);
   }, [visibleCount, slideX, exitStripes, enterStripes]);
 
+  // When OCR finds no text, dash in one more bubble instead of a red error line.
+  useEffect(() => {
+    if (!noTextFound) {
+      setShowNoTextBubble(false);
+      return;
+    }
+    if (showNoTextBubble) return;
+
+    // Wait until the intro chat has finished so this lands as the newest line.
+    if (visibleCount < INTRO_BUBBLE_KEYS.length) return;
+
+    Animated.parallel([
+      Animated.timing(exitStripes, {
+        toValue: 1,
+        duration: 110,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideX, {
+        toValue: CORNER_OFFSCREEN_X,
+        duration: DASH_OUT_MS,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (!finished || !mounted.current) return;
+      exitStripes.setValue(0);
+      enterStripes.setValue(1);
+      setShowNoTextBubble(true);
+      Animated.parallel([
+        Animated.timing(slideX, {
+          toValue: 0,
+          duration: DASH_IN_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(enterStripes, {
+          toValue: 0,
+          duration: DASH_IN_MS,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  }, [
+    noTextFound,
+    showNoTextBubble,
+    visibleCount,
+    slideX,
+    exitStripes,
+    enterStripes,
+  ]);
+
   return (
     <View style={styles.root}>
       <View style={styles.chatArea}>
@@ -140,7 +195,7 @@ export function AllergnomIntro({
         </Animated.View>
 
         <View style={styles.bubbleList}>
-          {BUBBLE_KEYS.slice(0, visibleCount).map((key) => (
+          {INTRO_BUBBLE_KEYS.slice(0, visibleCount).map((key) => (
             <ChatBubble
               key={key}
               text={t(key)}
@@ -149,6 +204,15 @@ export function AllergnomIntro({
               textColor={colors.text}
             />
           ))}
+          {showNoTextBubble ? (
+            <ChatBubble
+              key="allergnom.introNoText"
+              text={t('allergnom.introNoText')}
+              backgroundColor={colors.surface}
+              borderColor={colors.border}
+              textColor={colors.text}
+            />
+          ) : null}
         </View>
       </View>
 
@@ -179,7 +243,9 @@ export function AllergnomIntro({
         </Pressable>
       </View>
 
-      {error ? <ErrorText style={styles.error}>{error}</ErrorText> : null}
+      {error && !noTextFound ? (
+        <ErrorText style={styles.error}>{error}</ErrorText>
+      ) : null}
     </View>
   );
 }

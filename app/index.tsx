@@ -79,14 +79,15 @@ export default function ScannerScreen() {
   }, []);
 
   const goMenuLink = useCallback(
-    (href: '/add' | '/products' | '/user' | '/leaderboard' | '/settings') => {
+    (
+      href:
+        | '/add-choose'
+        | '/products'
+        | '/user'
+        | '/leaderboard'
+        | '/settings'
+    ) => {
       setMenuOpen(false);
-      if (href === '/add') {
-        // Manual "add product" entry point now also goes through the
-        // Scan-with-AI flow instead of the old, all-fields-at-once form.
-        router.push({ pathname: '/add', params: { aiFocus: '1' } });
-        return;
-      }
       router.push(href);
     },
     [router]
@@ -94,7 +95,12 @@ export default function ScannerScreen() {
 
   const menuItems = useMemo(() => {
     const items: {
-      href: '/add' | '/products' | '/user' | '/leaderboard' | '/settings';
+      href:
+        | '/add-choose'
+        | '/products'
+        | '/user'
+        | '/leaderboard'
+        | '/settings';
       icon: MenuIcon;
       labelKey:
         | 'scanner.searchProducts'
@@ -110,7 +116,7 @@ export default function ScannerScreen() {
         labelKey: 'scanner.searchProducts',
       },
       {
-        href: '/add',
+        href: '/add-choose',
         icon: 'plus-circle-outline',
         labelKey: 'scanner.addProduct',
         requireAuth: true,
@@ -524,7 +530,7 @@ export default function ScannerScreen() {
         <View style={styles.linksRow}>
           {authEnabled && user && (
             <Link
-              href={{ pathname: '/add', params: { aiFocus: '1' } }}
+              href="/add-choose"
               style={[
                 styles.linkButton,
                 {

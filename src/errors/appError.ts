@@ -84,6 +84,9 @@ export function appErrorFromHttp(
     if (detail.includes('at least 6')) {
       return new AppError('search_too_short');
     }
+    if (detail.includes('barcode is required') || detail.includes('barcode must be')) {
+      return new AppError('validation');
+    }
     if (detail.includes('image')) {
       return new AppError('image_invalid');
     }

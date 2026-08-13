@@ -4,6 +4,7 @@ type TranslationKey =
   | 'allergnom.introGreeting'
   | 'allergnom.introExplain'
   | 'allergnom.introCta'
+  | 'allergnom.introNoText'
   | 'allergnom.introContinue'
   | 'allergnom.introImageA11y'
   | 'nav.scanner'
@@ -318,6 +319,7 @@ type TranslationKey =
   | 'products.pageOnly'
   | 'products.resultsProgress'
   | 'products.resultsShown'
+  | 'products.resultsShownMore'
   | 'products.morePages'
   | 'result.barcode'
   | 'result.scannedBarcode'
@@ -403,6 +405,12 @@ type TranslationKey =
   | 'add.adminRequiredBody'
   | 'add.editTitle'
   | 'add.addTitle'
+  | 'add.chooseTitle'
+  | 'add.chooseLead'
+  | 'add.chooseManual'
+  | 'add.chooseManualHint'
+  | 'add.chooseAllergnom'
+  | 'add.chooseAllergnomHint'
   | 'add.editSubtitle'
   | 'add.addSubtitleAdmin'
   | 'add.addSubtitleUser'
@@ -513,6 +521,8 @@ const en: Record<TranslationKey, string> = {
   'allergnom.introExplain':
     '"I\'m Allergnom! When we don\'t have a product yet, I\'ll take a quick look at the label and figure out the allergens for you!"',
   'allergnom.introCta': '"Snap a photo of the label and I\'ll take it from there!"',
+  'allergnom.introNoText':
+    '"I couldn\'t find any text in that photo. Try again!"',
   'allergnom.introContinue': "Let's go",
   'allergnom.introImageA11y': "Allergnom, the app's gnome mascot",
   'nav.scanner': 'AltUten',
@@ -848,6 +858,7 @@ const en: Record<TranslationKey, string> = {
   'products.pageOnly': 'Page {page}',
   'products.resultsProgress': '{shown} / {total}',
   'products.resultsShown': '{count} results',
+  'products.resultsShownMore': '{count}+ results · More pages',
   'products.morePages': 'More pages',
   'result.barcode': 'Barcode',
   'result.scannedBarcode': 'Scanned barcode',
@@ -943,6 +954,13 @@ const en: Record<TranslationKey, string> = {
   'add.adminRequiredBody': 'Only admins can edit products that are already in the catalog.',
   'add.editTitle': 'Edit product',
   'add.addTitle': 'Add a product',
+  'add.chooseTitle': 'How do you want to add a product?',
+  'add.chooseLead': 'Pick the way that suits you best.',
+  'add.chooseManual': 'Manually',
+  'add.chooseManualHint': 'Fill in name, allergens and info yourself.',
+  'add.chooseAllergnom': 'Allergnom',
+  'add.chooseAllergnomHint':
+    'Photograph the label — he finds the allergens for you.',
   'add.editSubtitle': 'Update this product’s details and gluten rating.',
   'add.addSubtitleAdmin':
     'Create a new product, or link this scanned barcode to an existing one that has no barcode yet.',
@@ -1048,7 +1066,8 @@ const en: Record<TranslationKey, string> = {
   'add.saveNew': 'Save new product',
   'add.submitReview': 'Submit for review',
   'add.missingBarcode': 'Missing barcode',
-  'add.missingBarcodeBody': 'Please enter or scan a barcode first.',
+  'add.missingBarcodeBody':
+    'Scan or type a barcode / strekkode before finishing.',
   'add.missingPhotoBody': 'A product photo is required to submit for review.',
   'add.pickProduct': 'Pick a product',
   'add.pickProductBody': 'Search and select an existing product with unknown barcode.',
@@ -1075,6 +1094,8 @@ const nb: Record<TranslationKey, string> = {
   'allergnom.introExplain':
     '"Jeg er Allergnomen! Når vi ikke har et produkt fra før, tar jeg en rask titt på etiketten og finner ut allergenene for deg!"',
   'allergnom.introCta': '"Ta et bilde av etiketten, så tar jeg meg av resten!"',
+  'allergnom.introNoText':
+    '"Vi fant ingen tekst i bildet. Prøv på nytt!"',
   'allergnom.introContinue': 'Sett i gang',
   'allergnom.introImageA11y': 'Allergnomen, appens maskot',
   'nav.scanner': 'AltUten',
@@ -1410,6 +1431,7 @@ const nb: Record<TranslationKey, string> = {
   'products.pageOnly': 'Side {page}',
   'products.resultsProgress': '{shown} / {total}',
   'products.resultsShown': '{count} treff',
+  'products.resultsShownMore': '{count}+ treff · Flere sider',
   'products.morePages': 'Flere sider',
   'result.barcode': 'Strekkode',
   'result.scannedBarcode': 'Skannet strekkode',
@@ -1505,6 +1527,13 @@ const nb: Record<TranslationKey, string> = {
   'add.adminRequiredBody': 'Bare admin kan redigere produkter som allerede er i katalogen.',
   'add.editTitle': 'Rediger produkt',
   'add.addTitle': 'Legg til produkt',
+  'add.chooseTitle': 'Hvordan vil du legge til produkt?',
+  'add.chooseLead': 'Velg måten som passer deg best.',
+  'add.chooseManual': 'Manuelt',
+  'add.chooseManualHint': 'Fyll inn navn, allergener og info selv.',
+  'add.chooseAllergnom': 'Allergnomen',
+  'add.chooseAllergnomHint':
+    'Ta bilde av etiketten — han finner allergenene for deg.',
   'add.editSubtitle': 'Oppdater detaljene og glutenstatus for dette produktet.',
   'add.addSubtitleAdmin':
     'Opprett et nytt produkt, eller knytt denne skannede strekkoden til et eksisterende uten strekkode.',
@@ -1610,7 +1639,8 @@ const nb: Record<TranslationKey, string> = {
   'add.saveNew': 'Lagre nytt produkt',
   'add.submitReview': 'Send til vurdering',
   'add.missingBarcode': 'Mangler strekkode',
-  'add.missingBarcodeBody': 'Skriv inn eller skann en strekkode først.',
+  'add.missingBarcodeBody':
+    'Du må skanne eller skrive inn en strekkode / barcode.',
   'add.missingPhotoBody': 'Et produktbilde er påkrevd for å sende inn til vurdering.',
   'add.pickProduct': 'Velg et produkt',
   'add.pickProductBody': 'Søk og velg et eksisterende produkt med ukjent strekkode.',

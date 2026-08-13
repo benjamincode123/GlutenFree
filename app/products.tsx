@@ -15,7 +15,6 @@ import {
 import { useAuth } from '../src/auth/AuthContext';
 import { AddToListModal } from '../src/components/AddToListModal';
 import { AllergnomShelfLoader } from '../src/components/AllergnomShelfLoader';
-import { CountrySelector } from '../src/components/CountrySelector';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ErrorText } from '../src/components/ErrorText';
 import {
@@ -38,13 +37,15 @@ import { detectGpsProductCountry } from '../src/country/detectProductCountry';
 import {
   orderProductCountries,
   PRODUCT_COUNTRIES,
-  toggleProductCountry,
   type ProductCountry,
 } from '../src/country/productCountries';
 import { useI18n } from '../src/i18n/I18nContext';
 import { isUnknownBarcode, Product, ProductCatalog } from '../src/db/types';
 import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
+
+/** Always search every catalog; GPS only reorders merge priority. */
+const ALL_SEARCH_COUNTRIES: ProductCountry[] = [...PRODUCT_COUNTRIES];
 
 /** Wait for typing to settle before hitting the API. */
 const SEARCH_DEBOUNCE_MS = 400;
@@ -69,10 +70,9 @@ export default function ProductsScreen() {
   const { user, addFavorite, removeFavorite } = useAuth();
   const { t, tf } = useI18n();
   const { colors } = useTheme();
-  const [gpsCountry, setGpsCountry] = useState<ProductCountry | null>(null);
-  const [countries, setCountries] = useState<ProductCountry[]>(() => [
-    ...PRODUCT_COUNTRIES,
-  ]);
+  const [searchCountries, setSearchCountries] = useState<ProductCountry[]>(
+    () => ALL_SEARCH_COUNTRIES
+  );
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -87,10 +87,16 @@ export default function ProductsScreen() {
   const [showRefreshBanner, setShowRefreshBanner] = useState(false);
   /** Guards against out-of-order search responses overwriting newer results. */
   const searchSeq = useRef(0);
+  const listRef = useRef<FlatList<Product>>(null);
   const hadLoader = useRef(false);
   const loaderOpacity = useRef(new Animated.Value(0)).current;
   const resultsOpacity = useRef(new Animated.Value(1)).current;
   const resultsShift = useRef(new Animated.Value(0)).current;
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  };
 
   const queryReady = query.trim().length >= MIN_PRODUCT_SEARCH_CHARS;
 
@@ -100,13 +106,12 @@ export default function ProductsScreen() {
     void loadProductSearchHistory().then(setRecentSearches);
   }, []);
 
-  // Prefer the user's GPS country first in search order (and chip order).
+  // Prefer the user's GPS country first when merging multi-country hits.
   useEffect(() => {
     let cancelled = false;
     void detectGpsProductCountry().then((gps) => {
       if (cancelled || !gps) return;
-      setGpsCountry(gps);
-      setCountries((prev) => orderProductCountries(prev, gps));
+      setSearchCountries(orderProductCountries(ALL_SEARCH_COUNTRIES, gps));
     });
     return () => {
       cancelled = true;
@@ -137,7 +142,7 @@ export default function ProductsScreen() {
         const result = await getProductRepository().searchByName(
           trimmed,
           PRODUCT_SEARCH_PAGE_SIZE,
-          { page: pageNumber, countries }
+          { page: pageNumber, countries: searchCountries }
         );
         if (isStale()) return;
         setProducts(result.items);
@@ -156,7 +161,7 @@ export default function ProductsScreen() {
         if (!isStale()) setLoading(false);
       }
     },
-    [t, countries]
+    [t, searchCountries]
   );
 
   useEffect(() => {
@@ -165,11 +170,6 @@ export default function ProductsScreen() {
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
   }, [query, page, runSearch]);
-
-  const countriesKey = countries.join(',');
-  useEffect(() => {
-    setPage(1);
-  }, [countriesKey]);
 
   const openProduct = (item: Product) => {
     if (item.catalog && (isUnknownBarcode(item.barcode) || item.id > 0)) {
@@ -308,18 +308,6 @@ export default function ProductsScreen() {
         <Text style={[styles.searchLabel, { color: colors.textSecondary }]}>
           {t('products.searchLabel')}
         </Text>
-        <View style={styles.countryRow}>
-          <CountrySelector
-            compact
-            preferredFirst={gpsCountry}
-            selected={countries}
-            onToggle={(code) =>
-              setCountries((prev) =>
-                toggleProductCountry(prev, code, gpsCountry)
-              )
-            }
-          />
-        </View>
         <AppTextInput
           style={[
             styles.input,
@@ -341,9 +329,6 @@ export default function ProductsScreen() {
           clearButtonMode="while-editing"
           returnKeyType="search"
         />
-        <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          {tf('products.hint', { min: String(MIN_PRODUCT_SEARCH_CHARS) })}
-        </Text>
       </View>
 
       {!loading && error && (
@@ -402,6 +387,7 @@ export default function ProductsScreen() {
             ]}
           >
             <FlatList
+              ref={listRef}
               style={[
                 styles.resultsFill,
                 refreshingWithResults ? styles.resultsDimmed : null,
@@ -414,8 +400,13 @@ export default function ProductsScreen() {
                 products.length > 0 ? (
                   <View style={styles.countRow}>
                     <Text style={[styles.countText, { color: colors.textSecondary }]}>
-                      {tf('products.resultsShown', { count: String(products.length) })}
-                      {hasMore ? ` · ${t('products.morePages')}` : ''}
+                      {hasMore
+                        ? tf('products.resultsShownMore', {
+                            count: String(products.length),
+                          })
+                        : tf('products.resultsShown', {
+                            count: String(products.length),
+                          })}
                     </Text>
                     <Text style={[styles.countText, { color: colors.textSecondary }]}>
                       {tf('products.pageOnly', { page: String(page) })}
@@ -436,7 +427,7 @@ export default function ProductsScreen() {
                         },
                       ]}
                       disabled={page <= 1 || loading}
-                      onPress={() => setPage((p) => Math.max(1, p - 1))}
+                      onPress={() => goToPage(Math.max(1, page - 1))}
                       accessibilityRole="button"
                       accessibilityLabel={t('products.prevPage')}
                     >
@@ -463,7 +454,7 @@ export default function ProductsScreen() {
                         },
                       ]}
                       disabled={!canGoNext || loading}
-                      onPress={() => setPage((p) => p + 1)}
+                      onPress={() => goToPage(page + 1)}
                       accessibilityRole="button"
                       accessibilityLabel={t('products.nextPage')}
                     >
@@ -566,21 +557,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 8,
   },
-  countryRow: {
-    marginBottom: 10,
-    alignItems: 'flex-start',
-  },
   input: {
     height: 48,
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 14,
     fontSize: 16,
-  },
-  hint: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 18,
   },
   resultsArea: {
     flex: 1,

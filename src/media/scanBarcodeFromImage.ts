@@ -1,6 +1,8 @@
-import { BarcodeType, scanFromURLAsync } from 'expo-camera';
+import { scanFromURLAsync } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import jpeg from 'jpeg-js';
+
+import { SCANNER_BARCODE_TYPES } from '../components/ScannerCamera';
 
 // Vendored UMD build — Metro cannot resolve @zxing/library package exports.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -32,21 +34,19 @@ type ZXingNamespace = {
   };
 };
 
-/** Keep barcode decode cheap on-device. */
-const SCAN_MAX_EDGE = 720;
+/**
+ * Keep enough pixels for 1D bars to stay readable across the whole frame.
+ * 720 was too aggressive and often wiped fine EAN lines.
+ */
+const SCAN_MAX_EDGE = 1600;
+const SCAN_JPEG_QUALITY = 0.92;
 
-/** 1D product barcodes only — never QR / 2D codes. */
-const PRODUCT_BARCODE_TYPES: BarcodeType[] = [
-  'ean13',
-  'ean8',
-  'upc_a',
-  'upc_e',
-  'code128',
-  'code39',
-  'code93',
-  'itf14',
-  'codabar',
-];
+type CropRect = {
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+};
 
 /** Accept grocery-style 1D codes only; reject QR and other 2D formats. */
 export function normalizeProductBarcode(
@@ -73,41 +73,6 @@ export function normalizeProductBarcode(
   return null;
 }
 
-function isValidGtinChecksum(digits: string): boolean {
-  if (!/^\d{8}$|^\d{12}$|^\d{13}$|^\d{14}$/.test(digits)) return false;
-  const body = digits.slice(0, -1);
-  const check = Number(digits.slice(-1));
-  let sum = 0;
-  for (let i = 0; i < body.length; i++) {
-    const n = Number(body[body.length - 1 - i]);
-    sum += i % 2 === 0 ? n * 3 : n;
-  }
-  return (10 - (sum % 10)) % 10 === check;
-}
-
-/** Pull a product barcode from OCR text locally (no extra network call). */
-export function extractBarcodeFromOcrText(ocrText: string): string | null {
-  if (!ocrText?.trim()) return null;
-  const matches = ocrText.match(/\d[\d\s]{6,18}\d/g) ?? [];
-  const candidates: string[] = [];
-  for (const match of matches) {
-    const digits = match.replace(/\D/g, '');
-    if (digits.length < 8 || digits.length > 14) continue;
-    candidates.push(digits);
-  }
-
-  const ordered = [...new Set(candidates)].sort((a, b) => {
-    const score = (d: string) =>
-      (isValidGtinChecksum(d) ? 100 : 0) + (d.length === 13 ? 10 : d.length);
-    return score(b) - score(a);
-  });
-
-  for (const digits of ordered) {
-    if (isValidGtinChecksum(digits)) return digits;
-  }
-  return ordered.find((d) => d.length >= 8 && d.length <= 14) ?? null;
-}
-
 function base64ToUint8Array(base64: string): Uint8Array {
   const cleaned = base64.replace(/^data:image\/\w+;base64,/, '').replace(/\s/g, '');
   const binary = globalThis.atob(cleaned);
@@ -127,6 +92,20 @@ function rgbaToLuminances(rgba: Uint8Array, width: number, height: number): Uint
     luminances[i] = ((r + g + g + b) / 4) & 0xff;
   }
   return luminances;
+}
+
+function zxingFormats(zx: ZXingNamespace): unknown[] {
+  return [
+    zx.BarcodeFormat.EAN_13,
+    zx.BarcodeFormat.EAN_8,
+    zx.BarcodeFormat.UPC_A,
+    zx.BarcodeFormat.UPC_E,
+    zx.BarcodeFormat.CODE_128,
+    zx.BarcodeFormat.CODE_39,
+    zx.BarcodeFormat.CODE_93,
+    zx.BarcodeFormat.ITF,
+    zx.BarcodeFormat.CODABAR,
+  ];
 }
 
 function decodeWithZxing(base64Jpeg: string): string | null {
@@ -149,13 +128,8 @@ function decodeWithZxing(base64Jpeg: string): string | null {
     const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(source));
     const reader = new ZXing.MultiFormatReader();
     const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.EAN_13,
-      ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.UPC_A,
-      ZXing.BarcodeFormat.UPC_E,
-      ZXing.BarcodeFormat.CODE_128,
-    ]);
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, zxingFormats(ZXing));
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
     reader.setHints(hints);
     const result = reader.decode(bitmap);
     return normalizeProductBarcode(result.getText());
@@ -166,7 +140,8 @@ function decodeWithZxing(base64Jpeg: string): string | null {
 
 async function tryNativeScan(uri: string): Promise<string | null> {
   try {
-    const hits = await scanFromURLAsync(uri, PRODUCT_BARCODE_TYPES);
+    // Same barcode types as CameraView on the home scanner.
+    const hits = await scanFromURLAsync(uri, SCANNER_BARCODE_TYPES);
     for (const hit of hits) {
       const normalized = normalizeProductBarcode(hit.data, hit.type);
       if (normalized) return normalized;
@@ -177,15 +152,25 @@ async function tryNativeScan(uri: string): Promise<string | null> {
   return null;
 }
 
+async function tryDecodeUri(
+  uri: string,
+  base64?: string | null
+): Promise<string | null> {
+  const native = await tryNativeScan(uri);
+  if (native) return native;
+  if (base64) {
+    const zxing = decodeWithZxing(base64);
+    if (zxing) return zxing;
+  }
+  return null;
+}
+
 function resizeActions(width?: number, height?: number): ImageManipulator.Action[] {
   const w = width && width > 0 ? width : SCAN_MAX_EDGE;
   const h = height && height > 0 ? height : SCAN_MAX_EDGE;
   const longest = Math.max(w, h);
   if (longest <= SCAN_MAX_EDGE) {
-    // Still force a bounded resize so we never feed a huge decode buffer.
-    return w >= h
-      ? [{ resize: { width: Math.min(w, SCAN_MAX_EDGE) } }]
-      : [{ resize: { height: Math.min(h, SCAN_MAX_EDGE) } }];
+    return [];
   }
   return w >= h
     ? [{ resize: { width: SCAN_MAX_EDGE } }]
@@ -193,8 +178,52 @@ function resizeActions(width?: number, height?: number): ImageManipulator.Action
 }
 
 /**
- * Scale the photo down first, then scan locally.
- * Never runs barcode decode on the full-resolution original.
+ * Overlapping tiles that together cover the entire image so a barcode
+ * anywhere (center, edge, corner) gets a closer pass.
+ */
+function fullCoverageCrops(width: number, height: number): CropRect[] {
+  if (width < 48 || height < 48) return [];
+
+  const crops: CropRect[] = [];
+  const push = (originX: number, originY: number, w: number, h: number) => {
+    const x = Math.max(0, Math.floor(originX));
+    const y = Math.max(0, Math.floor(originY));
+    const cw = Math.min(width - x, Math.floor(w));
+    const ch = Math.min(height - y, Math.floor(h));
+    if (cw < 40 || ch < 40) return;
+    crops.push({ originX: x, originY: y, width: cw, height: ch });
+  };
+
+  // 3×3 grid with overlap (~55% tile size, stepped by ~40%).
+  const tileW = Math.max(80, Math.floor(width * 0.55));
+  const tileH = Math.max(80, Math.floor(height * 0.55));
+  const stepX = Math.max(40, Math.floor(width * 0.4));
+  const stepY = Math.max(40, Math.floor(height * 0.4));
+
+  for (let y = 0; y < height; y += stepY) {
+    for (let x = 0; x < width; x += stepX) {
+      push(x, y, tileW, tileH);
+    }
+  }
+
+  // Always include full-height left / center / right strips (tall barcodes).
+  const stripW = Math.max(80, Math.floor(width * 0.5));
+  push(0, 0, stripW, height);
+  push((width - stripW) / 2, 0, stripW, height);
+  push(width - stripW, 0, stripW, height);
+
+  // Full-width top / middle / bottom bands.
+  const bandH = Math.max(80, Math.floor(height * 0.45));
+  push(0, 0, width, bandH);
+  push(0, (height - bandH) / 2, width, bandH);
+  push(0, height - bandH, width, bandH);
+
+  return crops;
+}
+
+/**
+ * Scan the whole photo for a product barcode (native expo-camera + ZXing).
+ * Tries the full frame first, then overlapping tiles across the entire image.
  */
 export async function scanBarcodeFromImageUri(
   uri: string,
@@ -202,14 +231,18 @@ export async function scanBarcodeFromImageUri(
 ): Promise<string | null> {
   if (!uri?.trim()) return null;
 
-  // 1) Downscale first (cheap native step) — required before any decode.
-  let small: ImageManipulator.ImageResult;
+  // 1) Native scan on the original file first (best fidelity).
+  const fromOriginal = await tryNativeScan(uri);
+  if (fromOriginal) return fromOriginal;
+
+  // 2) Bounded working copy of the FULL image (not a side/middle crop).
+  let full: ImageManipulator.ImageResult;
   try {
-    small = await ImageManipulator.manipulateAsync(
+    full = await ImageManipulator.manipulateAsync(
       uri,
       resizeActions(options?.width, options?.height),
       {
-        compress: 0.7,
+        compress: SCAN_JPEG_QUALITY,
         format: ImageManipulator.SaveFormat.JPEG,
         base64: true,
       }
@@ -217,47 +250,28 @@ export async function scanBarcodeFromImageUri(
   } catch {
     return null;
   }
-  if (!small.base64) return null;
+  if (!full.base64) return null;
 
-  // 2) Fast native scan on the small JPEG file.
-  const native = await tryNativeScan(small.uri);
-  if (native) return native;
+  const fromFull = await tryDecodeUri(full.uri, full.base64);
+  if (fromFull) return fromFull;
 
-  // 3) One ZXing pass on the already-small image (no full-res path).
-  const zxing = decodeWithZxing(small.base64);
-  if (zxing) return zxing;
-
-  // 4) One bottom crop on the small image only (barcodes are often at the bottom).
-  if (small.width > 40 && small.height > 40) {
-    const cropHeight = Math.max(100, Math.floor(small.height * 0.4));
-    const cropY = Math.max(0, small.height - cropHeight);
+  // 3) Walk overlapping tiles that cover every part of the image.
+  for (const crop of fullCoverageCrops(full.width, full.height)) {
     try {
-      const cropped = await ImageManipulator.manipulateAsync(
-        small.uri,
-        [
-          {
-            crop: {
-              originX: 0,
-              originY: cropY,
-              width: small.width,
-              height: cropHeight,
-            },
-          },
-        ],
+      const tile = await ImageManipulator.manipulateAsync(
+        full.uri,
+        [{ crop }],
         {
-          compress: 0.7,
+          compress: SCAN_JPEG_QUALITY,
           format: ImageManipulator.SaveFormat.JPEG,
           base64: true,
         }
       );
-      if (cropped.base64) {
-        const nativeCrop = await tryNativeScan(cropped.uri);
-        if (nativeCrop) return nativeCrop;
-        const zxingCrop = decodeWithZxing(cropped.base64);
-        if (zxingCrop) return zxingCrop;
-      }
+      if (!tile.base64) continue;
+      const hit = await tryDecodeUri(tile.uri, tile.base64);
+      if (hit) return hit;
     } catch {
-      // ignore
+      // try next tile
     }
   }
 
@@ -269,7 +283,8 @@ export function scanBarcodeFromImageUriWithTimeout(
   uri: string,
   options?: { width?: number; height?: number; timeoutMs?: number }
 ): Promise<string | null> {
-  const timeoutMs = options?.timeoutMs ?? 2500;
+  // Full-frame + tile walk needs more headroom than the old bottom-only crop.
+  const timeoutMs = options?.timeoutMs ?? 12000;
   return Promise.race([
     scanBarcodeFromImageUri(uri, options).catch(() => null),
     new Promise<null>((resolve) => {
