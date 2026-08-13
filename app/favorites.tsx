@@ -3,18 +3,15 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
-import { findUserAllergenHits } from '../src/allergens/allergenPrefs';
-import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { useAuth } from '../src/auth/AuthContext';
-import { AllergenBadge } from '../src/components/AllergenBadge';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ErrorText } from '../src/components/ErrorText';
+import { ProductListCard } from '../src/components/ProductListCard';
 import type { FavoriteProductRef } from '../src/data/authApi';
 import { getProductRepository } from '../src/data/repository';
 import { Product } from '../src/db/types';
@@ -33,7 +30,6 @@ export default function FavoritesScreen() {
   const { user } = useAuth();
   const { t } = useI18n();
   const { colors } = useTheme();
-  const { selected: warnAllergens } = useAllergenPrefs();
 
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState<FavoriteRow[]>([]);
@@ -200,59 +196,13 @@ export default function FavoritesScreen() {
           data={filtered}
           keyExtractor={(item) => `${item.ref.catalog}:${item.ref.id}`}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => {
-            const hits = item.product
-              ? findUserAllergenHits(
-                  warnAllergens,
-                  item.product.allergens,
-                  item.product.glutenRating
-                )
-              : [];
-            return (
-              <Pressable
-                style={[
-                  styles.row,
-                  { backgroundColor: colors.background, borderColor: colors.border },
-                ]}
-                onPress={() => openProduct(item)}
-              >
-                <View style={styles.rowMain}>
-                  {item.product?.produsent?.trim() ? (
-                    <Text
-                      style={[styles.produsent, { color: colors.textSecondary }]}
-                      numberOfLines={1}
-                    >
-                      {item.product.produsent.trim()}
-                    </Text>
-                  ) : null}
-                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>
-                    {item.product?.name?.trim() ||
-                      `${item.ref.catalog} #${item.ref.id}`}
-                  </Text>
-                  {item.product?.productionCountry?.trim() ? (
-                    <Text
-                      style={[styles.produsent, { color: colors.textSecondary }]}
-                      numberOfLines={1}
-                    >
-                      {item.product.productionCountry.trim()}
-                    </Text>
-                  ) : null}
-                  {hits.length > 0 ? (
-                    <View style={styles.badgeWrap}>
-                      {hits.map((hit) => (
-                        <AllergenBadge
-                          key={`${hit.kind}-${hit.selected}`}
-                          name={hit.selected}
-                          kind={hit.kind}
-                          size="small"
-                        />
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              </Pressable>
-            );
-          }}
+          renderItem={({ item }) => (
+            <ProductListCard
+              product={item.product}
+              fallbackTitle={`${item.ref.catalog} #${item.ref.id}`}
+              onPress={() => openProduct(item)}
+            />
+          )}
         />
       )}
     </View>
@@ -293,29 +243,6 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
-    gap: 10,
-  },
-  row: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-  },
-  rowMain: {
-    gap: 8,
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  produsent: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  badgeWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 2,
+    paddingBottom: 28,
   },
 });

@@ -2,7 +2,15 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Image,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -19,18 +27,48 @@ import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
 void SplashScreen.preventAutoHideAsync();
 
+/** Keep the brand mark on screen long enough to read, then fade it out. */
+const MIN_SPLASH_MS = 900;
+const SPLASH_FADE_MS = 420;
+
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSplash, setShowSplash] = useState(true);
+  const splashOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     let cancelled = false;
+    const startedAt = Date.now();
+
+    const finishSplash = () => {
+      if (cancelled) return;
+      setReady(true);
+      // Native splash matches this view — hide it once ours is painted, then fade.
+      requestAnimationFrame(() => {
+        void SplashScreen.hideAsync();
+      });
+      const remaining = Math.max(0, MIN_SPLASH_MS - (Date.now() - startedAt));
+      setTimeout(() => {
+        if (cancelled) return;
+        Animated.timing(splashOpacity, {
+          toValue: 0,
+          duration: SPLASH_FADE_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished && !cancelled) {
+            setShowSplash(false);
+          }
+        });
+      }, remaining);
+    };
 
     // When the backend API is active, product data lives in Azure SQL, so there
-    // is no local SQLite database to prepare.
+    // is no local SQLite database to prepare — but we still hold the splash
+    // for a short beat so the icon does not flash and vanish.
     if (config.useBackend) {
-      setReady(true);
-      void SplashScreen.hideAsync();
+      finishSplash();
       return () => {
         cancelled = true;
       };
@@ -38,21 +76,19 @@ export default function RootLayout() {
 
     initDatabase()
       .then(() => {
-        if (!cancelled) {
-          setReady(true);
-          void SplashScreen.hideAsync();
-        }
+        if (!cancelled) finishSplash();
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (!cancelled) {
           setError('startup');
           void SplashScreen.hideAsync();
+          setShowSplash(false);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [splashOpacity]);
 
   if (error) {
     return (
@@ -65,35 +101,47 @@ export default function RootLayout() {
     );
   }
 
-  if (!ready) {
-    return (
-      <View style={styles.splashCenter}>
-        <Image
-          source={require('../assets/splash-icon.png')}
-          style={styles.splashLogo}
-          resizeMode="contain"
-          accessibilityLabel="AltUten"
-        />
-      </View>
-    );
-  }
-
   return (
     <GestureHandlerRootView style={styles.flex}>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <I18nProvider>
-            <AllergenPrefsProvider>
-              <AuthProvider>
-                <NotificationPrefsProvider>
-                  <InboxAlertWatcher />
-                  <RootNavigator />
-                </NotificationPrefsProvider>
-              </AuthProvider>
-            </AllergenPrefsProvider>
-          </I18nProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
+      {ready ? (
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <I18nProvider>
+              <AllergenPrefsProvider>
+                <AuthProvider>
+                  <NotificationPrefsProvider>
+                    <InboxAlertWatcher />
+                    <RootNavigator />
+                  </NotificationPrefsProvider>
+                </AuthProvider>
+              </AllergenPrefsProvider>
+            </I18nProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      ) : (
+        <View style={styles.splashCenter}>
+          <Image
+            source={require('../assets/splash-icon.png')}
+            style={styles.splashLogo}
+            resizeMode="contain"
+            accessibilityLabel="AltUten"
+          />
+        </View>
+      )}
+
+      {showSplash ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.splashOverlay, { opacity: splashOpacity }]}
+        >
+          <Image
+            source={require('../assets/splash-icon.png')}
+            style={styles.splashLogo}
+            resizeMode="contain"
+            accessibilityLabel="AltUten"
+          />
+        </Animated.View>
+      ) : null}
     </GestureHandlerRootView>
   );
 }
@@ -212,6 +260,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#000000',
+  },
+  splashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000000',
+    zIndex: 100,
   },
   splashLogo: {
     width: 320,

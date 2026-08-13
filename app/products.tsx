@@ -10,17 +10,16 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../src/auth/AuthContext';
-import {
-  findAllergenWarnings,
-  isFreeFromAllAllergens,
-} from '../src/allergens/allergenPrefs';
-import { useAllergenPrefs } from '../src/allergens/AllergenPrefsContext';
 import { AddToListModal } from '../src/components/AddToListModal';
-import { AllergenBadge, FreeFromAllBadge } from '../src/components/AllergenBadge';
 import { AllergnomShelfLoader } from '../src/components/AllergnomShelfLoader';
 import { CountrySelector } from '../src/components/CountrySelector';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ErrorText } from '../src/components/ErrorText';
+import {
+  ProductCardActions,
+  ProductCardIconButton,
+  ProductListCard,
+} from '../src/components/ProductListCard';
 import type { FavoriteProductRef } from '../src/data/authApi';
 import {
   loadProductSearchHistory,
@@ -42,6 +41,11 @@ import { isUnknownBarcode, Product, ProductCatalog } from '../src/db/types';
 import { useReliableBackHeader } from '../src/navigation/useReliableBackHeader';
 import { useTheme } from '../src/theme/ThemeContext';
 
+/** Wait for typing to settle before hitting the API. */
+const SEARCH_DEBOUNCE_MS = 400;
+/** Don't mount the heavy shelf animation for fast responses. */
+const LOADER_DELAY_MS = 280;
+
 function canFavoriteProduct(item: Product): item is Product & { catalog: ProductCatalog } {
   return (
     !!item.catalog &&
@@ -58,7 +62,6 @@ export default function ProductsScreen() {
   const { user, addFavorite, removeFavorite } = useAuth();
   const { t, tf } = useI18n();
   const { colors } = useTheme();
-  const { selected: warnAllergens } = useAllergenPrefs();
   const [countries, setCountries] = useState<ProductCountry[]>(() => [
     ...PRODUCT_COUNTRIES,
   ]);
@@ -68,6 +71,7 @@ export default function ProductsScreen() {
   const [totalCount, setTotalCount] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showLoader, setShowLoader] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [listProduct, setListProduct] = useState<FavoriteProductRef | null>(null);
@@ -81,6 +85,17 @@ export default function ProductsScreen() {
   useEffect(() => {
     void loadProductSearchHistory().then(setRecentSearches);
   }, []);
+
+  // Only show the shelf animation once a search has been in flight long enough
+  // that the wait is noticeable — keeps fast lookups feeling instant.
+  useEffect(() => {
+    if (!loading) {
+      setShowLoader(false);
+      return;
+    }
+    const handle = setTimeout(() => setShowLoader(true), LOADER_DELAY_MS);
+    return () => clearTimeout(handle);
+  }, [loading]);
 
   const runSearch = useCallback(
     async (term: string, pageNumber: number) => {
@@ -136,7 +151,7 @@ export default function ProductsScreen() {
   useEffect(() => {
     const handle = setTimeout(() => {
       void runSearch(query, page);
-    }, 300);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
   }, [query, page, runSearch]);
 
@@ -183,13 +198,19 @@ export default function ProductsScreen() {
     }
   };
 
-  const showPager = queryReady && !loading && !error && (page > 1 || hasMore || products.length > 0);
+  const showPager = queryReady && !error && (page > 1 || hasMore || products.length > 0);
   const shownThrough = products.length === 0 ? 0 : (page - 1) * PRODUCT_SEARCH_PAGE_SIZE + products.length;
   const totalPages = Math.max(1, Math.ceil(Math.max(totalCount, 1) / PRODUCT_SEARCH_PAGE_SIZE));
   const canGoNext =
     totalCount > 0
       ? page * PRODUCT_SEARCH_PAGE_SIZE < totalCount
       : hasMore;
+
+  // Keep previous results visible while refreshing — only blank the list on
+  // first search or after an error. This is what made search feel slower after
+  // the shelf loader was added (it replaced the whole list on every keystroke).
+  const showResults = queryReady && !error && (products.length > 0 || !loading);
+  const showCenteredLoader = queryReady && showLoader && products.length === 0 && !error;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
@@ -241,7 +262,7 @@ export default function ProductsScreen() {
         </Text>
       </View>
 
-      {loading && (
+      {showCenteredLoader && (
         <View style={styles.centered}>
           <AllergnomShelfLoader label={t('products.searching')} />
         </View>
@@ -253,7 +274,7 @@ export default function ProductsScreen() {
         </View>
       )}
 
-      {!loading && !error && !queryReady && (
+      {!queryReady && (
         <View style={styles.recentBlock}>
           {recentSearches.length > 0 && (
             <>
@@ -274,7 +295,7 @@ export default function ProductsScreen() {
         </View>
       )}
 
-      {!loading && !error && queryReady && (
+      {showResults && (
         <FlatList
           contentContainerStyle={styles.content}
           data={products}
@@ -307,10 +328,10 @@ export default function ProductsScreen() {
                     {
                       borderColor: colors.border,
                       backgroundColor: colors.background,
-                      opacity: page <= 1 ? 0.4 : 1,
+                      opacity: page <= 1 || loading ? 0.4 : 1,
                     },
                   ]}
-                  disabled={page <= 1}
+                  disabled={page <= 1 || loading}
                   onPress={() => setPage((p) => Math.max(1, p - 1))}
                   accessibilityRole="button"
                   accessibilityLabel={t('products.prevPage')}
@@ -336,10 +357,10 @@ export default function ProductsScreen() {
                     {
                       borderColor: colors.border,
                       backgroundColor: colors.background,
-                      opacity: canGoNext ? 1 : 0.4,
+                      opacity: canGoNext && !loading ? 1 : 0.4,
                     },
                   ]}
-                  disabled={!canGoNext}
+                  disabled={!canGoNext || loading}
                   onPress={() => setPage((p) => p + 1)}
                   accessibilityRole="button"
                   accessibilityLabel={t('products.nextPage')}
@@ -366,101 +387,36 @@ export default function ProductsScreen() {
           renderItem={({ item }) => {
             const favorited = isFavorite(item);
             const showActions = !!user && canFavoriteProduct(item);
-            // Warnings only — the green "Uten X" tags just add noise in a list.
-            const allergenHits = findAllergenWarnings(
-              warnAllergens,
-              item.allergens,
-              item.glutenRating
-            );
-            // Only when the product actually declares itself free of everything;
-            // a missing declaration stays blank rather than claiming it is safe.
-            const freeFromAll =
-              allergenHits.length === 0 && isFreeFromAllAllergens(item.allergens);
             return (
-              <Pressable
-                style={[styles.row, { backgroundColor: colors.background }]}
+              <ProductListCard
+                product={item}
+                fallbackTitle={item.name}
                 onPress={() => openProduct(item)}
-              >
-                <View style={styles.rowMain}>
-                  {item.produsent?.trim() ? (
-                    <Text
-                      style={[styles.produsent, { color: colors.textSecondary }]}
-                      numberOfLines={1}
-                    >
-                      {item.produsent.trim()}
-                    </Text>
-                  ) : null}
-                  <Text
-                    style={[styles.name, { color: colors.text }]}
-                    numberOfLines={2}
-                  >
-                    {item.name}
-                  </Text>
-                  {item.productionCountry?.trim() ? (
-                    <Text
-                      style={[styles.country, { color: colors.textSecondary }]}
-                      numberOfLines={1}
-                    >
-                      {item.productionCountry.trim()}
-                    </Text>
-                  ) : null}
-                </View>
-                <View style={styles.rowLine}>
-                  <View style={styles.badgeWrap}>
-                    {freeFromAll ? <FreeFromAllBadge size="small" /> : null}
-                    {allergenHits.map((hit) => (
-                      <AllergenBadge
-                        key={`${hit.kind}-${hit.selected}`}
-                        name={hit.selected}
-                        kind={hit.kind}
-                        size="small"
+                trailing={
+                  showActions ? (
+                    <ProductCardActions>
+                      <ProductCardIconButton
+                        name="playlist-plus"
+                        color={colors.primary}
+                        label={t('lists.addToList')}
+                        onPress={() =>
+                          setListProduct({ catalog: item.catalog, id: item.id })
+                        }
                       />
-                    ))}
-                  </View>
-                  {showActions ? (
-                    <View style={styles.actionsCol}>
-                      <Pressable
-                        style={styles.actionButton}
-                        hitSlop={8}
-                        onPress={(e) => {
-                          e.stopPropagation?.();
-                          setListProduct({ catalog: item.catalog, id: item.id });
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('lists.addToList')}
-                      >
-                        <MaterialCommunityIcons
-                          name="playlist-plus"
-                          size={22}
-                          color={colors.primary}
-                        />
-                      </Pressable>
-                      <Pressable
-                        style={styles.actionButton}
-                        hitSlop={8}
-                        onPress={(e) => {
-                          e.stopPropagation?.();
-                          toggleFavorite(item);
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel={
+                      <ProductCardIconButton
+                        name={favorited ? 'heart' : 'heart-outline'}
+                        color={favorited ? colors.primary : colors.textSecondary}
+                        label={
                           favorited
                             ? t('result.removeFavorite')
                             : t('result.addFavorite')
                         }
-                      >
-                        <MaterialCommunityIcons
-                          name={favorited ? 'heart' : 'heart-outline'}
-                          size={22}
-                          color={favorited ? colors.primary : colors.textSecondary}
-                        />
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <View style={styles.actionsPlaceholder} />
-                  )}
-                </View>
-              </Pressable>
+                        onPress={() => toggleFavorite(item)}
+                      />
+                    </ProductCardActions>
+                  ) : undefined
+                }
+              />
             );
           }}
         />
@@ -546,56 +502,6 @@ const styles = StyleSheet.create({
   recentText: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  row: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    gap: 2,
-  },
-  rowLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    // Allergen tags on the left, action icons pinned right.
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  rowMain: {
-    flex: 1,
-    gap: 2,
-  },
-  produsent: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  country: {
-    fontSize: 12,
-  },
-  badgeWrap: {
-    // Takes the leftover width so the action icons stay right-aligned
-    // even when a product has no allergen tags.
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-  },
-  actionsCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionButton: {
-    paddingHorizontal: 2,
-  },
-  actionsPlaceholder: {
-    width: 52,
-    height: 22,
-  },
-  name: {
-    maxWidth: '75%',
-    fontSize: 16,
-    fontWeight: '700',
   },
   pager: {
     marginTop: 8,
