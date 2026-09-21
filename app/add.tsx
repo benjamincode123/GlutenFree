@@ -18,7 +18,7 @@ import { useAuth } from '../src/auth/AuthContext';
 import { getAuthToken } from '../src/auth/session';
 import {
   ALLERGEN_OPTIONS,
-  allergenLabelMatches,
+  resolveAllergenOption,
 } from '../src/allergens/allergenPrefs';
 import {
   AllergenStatus,
@@ -526,11 +526,7 @@ export default function AddProductScreen() {
         setAllergenStatuses((prev) => {
           // Retake starts clean so previous AI allergens do not stick around.
           const next = ocrDone ? { ...defaultAllergenStatuses() } : { ...prev };
-          const resolve = (label: string) =>
-            ALLERGEN_OPTIONS.find(
-              (option) =>
-                option === label || allergenLabelMatches(option, label)
-            ) ?? null;
+          const resolve = (label: string) => resolveAllergenOption(label);
 
           for (const allergen of parsed.allergensContains) {
             const key = resolve(allergen);
@@ -570,9 +566,11 @@ export default function AddProductScreen() {
           setOcrError(err.message);
         }
       } else {
-        setOcrError(
-          userFacingError(err, t, 'unauthorized') || t('add.scanWithAiFailed')
-        );
+        const msg = userFacingError(err, t, 'unauthorized');
+        // Empty message means session expired — AuthContext redirects to login.
+        if (msg) {
+          setOcrError(msg);
+        }
       }
     } finally {
       setOcrScanning(false);
@@ -1586,6 +1584,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 18,
+    textAlign: 'center',
   },
   missingButton: {
     minHeight: 48,

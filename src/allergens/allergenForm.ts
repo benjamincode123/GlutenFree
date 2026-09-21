@@ -1,4 +1,4 @@
-import { ALLERGEN_OPTIONS, allergenLabelMatches } from './allergenPrefs';
+import { ALLERGEN_OPTIONS, resolveAllergenOption } from './allergenPrefs';
 import { GlutenRating, ProductAllergens } from '../db/types';
 
 export type AllergenStatus = 'contains' | 'mayContain' | 'free';
@@ -33,9 +33,7 @@ export function allergensToStatuses(
 
   const mark = (labels: string[] | undefined, status: AllergenStatus) => {
     for (const declared of labels ?? []) {
-      const match = ALLERGEN_OPTIONS.find(
-        (option) => option === declared || allergenLabelMatches(option, declared)
-      );
+      const match = resolveAllergenOption(declared);
       if (match) statuses[match] = status;
     }
   };

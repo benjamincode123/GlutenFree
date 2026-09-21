@@ -7,11 +7,6 @@
     "icon": "./assets/icon.png",
     "scheme": "glutenfree",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#000000"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.glutenfree.scanner",
@@ -87,7 +82,9 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-font"
     ],
     "extra": {
       "eas": {

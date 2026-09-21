@@ -27,6 +27,8 @@ import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
 void SplashScreen.preventAutoHideAsync();
 
+const ISSUE_IMAGE = require('../assets/allergnom/allergnomen issue.png');
+
 /** Keep the brand mark on screen long enough to read, then fade it out. */
 const MIN_SPLASH_MS = 900;
 const SPLASH_FADE_MS = 420;
@@ -93,9 +95,14 @@ export default function RootLayout() {
   if (error) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorTitle}>Something went wrong</Text>
+        <Image
+          source={ISSUE_IMAGE}
+          style={styles.errorImage}
+          resizeMode="contain"
+          accessibilityLabel="Allergnom"
+        />
         <Text style={styles.errorText}>
-          The app could not start. Please try again.
+          Uff! Allergnomen er blitt dårlig. Prøv igjen senere
         </Text>
       </View>
     );
@@ -267,7 +274,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   splashOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#000000',
@@ -282,11 +289,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#444',
   },
+  errorImage: {
+    width: 168,
+    height: 112,
+    marginBottom: 8,
+  },
   errorTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#B3261E',
     marginBottom: 8,
+    textAlign: 'center',
   },
   errorText: {
     fontSize: 14,

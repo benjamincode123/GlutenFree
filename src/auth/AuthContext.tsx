@@ -27,6 +27,7 @@ import {
   saveToken,
   setAuthToken,
 } from './session';
+import { setSessionExpiredHandler } from './sessionExpired';
 import { clearCachedLeaderboard } from '../data/leaderboardCache';
 import { clearCachedLists } from '../data/listsCache';
 
@@ -334,7 +335,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })();
     }
-  }, [clearFavoritesSyncTimer]);
+  }, [clearFavoritesSyncTimer, rememberSyncedFavorites]);
+
+  // When any authenticated API call returns 401 (expired session), clear local
+  // auth so the root layout redirects to the login screen.
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      void signOut();
+    });
+    return () => setSessionExpiredHandler(null);
+  }, [signOut]);
 
   const refreshUser = useCallback(async () => {
     if (!config.useBackend) {

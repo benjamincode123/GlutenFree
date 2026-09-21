@@ -23,14 +23,32 @@ export type AllergenOption = (typeof ALLERGEN_OPTIONS)[number];
 
 const NUT_VARIANTS = [
   'nøtter',
+  'nuts',
+  'tree nuts',
+  'treenuts',
   'mandler',
+  'almond',
+  'almonds',
   'hasselnøtter',
+  'hazelnut',
+  'hazelnuts',
   'valnøtter',
+  'walnut',
+  'walnuts',
   'kasjunøtter',
+  'cashew',
+  'cashews',
   'pekannøtter',
+  'pecan',
+  'pecans',
   'paranøtter',
+  'brazil nut',
+  'brazil nuts',
   'pistasienøtter',
+  'pistachio',
+  'pistachios',
   'macadamianøtter',
+  'macadamia',
 ];
 
 function normalize(value: string): string {
@@ -41,12 +59,58 @@ function normalize(value: string): string {
     .replace(/\p{M}/gu, '');
 }
 
+function isPeanutLabel(normalized: string): boolean {
+  return (
+    normalized === 'peanotter' ||
+    normalized === 'peanuts' ||
+    normalized === 'peanut' ||
+    normalized.includes('peanot') ||
+    normalized.includes('peanut')
+  );
+}
+
+function isTreeNutLabel(normalized: string): boolean {
+  if (isPeanutLabel(normalized)) return false;
+  if (normalized === 'notter' || normalized === 'nuts' || normalized === 'treenuts') {
+    return true;
+  }
+  return NUT_VARIANTS.some((n) => {
+    const v = normalize(n);
+    return normalized === v || normalized.includes(v) || v.includes(normalized);
+  });
+}
+
+/**
+ * Resolve a free-form allergen label (OCR / DB) onto a canonical ALLERGEN_OPTIONS
+ * entry. Exact match wins first so "Nøtter" is never swallowed by "Peanøtter"
+ * via substring matching ("peanotter" contains "notter").
+ */
+export function resolveAllergenOption(label: string): AllergenOption | null {
+  const trimmed = label.trim();
+  if (!trimmed) return null;
+  const exact = ALLERGEN_OPTIONS.find((option) => option === trimmed);
+  if (exact) return exact;
+  const fuzzy = ALLERGEN_OPTIONS.find((option) => allergenLabelMatches(option, trimmed));
+  return fuzzy ?? null;
+}
+
 /** Whether a declared allergen label matches a selected warn preference. */
 export function allergenLabelMatches(selected: string, declared: string): boolean {
   const s = normalize(selected);
   const d = normalize(declared);
   if (!s || !d) return false;
-  if (s === d || d.includes(s) || s.includes(d)) return true;
+  if (s === d) return true;
+
+  // Peanuts and tree nuts must stay distinct: "peanotter" contains "notter".
+  if (isPeanutLabel(s) || isPeanutLabel(d)) {
+    return isPeanutLabel(s) && isPeanutLabel(d);
+  }
+
+  if (isTreeNutLabel(s) || isTreeNutLabel(d)) {
+    return isTreeNutLabel(s) && isTreeNutLabel(d);
+  }
+
+  if (d.includes(s) || s.includes(d)) return true;
 
   if (s === 'gluten') {
     return (
@@ -60,20 +124,12 @@ export function allergenLabelMatches(selected: string, declared: string): boolea
     );
   }
 
-  if (s === 'notter' || s === 'nøtter') {
-    return NUT_VARIANTS.some((n) => d.includes(normalize(n)));
-  }
-
   if (s.includes('sulfitt') || s.includes('svovel')) {
     return d.includes('sulfitt') || d.includes('svovel');
   }
 
   if (s === 'sesamfro' || s.includes('sesam')) {
     return d.includes('sesam');
-  }
-
-  if (s === 'peanotter' || s.includes('peanot')) {
-    return d.includes('peanot');
   }
 
   if (s === 'blotdyr' || s.includes('blotdyr')) {

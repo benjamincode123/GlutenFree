@@ -2,11 +2,11 @@ import { AppError, AppErrorCode, isAppError } from './appError';
 import { TranslationKey } from '../i18n/translations';
 
 const ERROR_KEYS: Record<AppErrorCode, TranslationKey> = {
-  network: 'errors.network',
-  unavailable: 'errors.unavailable',
+  network: 'errors.allergnomDown',
+  unavailable: 'errors.allergnomDown',
   unauthorized: 'errors.unauthorized',
   forbidden: 'errors.forbidden',
-  not_found: 'errors.notFound',
+  not_found: 'errors.allergnomDown',
   invalid_credentials: 'errors.invalidCredentials',
   username_taken: 'errors.usernameTaken',
   barcode_taken: 'errors.barcodeTaken',
@@ -14,15 +14,15 @@ const ERROR_KEYS: Record<AppErrorCode, TranslationKey> = {
   validation: 'errors.validation',
   search_too_short: 'errors.searchTooShort',
   image_invalid: 'errors.imageInvalid',
-  lookup_failed: 'errors.lookupFailed',
-  search_failed: 'errors.searchFailed',
-  save_failed: 'errors.saveFailed',
-  report_failed: 'errors.reportFailed',
-  login_failed: 'errors.loginFailed',
-  register_failed: 'errors.registerFailed',
-  conflict: 'errors.conflict',
+  lookup_failed: 'errors.allergnomDown',
+  search_failed: 'errors.allergnomDown',
+  save_failed: 'errors.allergnomDown',
+  report_failed: 'errors.allergnomDown',
+  login_failed: 'errors.allergnomDown',
+  register_failed: 'errors.allergnomDown',
+  conflict: 'errors.allergnomDown',
   rate_limited: 'errors.rateLimited',
-  generic: 'errors.generic',
+  generic: 'errors.allergnomDown',
 };
 
 /** Resolve a thrown value to a safe, translated user message. Never returns backend text. */
@@ -40,6 +40,10 @@ export function userFacingError(
     return t('errors.rateLimited').replace('{seconds}', String(seconds));
   }
   if (isAppError(err)) {
+    // Session expiry triggers a redirect to login — don't also show a toast.
+    if (err.code === 'unauthorized') {
+      return '';
+    }
     return t(ERROR_KEYS[err.code] ?? ERROR_KEYS.generic);
   }
   // Legacy string errors from older paths — map known safe cases, otherwise hide details.

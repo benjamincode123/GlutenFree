@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   shelf: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: SHELF_W,
     height: SHELF_H,
   },
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     height: GNOME_H,
   },
   face: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backfaceVisibility: 'hidden',
   },
   gnome: {

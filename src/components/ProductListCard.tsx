@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import type { ComponentProps, ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, Image } from 'react-native';
 
 import {
   isFreeFromAllAllergens,
@@ -14,7 +14,7 @@ import { AllergenBadge, FreeFromAllBadge } from './AllergenBadge';
 
 export type ProductListCardData = Pick<
   Product,
-  'name' | 'produsent' | 'productionCountry' | 'glutenRating'
+  'name' | 'produsent' | 'productionCountry' | 'glutenRating' | 'imageUrl'
 > & {
   allergens?: ProductAllergens | null;
 };
@@ -27,6 +27,14 @@ type AllergenChip = {
 /** Show this many chips when the list fits; above that, show fewer + "see all". */
 const ALLERGEN_CHIP_LIMIT = 3;
 const ALLERGEN_CHIP_PREVIEW = 2;
+
+function productImageUri(imageUrl: string | null | undefined): string | null {
+  const raw = (imageUrl ?? '').trim();
+  if (!raw) return null;
+  if (raw.startsWith('data:image/')) return raw;
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  return `data:image/jpeg;base64,${raw}`;
+}
 
 function buildAllergenChips(
   allergens: ProductAllergens | null | undefined
@@ -53,6 +61,8 @@ interface ProductListCardProps {
   trailing?: ReactNode;
   /** When set, truncated allergen rows can open the full allergen screen. */
   allergenNav?: { catalog: ProductCatalog; id: number } | null;
+  /** Search results: square photo on the left, same height as the tile. */
+  showImage?: boolean;
 }
 
 /**
@@ -65,6 +75,7 @@ export function ProductListCard({
   onPress,
   trailing,
   allergenNav = null,
+  showImage = false,
 }: ProductListCardProps) {
   const router = useRouter();
   const { t, tf } = useI18n();
@@ -95,12 +106,36 @@ export function ProductListCard({
     });
   };
 
+  const imageUri = showImage ? productImageUri(product?.imageUrl) : null;
+
   return (
     <Pressable
-      style={[styles.row, { backgroundColor: colors.background }]}
+      style={[
+        styles.row,
+        showImage && styles.rowWithImage,
+        { backgroundColor: colors.background },
+      ]}
       onPress={onPress}
     >
-      <View style={styles.rowMain}>
+      {showImage ? (
+        <View style={[styles.thumb, { backgroundColor: colors.surface }]}>
+          {imageUri ? (
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.thumbImage}
+              resizeMode="cover"
+              accessibilityLabel={product?.name?.trim() || fallbackTitle}
+            />
+          ) : (
+            <MaterialCommunityIcons
+              name="image-outline"
+              size={22}
+              color={colors.textSecondary}
+            />
+          )}
+        </View>
+      ) : null}
+      <View style={showImage ? styles.rowInset : styles.rowStack}>
         {product?.produsent?.trim() ? (
           <Text
             style={[styles.produsent, { color: colors.textSecondary }]}
@@ -120,8 +155,7 @@ export function ProductListCard({
             {product.productionCountry.trim()}
           </Text>
         ) : null}
-      </View>
-      <View style={styles.rowLine}>
+        <View style={styles.rowLine}>
         <View style={styles.badgeWrap}>
           {freeFromAll ? <FreeFromAllBadge size="small" /> : null}
           {visibleChips.map((chip) => (
@@ -172,6 +206,7 @@ export function ProductListCard({
         </View>
         {trailing ?? <View style={styles.actionsPlaceholder} />}
       </View>
+      </View>
     </Pressable>
   );
 }
@@ -215,6 +250,36 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 10,
     gap: 2,
+  },
+  rowWithImage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 0,
+    overflow: 'hidden',
+    gap: 0,
+  },
+  thumb: {
+    width: 56,
+    height: 56,
+    marginLeft: 12,
+    borderRadius: 8,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  thumbImage: {
+    ...StyleSheet.absoluteFill,
+  },
+  rowStack: {
+    gap: 2,
+  },
+  rowInset: {
+    flex: 1,
+    minWidth: 0,
+    padding: 16,
+    gap: 2,
+    justifyContent: 'center',
   },
   rowLine: {
     flexDirection: 'row',

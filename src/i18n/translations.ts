@@ -55,6 +55,7 @@ type TranslationKey =
   | 'errors.conflict'
   | 'errors.rateLimited'
   | 'errors.generic'
+  | 'errors.allergnomDown'
   | 'errors.startup'
   | 'rating.glutenFree'
   | 'rating.glutenFreeDesc'
@@ -98,6 +99,7 @@ type TranslationKey =
   | 'scanner.holdToScan'
   | 'scanner.scanning'
   | 'scanner.holdA11y'
+  | 'scanner.holdCoach'
   | 'scanner.cameraNeeded'
   | 'scanner.cameraHint'
   | 'scanner.grantCamera'
@@ -321,6 +323,17 @@ type TranslationKey =
   | 'products.resultsShown'
   | 'products.resultsShownMore'
   | 'products.morePages'
+  | 'products.filter'
+  | 'products.filterTitle'
+  | 'products.filterProducer'
+  | 'products.filterProducerPlaceholder'
+  | 'products.filterAllergens'
+  | 'products.filterHint'
+  | 'products.filterWithout'
+  | 'products.filterOnly'
+  | 'products.filterClear'
+  | 'products.filterEmpty'
+  | 'products.openFoodFactsPhoto'
   | 'result.barcode'
   | 'result.scannedBarcode'
   | 'result.lookingUp'
@@ -573,6 +586,7 @@ const en: Record<TranslationKey, string> = {
   'errors.conflict': 'That action could not be completed because of a conflict.',
   'errors.rateLimited': 'Please wait {seconds} seconds before refreshing again.',
   'errors.generic': 'Something went wrong. Please try again.',
+  'errors.allergnomDown': 'Uff! Allergnomen er blitt dårlig. Prøv igjen senere',
   'errors.startup': 'The app could not start. Please try again.',
   'rating.glutenFree': 'Gluten Free',
   'rating.glutenFreeDesc': 'Confirmed gluten free.',
@@ -624,6 +638,7 @@ const en: Record<TranslationKey, string> = {
   'scanner.holdToScan': 'Hold to scan',
   'scanner.scanning': 'Scanning…',
   'scanner.holdA11y': 'Hold to scan barcode',
+  'scanner.holdCoach': 'Hold the scan button so the camera scans.',
   'scanner.cameraNeeded': 'Camera access needed',
   'scanner.cameraHint': 'Grant camera access to scan grocery barcodes.',
   'scanner.grantCamera': 'Grant camera access',
@@ -860,6 +875,18 @@ const en: Record<TranslationKey, string> = {
   'products.resultsShown': '{count} results',
   'products.resultsShownMore': '{count}+ results · More pages',
   'products.morePages': 'More pages',
+  'products.filter': 'Filter',
+  'products.filterTitle': 'Filter',
+  'products.filterProducer': 'Producer',
+  'products.filterProducerPlaceholder': 'e.g. Tine, Freia',
+  'products.filterAllergens': 'Allergens',
+  'products.filterHint':
+    'Without hides products that contain that allergen. With keeps products that contain exactly the allergens you mark — for example just one.',
+  'products.filterWithout': 'Without',
+  'products.filterOnly': 'With',
+  'products.filterClear': 'Clear filters',
+  'products.filterEmpty': 'No products match these filters.',
+  'products.openFoodFactsPhoto': 'Image from Open Food Facts',
   'result.barcode': 'Barcode',
   'result.scannedBarcode': 'Scanned barcode',
   'result.lookingUp': 'Looking up product...',
@@ -1146,6 +1173,7 @@ const nb: Record<TranslationKey, string> = {
   'errors.conflict': 'Handlingen kunne ikke fullføres på grunn av en konflikt.',
   'errors.rateLimited': 'Vent {seconds} sekunder før du oppdaterer igjen.',
   'errors.generic': 'Noe gikk galt. Prøv igjen.',
+  'errors.allergnomDown': 'Uff! Allergnomen er blitt dårlig. Prøv igjen senere',
   'errors.startup': 'Appen kunne ikke starte. Prøv igjen.',
   'rating.glutenFree': 'Glutenfri',
   'rating.glutenFreeDesc': 'Bekreftet glutenfri.',
@@ -1197,6 +1225,7 @@ const nb: Record<TranslationKey, string> = {
   'scanner.holdToScan': 'Hold for å skanne',
   'scanner.scanning': 'Skanner…',
   'scanner.holdA11y': 'Hold for å skanne strekkode',
+  'scanner.holdCoach': 'Hold inne skanneknappen så kameraet skanner.',
   'scanner.cameraNeeded': 'Kameratilgang trengs',
   'scanner.cameraHint': 'Gi kameratilgang for å skanne matstrekkoder.',
   'scanner.grantCamera': 'Gi kameratilgang',
@@ -1433,6 +1462,18 @@ const nb: Record<TranslationKey, string> = {
   'products.resultsShown': '{count} treff',
   'products.resultsShownMore': '{count}+ treff · Flere sider',
   'products.morePages': 'Flere sider',
+  'products.filter': 'Filter',
+  'products.filterTitle': 'Filter',
+  'products.filterProducer': 'Produsent',
+  'products.filterProducerPlaceholder': 'f.eks. Tine, Freia',
+  'products.filterAllergens': 'Allergener',
+  'products.filterHint':
+    'Uten skjuler produkter som har det allergenet. Med viser produkter som inneholder nøyaktig de allergenene du merker — for eksempel ett.',
+  'products.filterWithout': 'Uten',
+  'products.filterOnly': 'Med',
+  'products.filterClear': 'Nullstill filter',
+  'products.filterEmpty': 'Ingen produkter matcher filtrene.',
+  'products.openFoodFactsPhoto': 'Bilde fra Open Food Facts',
   'result.barcode': 'Strekkode',
   'result.scannedBarcode': 'Skannet strekkode',
   'result.lookingUp': 'Slår opp produkt...',

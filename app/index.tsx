@@ -27,6 +27,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../src/auth/AuthContext';
 import { ScannerCamera } from '../src/components/ScannerCamera';
 import { useI18n } from '../src/i18n/I18nContext';
+import {
+  markHoldToScanCoachSeen,
+  shouldShowHoldToScanCoach,
+} from '../src/media/holdToScanCoachPrefs';
 import { useTheme } from '../src/theme/ThemeContext';
 
 type MenuIcon = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -48,6 +52,8 @@ export default function ScannerScreen() {
   const [isFocused, setIsFocused] = useState(true);
   const [cameraReady, setCameraReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showHoldCoach, setShowHoldCoach] = useState(false);
+  const holdCoachDismissedRef = useRef(false);
 
   const drawerWidth = screenWidth * 0.25;
   const menuProgress = useRef(new Animated.Value(0)).current;
@@ -197,6 +203,11 @@ export default function ScannerScreen() {
     if (lockRef.current || !isFocusedRef.current) return;
     holdingRef.current = true;
     setHoldingToScan(true);
+    if (!holdCoachDismissedRef.current) {
+      holdCoachDismissedRef.current = true;
+      setShowHoldCoach(false);
+      void markHoldToScanCoachSeen();
+    }
   }, []);
 
   const stopHolding = useCallback(() => {
@@ -233,6 +244,30 @@ export default function ScannerScreen() {
       scanPulse.setValue(1);
     };
   }, [holdingToScan, isFocused, permission?.granted, scanPulse]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const show = await shouldShowHoldToScanCoach();
+      if (!cancelled && show && !holdCoachDismissedRef.current) {
+        setShowHoldCoach(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showHoldCoach || !permission?.granted) return;
+    void markHoldToScanCoachSeen();
+  }, [showHoldCoach, permission?.granted]);
+
+  const dismissHoldCoach = useCallback(() => {
+    holdCoachDismissedRef.current = true;
+    setShowHoldCoach(false);
+    void markHoldToScanCoachSeen();
+  }, []);
 
   if (!permission) {
     return (
@@ -426,6 +461,17 @@ export default function ScannerScreen() {
             </View>
 
             <View style={styles.scanButtonWrap}>
+              {showHoldCoach ? (
+                <Pressable
+                  onPress={dismissHoldCoach}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('scanner.holdCoach')}
+                  style={styles.coachBubble}
+                >
+                  <Text style={styles.coachText}>{t('scanner.holdCoach')}</Text>
+                  <View style={styles.coachTail} />
+                </Pressable>
+              ) : null}
               <Animated.View style={{ transform: [{ scale: scanPulse }] }}>
                 <Pressable
                   onPressIn={startHolding}
@@ -657,7 +703,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   menuDismiss: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 20,
   },
   headerRoot: {
@@ -713,7 +759,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F1115',
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -790,10 +836,41 @@ const styles = StyleSheet.create({
   },
   scanButtonWrap: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    left: 16,
+    right: 16,
     bottom: 28,
     alignItems: 'center',
+  },
+  coachBubble: {
+    marginBottom: 12,
+    maxWidth: 240,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    overflow: 'visible',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  coachText: {
+    color: '#1A1D22',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  coachTail: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -6,
+    bottom: -6,
+    width: 12,
+    height: 12,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '45deg' }],
   },
   scanButton: {
     width: 76,

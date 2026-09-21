@@ -69,9 +69,7 @@ export async function readImageText(
         404
       );
     }
-    if (apiError) {
-      throw new OcrRequestError(apiError, response.status);
-    }
+    // Prefer AppError so 401 clears the session and redirects to login.
     throw appErrorFromHttp(response.status, apiError, 'unauthorized');
   }
 

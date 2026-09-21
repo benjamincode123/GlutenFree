@@ -1,7 +1,7 @@
-import type { Router } from 'expo-router';
+import type { ImperativeRouter } from 'expo-router';
 
 /** Always land on the AltUten scanner / home screen. */
-export function goHome(router: Router): void {
+export function goHome(router: ImperativeRouter): void {
   try {
     if (typeof router.dismissTo === 'function') {
       router.dismissTo('/');
@@ -21,7 +21,7 @@ export function goHome(router: Router): void {
 }
 
 /** Prefer previous screen; if the stack is empty, go home. */
-export function goBackOrHome(router: Router): void {
+export function goBackOrHome(router: ImperativeRouter): void {
   try {
     if (router.canGoBack()) {
       router.back();

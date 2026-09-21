@@ -1,11 +1,13 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation, useRouter } from 'expo-router';
 import {
   HeaderBackButton,
   type HeaderBackButtonProps,
-} from '@react-navigation/elements';
-import { useNavigation, useRouter } from 'expo-router';
+} from 'expo-router/react-navigation';
 import { useCallback, useEffect, useLayoutEffect } from 'react';
 import { BackHandler } from 'react-native';
 
+import { useI18n } from '../i18n/I18nContext';
 import { useTheme } from '../theme/ThemeContext';
 import { goBackOrHome } from './goHome';
 
@@ -32,6 +34,7 @@ export function useReliableBackHeader(options: Options = {}): void {
   const navigation = useNavigation();
   const router = useRouter();
   const { colors } = useTheme();
+  const { t } = useI18n();
   const { title, lockExit = false, onBack } = options;
 
   const handleBack = useCallback(() => {
@@ -62,12 +65,23 @@ export function useReliableBackHeader(options: Options = {}): void {
       headerLeft: (props: HeaderBackButtonProps) => (
         <HeaderBackButton
           {...props}
+          displayMode="default"
+          label={props.label || t('common.back')}
+          truncatedLabel={t('common.back')}
           tintColor={colors.text}
+          labelStyle={{ color: colors.text }}
           onPress={handleBack}
+          backImage={() => (
+            <MaterialCommunityIcons
+              name="chevron-left"
+              size={22}
+              color={colors.text}
+            />
+          )}
         />
       ),
     });
-  }, [navigation, title, lockExit, colors.text, handleBack]);
+  }, [navigation, title, lockExit, colors.text, handleBack, t]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {

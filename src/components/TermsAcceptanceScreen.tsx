@@ -14,6 +14,7 @@ import { useI18n } from '../i18n/I18nContext';
 import { acceptCurrentTerms, TERMS_VERSION } from '../legal/termsAcceptance';
 import { getTermsSections } from '../legal/termsContent';
 import { useTheme } from '../theme/ThemeContext';
+import { ErrorText } from './ErrorText';
 
 type Props = {
   onAccepted: () => void;
@@ -179,7 +180,7 @@ export function TermsAcceptanceScreen({ onAccepted }: Props) {
         </Pressable>
 
         {error ? (
-          <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>
+          <ErrorText style={styles.error}>{error}</ErrorText>
         ) : null}
 
         <Pressable

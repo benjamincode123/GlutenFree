@@ -29,6 +29,10 @@ import { useAuth } from '../src/auth/AuthContext';
 import { BarcodeCaptureModal } from '../src/components/BarcodeCaptureModal';
 import { AddToListModal } from '../src/components/AddToListModal';
 import { ErrorText } from '../src/components/ErrorText';
+import {
+  isOpenFoodFactsImage,
+  OpenFoodFactsCredit,
+} from '../src/components/OpenFoodFactsCredit';
 import { AllergnomShelfLoader } from '../src/components/AllergnomShelfLoader';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { InfoCard, InfoChipRow, InfoRow } from '../src/components/ProductInfoCard';
@@ -335,20 +339,24 @@ export default function ResultScreen() {
 
       {state === 'error' && (
         <View style={styles.centerBlock}>
-          <ErrorText style={styles.errorTitle}>{t('result.errorTitle')}</ErrorText>
-          <ErrorText style={styles.mutedText}>{errorMessage}</ErrorText>
+          <ErrorText style={styles.errorTitle}>
+            {errorMessage || t('errors.allergnomDown')}
+          </ErrorText>
         </View>
       )}
 
       {state === 'found' && product && (
         <View style={[styles.productCard, { backgroundColor: colors.background }]}>
           {productImageUri(product.imageUrl) ? (
-            <Image
-              source={{ uri: productImageUri(product.imageUrl)! }}
-              style={[styles.productImage, { backgroundColor: colors.surface }]}
-              resizeMode="contain"
-              accessibilityLabel={`${product.name} ${t('result.productImageA11y')}`}
-            />
+            <View style={styles.productImageWrap}>
+              <Image
+                source={{ uri: productImageUri(product.imageUrl)! }}
+                style={[styles.productImage, { backgroundColor: colors.surface }]}
+                resizeMode="contain"
+                accessibilityLabel={`${product.name} ${t('result.productImageA11y')}`}
+              />
+              {isOpenFoodFactsImage(product.imageUrl) ? <OpenFoodFactsCredit /> : null}
+            </View>
           ) : (
             <Pressable
               style={[
@@ -839,11 +847,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 20,
   },
-  productImage: {
+  productImageWrap: {
     width: '100%',
     height: 220,
     marginBottom: 16,
     borderRadius: 12,
+    overflow: 'hidden',
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
   },
   photoPlaceholder: {
     width: '100%',

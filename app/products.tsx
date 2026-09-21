@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -17,6 +17,7 @@ import { AddToListModal } from '../src/components/AddToListModal';
 import { AllergnomShelfLoader } from '../src/components/AllergnomShelfLoader';
 import { AppTextInput } from '../src/components/KeyboardDismissBar';
 import { ErrorText } from '../src/components/ErrorText';
+import { ProductSearchFilterMenu } from '../src/components/ProductSearchFilterMenu';
 import {
   ProductCardActions,
   ProductCardIconButton,
@@ -28,6 +29,12 @@ import {
   pushProductSearchHistory,
 } from '../src/data/productSearchHistory';
 import { getProductRepository } from '../src/data/repository';
+import {
+  activeProductFilterCount,
+  EMPTY_PRODUCT_SEARCH_FILTERS,
+  productMatchesSearchFilters,
+  type ProductSearchFilters,
+} from '../src/data/productSearchFilters';
 import {
   MIN_PRODUCT_SEARCH_CHARS,
   PRODUCT_SEARCH_PAGE_SIZE,
@@ -81,6 +88,8 @@ export default function ProductsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [listProduct, setListProduct] = useState<FavoriteProductRef | null>(null);
+  const [filters, setFilters] = useState<ProductSearchFilters>(EMPTY_PRODUCT_SEARCH_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
   /** Keep the shelf loader mounted while it fades out over results. */
   const [loaderMounted, setLoaderMounted] = useState(false);
   /** Slim banner while previous hits stay visible during a new search. */
@@ -99,6 +108,11 @@ export default function ProductsScreen() {
   };
 
   const queryReady = query.trim().length >= MIN_PRODUCT_SEARCH_CHARS;
+  const filterCount = activeProductFilterCount(filters);
+  const filteredProducts = useMemo(
+    () => products.filter((item) => productMatchesSearchFilters(item, filters)),
+    [products, filters]
+  );
 
   useReliableBackHeader({ title: t('nav.products') });
 
@@ -308,27 +322,55 @@ export default function ProductsScreen() {
         <Text style={[styles.searchLabel, { color: colors.textSecondary }]}>
           {t('products.searchLabel')}
         </Text>
-        <AppTextInput
-          style={[
-            styles.input,
-            {
-              borderColor: colors.border,
-              color: colors.text,
-              backgroundColor: colors.background,
-            },
-          ]}
-          placeholder={t('products.searchPlaceholder')}
-          placeholderTextColor={colors.textSecondary}
-          value={query}
-          onChangeText={(text) => {
-            setPage(1);
-            setQuery(text);
-          }}
-          autoCorrect={false}
-          autoCapitalize="none"
-          clearButtonMode="while-editing"
-          returnKeyType="search"
-        />
+        <View style={styles.searchRow}>
+          <AppTextInput
+            style={[
+              styles.input,
+              styles.searchInput,
+              {
+                borderColor: colors.border,
+                color: colors.text,
+                backgroundColor: colors.background,
+              },
+            ]}
+            placeholder={t('products.searchPlaceholder')}
+            placeholderTextColor={colors.textSecondary}
+            value={query}
+            onChangeText={(text) => {
+              setPage(1);
+              setQuery(text);
+            }}
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+          />
+          <Pressable
+            onPress={() => setFilterOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('products.filter')}
+            style={[
+              styles.filterButton,
+              {
+                borderColor: filterCount > 0 ? colors.primary : colors.border,
+                backgroundColor: filterCount > 0 ? colors.primary : colors.background,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="filter-variant"
+              size={22}
+              color={filterCount > 0 ? colors.onPrimary : colors.text}
+            />
+            {filterCount > 0 ? (
+              <View style={[styles.filterBadge, { backgroundColor: colors.danger }]}>
+                <Text style={styles.filterBadgeText}>
+                  {filterCount > 9 ? '9+' : String(filterCount)}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
       </View>
 
       {!loading && error && (
@@ -393,19 +435,19 @@ export default function ProductsScreen() {
                 refreshingWithResults ? styles.resultsDimmed : null,
               ]}
               contentContainerStyle={styles.content}
-              data={products}
+              data={filteredProducts}
               keyExtractor={(item) => `${item.catalog ?? 'x'}-${item.id}-${item.barcode}`}
               keyboardShouldPersistTaps="handled"
               ListHeaderComponent={
-                products.length > 0 ? (
+                filteredProducts.length > 0 ? (
                   <View style={styles.countRow}>
                     <Text style={[styles.countText, { color: colors.textSecondary }]}>
-                      {hasMore
+                      {hasMore && filterCount === 0
                         ? tf('products.resultsShownMore', {
-                            count: String(products.length),
+                            count: String(filteredProducts.length),
                           })
                         : tf('products.resultsShown', {
-                            count: String(products.length),
+                            count: String(filteredProducts.length),
                           })}
                     </Text>
                     <Text style={[styles.countText, { color: colors.textSecondary }]}>
@@ -473,7 +515,9 @@ export default function ProductsScreen() {
               ListEmptyComponent={
                 <View style={styles.emptyBlock}>
                   <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    {t('products.empty')}
+                    {products.length > 0 && filterCount > 0
+                      ? t('products.filterEmpty')
+                      : t('products.empty')}
                   </Text>
                 </View>
               }
@@ -483,6 +527,7 @@ export default function ProductsScreen() {
                 return (
                   <ProductListCard
                     product={item}
+                    showImage
                     fallbackTitle={item.name}
                     onPress={() => openProduct(item)}
                     allergenNav={
@@ -531,6 +576,12 @@ export default function ProductsScreen() {
         ) : null}
       </View>
 
+      <ProductSearchFilterMenu
+        visible={filterOpen}
+        filters={filters}
+        onChange={setFilters}
+        onClose={() => setFilterOpen(false)}
+      />
       <AddToListModal
         visible={listProduct != null}
         product={listProduct}
@@ -564,6 +615,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+  },
+  filterButton: {
+    width: 48,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
   resultsArea: {
     flex: 1,
   },
@@ -591,7 +674,7 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
   loaderOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 40,

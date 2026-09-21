@@ -2,6 +2,8 @@
  * Stable error codes for user-visible failures.
  * Never put technical/backend details in the message shown to users.
  */
+import { notifySessionExpired } from '../auth/sessionExpired';
+
 export type AppErrorCode =
   | 'network'
   | 'unavailable'
@@ -28,12 +30,14 @@ export type AppErrorCode =
 export class AppError extends Error {
   readonly code: AppErrorCode;
   readonly retryAfterSeconds?: number;
+  readonly status?: number;
 
-  constructor(code: AppErrorCode, retryAfterSeconds?: number) {
+  constructor(code: AppErrorCode, retryAfterSeconds?: number, status?: number) {
     super(code);
     this.name = 'AppError';
     this.code = code;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.status = status;
   }
 }
 
@@ -49,53 +53,58 @@ export function appErrorFromHttp(
   retryAfterSeconds?: number
 ): AppError {
   const detail = (apiError ?? '').toLowerCase();
+  const withStatus = (code: AppErrorCode, retryAfter?: number) =>
+    new AppError(code, retryAfter, status);
 
   if (status === 429) {
-    return new AppError(
+    return withStatus(
       'rate_limited',
       retryAfterSeconds != null && retryAfterSeconds > 0 ? retryAfterSeconds : 1
     );
   }
   if (status === 401) {
     if (detail.includes('invalid username') || detail.includes('invalid password')) {
-      return new AppError('invalid_credentials');
+      return withStatus('invalid_credentials');
     }
-    return new AppError('unauthorized');
+    // Defer so callers finish throwing before AuthContext clears the session
+    // and the root layout redirects to login.
+    queueMicrotask(() => notifySessionExpired());
+    return withStatus('unauthorized');
   }
   if (status === 403) {
-    return new AppError('forbidden');
+    return withStatus('forbidden');
   }
   if (status === 404) {
-    return new AppError('not_found');
+    return withStatus('not_found');
   }
   if (status === 409) {
     if (detail.includes('already linked')) {
-      return new AppError('barcode_taken');
+      return withStatus('barcode_taken');
     }
     if (detail.includes('already has a barcode')) {
-      return new AppError('product_has_barcode');
+      return withStatus('product_has_barcode');
     }
     if (detail.includes('username') && detail.includes('taken')) {
-      return new AppError('username_taken');
+      return withStatus('username_taken');
     }
-    return new AppError('conflict');
+    return withStatus('conflict');
   }
   if (status === 400) {
     if (detail.includes('at least 6')) {
-      return new AppError('search_too_short');
+      return withStatus('search_too_short');
     }
     if (detail.includes('barcode is required') || detail.includes('barcode must be')) {
-      return new AppError('validation');
+      return withStatus('validation');
     }
     if (detail.includes('image')) {
-      return new AppError('image_invalid');
+      return withStatus('image_invalid');
     }
-    return new AppError('validation');
+    return withStatus('validation');
   }
   if (status >= 500) {
-    return new AppError('unavailable');
+    return withStatus('unavailable');
   }
-  return new AppError(fallback);
+  return withStatus(fallback);
 }
 
 export async function readApiErrorBody(

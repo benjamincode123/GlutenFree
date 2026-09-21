@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   avatarBusy: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 44,
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',

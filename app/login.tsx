@@ -21,7 +21,6 @@ import {
 } from '../src/components/GroceryPatternBackground';
 import { config } from '../src/config';
 import * as authApi from '../src/data/authApi';
-import { isAppError } from '../src/errors/appError';
 import { userFacingError } from '../src/errors/userFacingError';
 import { useSmoothKeyboardShift } from '../src/hooks/useSmoothKeyboardShift';
 import { useI18n } from '../src/i18n/I18nContext';
@@ -100,11 +99,7 @@ export default function LoginScreen() {
       await authApi.forgotPassword(username.trim(), email.trim());
       setInfo(t('login.resetLinkSent'));
     } catch (err) {
-      if (!isAppError(err) && err instanceof Error && err.message.trim()) {
-        setError(err.message);
-      } else {
-        setError(userFacingError(err, t, 'generic'));
-      }
+      setError(userFacingError(err, t, 'generic'));
     } finally {
       setSubmitting(false);
     }
@@ -112,6 +107,7 @@ export default function LoginScreen() {
 
   async function openRegisterWebsite() {
     setError(null);
+    setShowIssueImage(false);
     const url = registerWebUrl();
     try {
       const supported = await Linking.canOpenURL(url);
