@@ -3,7 +3,8 @@ import * as SecureStore from 'expo-secure-store';
 import type { Product } from '../db/types';
 import { isGlutenRating } from '../db/types';
 
-const STORAGE_KEY = 'pending_products_v1';
+const STORAGE_KEY = 'altuten.pending.products.v1';
+const LEGACY_STORAGE_KEY = 'pending_products_v1';
 /** Keep user-submitted products visible on scan until admin likely approved. */
 export const PENDING_PRODUCT_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 
@@ -65,7 +66,14 @@ async function readStore(): Promise<PendingStore> {
     return memoryStore;
   }
   try {
-    const raw = await SecureStore.getItemAsync(STORAGE_KEY);
+    let raw = await SecureStore.getItemAsync(STORAGE_KEY);
+    if (!raw) {
+      raw = await SecureStore.getItemAsync(LEGACY_STORAGE_KEY);
+      if (raw) {
+        await SecureStore.setItemAsync(STORAGE_KEY, raw).catch(() => undefined);
+        await SecureStore.deleteItemAsync(LEGACY_STORAGE_KEY).catch(() => undefined);
+      }
+    }
     if (!raw) {
       memoryStore = {};
       return memoryStore;

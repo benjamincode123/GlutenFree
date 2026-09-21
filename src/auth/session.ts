@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
-const TOKEN_KEY = 'gluten_session_token';
+const TOKEN_KEY = 'altuten.session.token';
+const LEGACY_TOKEN_KEY = 'gluten_session_token';
 
 // In-memory cache so synchronous callers (like the API repository) can read the
 // current token without awaiting SecureStore.
@@ -10,6 +11,14 @@ let currentToken: string | null = null;
 export async function loadToken(): Promise<string | null> {
   try {
     currentToken = await SecureStore.getItemAsync(TOKEN_KEY);
+    if (!currentToken) {
+      const legacy = await SecureStore.getItemAsync(LEGACY_TOKEN_KEY);
+      if (legacy) {
+        currentToken = legacy;
+        await SecureStore.setItemAsync(TOKEN_KEY, legacy).catch(() => undefined);
+        await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY).catch(() => undefined);
+      }
+    }
   } catch {
     currentToken = null;
   }
@@ -36,6 +45,7 @@ export async function clearToken(): Promise<void> {
   currentToken = null;
   try {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY);
   } catch {
     // ignore
   }

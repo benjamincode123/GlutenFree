@@ -11,7 +11,8 @@ import {
 
 import { darkColors, lightColors, ThemeColors, ThemeMode } from './colors';
 
-const THEME_KEY = 'gluten_theme_mode';
+const THEME_KEY = 'altuten.theme.mode';
+const LEGACY_THEME_KEY = 'gluten_theme_mode';
 
 interface ThemeContextValue {
   mode: ThemeMode;
@@ -31,9 +32,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const stored = await SecureStore.getItemAsync(THEME_KEY);
+        const stored =
+          (await SecureStore.getItemAsync(THEME_KEY)) ||
+          (await SecureStore.getItemAsync(LEGACY_THEME_KEY));
         if (!cancelled && (stored === 'light' || stored === 'dark')) {
           setModeState(stored);
+          if (stored) {
+            void SecureStore.setItemAsync(THEME_KEY, stored).catch(() => undefined);
+          }
         }
       } catch {
         // Keep default.

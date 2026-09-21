@@ -11,8 +11,9 @@ import {
 
 import { ALLERGEN_OPTIONS } from './allergenPrefs';
 
-const STORAGE_KEY = 'gluten_allergen_warn_v2';
-const LEGACY_STORAGE_KEY = 'gluten_allergen_warn_v1';
+const STORAGE_KEY = 'altuten.allergen.warn.v2';
+const LEGACY_STORAGE_KEY = 'gluten_allergen_warn_v2';
+const LEGACY_V1_STORAGE_KEY = 'gluten_allergen_warn_v1';
 
 const DEFAULT_SELECTED: string[] = [...ALLERGEN_OPTIONS];
 
@@ -56,8 +57,10 @@ export function AllergenPrefsProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Migrate v1: keep a non-empty custom selection; empty/missing → all on.
-        const legacy = await SecureStore.getItemAsync(LEGACY_STORAGE_KEY);
+        // Migrate previous preference keys.
+        const legacy =
+          (await SecureStore.getItemAsync(LEGACY_STORAGE_KEY)) ||
+          (await SecureStore.getItemAsync(LEGACY_V1_STORAGE_KEY));
         if (!cancelled && legacy) {
           const parsed = sanitize(JSON.parse(legacy));
           const next = parsed.length > 0 ? parsed : DEFAULT_SELECTED;

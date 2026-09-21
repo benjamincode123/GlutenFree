@@ -20,7 +20,8 @@ import {
   syncPushTokenWithBackend,
 } from './push';
 
-const STORAGE_KEY = 'gluten_notification_prefs_v1';
+const STORAGE_KEY = 'altuten.notification.prefs.v1';
+const LEGACY_STORAGE_KEY = 'gluten_notification_prefs_v1';
 
 export interface NotificationPrefs {
   /** OS push when an in-app inbox notification arrives. Default on. */
@@ -53,7 +54,13 @@ const NotificationPrefsContext = createContext<
 
 async function loadLocalPrefs(): Promise<NotificationPrefs> {
   try {
-    const raw = await SecureStore.getItemAsync(STORAGE_KEY);
+    let raw = await SecureStore.getItemAsync(STORAGE_KEY);
+    if (!raw) {
+      raw = await SecureStore.getItemAsync(LEGACY_STORAGE_KEY);
+      if (raw) {
+        await SecureStore.setItemAsync(STORAGE_KEY, raw).catch(() => undefined);
+      }
+    }
     if (!raw) return { ...DEFAULT_PREFS };
     const parsed = JSON.parse(raw) as Partial<NotificationPrefs>;
     return {

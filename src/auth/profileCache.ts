@@ -2,8 +2,10 @@ import * as SecureStore from 'expo-secure-store';
 
 import type { AuthUser, XpProfile } from '../data/authApi';
 
-const USER_KEY = 'uten_gluten_auth_user';
-const XP_KEY = 'uten_gluten_xp_profile';
+const USER_KEY = 'altuten.auth.user';
+const XP_KEY = 'altuten.xp.profile';
+const LEGACY_USER_KEY = 'uten_gluten_auth_user';
+const LEGACY_XP_KEY = 'uten_gluten_xp_profile';
 
 /** Keep history short so SecureStore stays under platform size limits. */
 const MAX_CACHED_HISTORY = 40;
@@ -40,7 +42,14 @@ export async function loadCachedUser(): Promise<AuthUser | null> {
     return memoryUser;
   }
   try {
-    const raw = await SecureStore.getItemAsync(USER_KEY);
+    let raw = await SecureStore.getItemAsync(USER_KEY);
+    if (!raw) {
+      raw = await SecureStore.getItemAsync(LEGACY_USER_KEY);
+      if (raw) {
+        await SecureStore.setItemAsync(USER_KEY, raw).catch(() => undefined);
+        await SecureStore.deleteItemAsync(LEGACY_USER_KEY).catch(() => undefined);
+      }
+    }
     if (!raw) {
       return null;
     }
@@ -65,7 +74,14 @@ export async function loadCachedXpProfile(): Promise<XpProfile | null> {
     return memoryXp;
   }
   try {
-    const raw = await SecureStore.getItemAsync(XP_KEY);
+    let raw = await SecureStore.getItemAsync(XP_KEY);
+    if (!raw) {
+      raw = await SecureStore.getItemAsync(LEGACY_XP_KEY);
+      if (raw) {
+        await SecureStore.setItemAsync(XP_KEY, raw).catch(() => undefined);
+        await SecureStore.deleteItemAsync(LEGACY_XP_KEY).catch(() => undefined);
+      }
+    }
     if (!raw) {
       return null;
     }
@@ -100,11 +116,13 @@ export async function clearProfileCache(): Promise<void> {
   clearProfileCacheMemory();
   try {
     await SecureStore.deleteItemAsync(USER_KEY);
+    await SecureStore.deleteItemAsync(LEGACY_USER_KEY);
   } catch {
     // ignore
   }
   try {
     await SecureStore.deleteItemAsync(XP_KEY);
+    await SecureStore.deleteItemAsync(LEGACY_XP_KEY);
   } catch {
     // ignore
   }

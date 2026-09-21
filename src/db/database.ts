@@ -4,9 +4,9 @@ import { GlutenRating } from './types';
 
 /**
  * Name of the local SQLite database file. expo-sqlite stores it on the device
- * under the app's SQLite directory (e.g. .../SQLite/gluten.db).
+ * under the app's SQLite directory (e.g. .../SQLite/altuten.db).
  */
-export const DATABASE_NAME = 'gluten.db';
+export const DATABASE_NAME = 'altuten.db';
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 

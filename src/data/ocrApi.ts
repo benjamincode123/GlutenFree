@@ -65,7 +65,7 @@ export async function readImageText(
     const apiError = await readApiErrorMessage(response);
     if (response.status === 404) {
       throw new OcrRequestError(
-        `OCR endpoint missing on ${config.apiBaseUrl}. Deploy backend or use local API.`,
+        `OCR endpoint missing on ${config.apiBaseUrl}. Deploy the AltUten backend.`,
         404
       );
     }

@@ -1,11 +1,19 @@
 import * as SecureStore from 'expo-secure-store';
 
-const KEY = 'product_search_history_v1';
+const KEY = 'altuten.product.search.history.v1';
+const LEGACY_KEY = 'product_search_history_v1';
 const MAX_ITEMS = 5;
 
 export async function loadProductSearchHistory(): Promise<string[]> {
   try {
-    const raw = await SecureStore.getItemAsync(KEY);
+    let raw = await SecureStore.getItemAsync(KEY);
+    if (!raw) {
+      raw = await SecureStore.getItemAsync(LEGACY_KEY);
+      if (raw) {
+        await SecureStore.setItemAsync(KEY, raw).catch(() => undefined);
+        await SecureStore.deleteItemAsync(LEGACY_KEY).catch(() => undefined);
+      }
+    }
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];

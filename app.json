@@ -5,25 +5,26 @@
     "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "glutenfree",
+    "scheme": "altuten",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.glutenfree.scanner",
+      "bundleIdentifier": "com.altuten.app",
       "buildNumber": "7",
       "deploymentTarget": "16.4",
       "icon": "./assets/icon.png",
       "infoPlist": {
-        "NSCameraUsageDescription": "This app uses the camera to scan grocery barcodes and photograph products for review.",
-        "NSPhotoLibraryUsageDescription": "This app lets you attach a product photo when reporting a barcode.",
+        "NSCameraUsageDescription": "AltUten uses the camera to scan grocery barcodes and photograph products for review.",
+        "NSPhotoLibraryUsageDescription": "AltUten lets you attach a product photo when reporting a barcode.",
         "NSLocationWhenInUseUsageDescription": "AltUten uses your location to search the product catalog for your country first.",
+        "CFBundleDisplayName": "AltUten",
         "UIBackgroundModes": [
           "remote-notification"
         ]
       }
     },
     "android": {
-      "package": "com.glutenfree.scanner",
+      "package": "com.altuten.app",
       "versionCode": 7,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
@@ -50,14 +51,14 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "This app uses the camera to scan grocery barcodes and photograph products for review."
+          "cameraPermission": "AltUten uses the camera to scan grocery barcodes and photograph products for review."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "This app lets you attach a product photo when reporting a barcode.",
-          "cameraPermission": "This app uses the camera to photograph products for barcode reports."
+          "photosPermission": "AltUten lets you attach a product photo when reporting a barcode.",
+          "cameraPermission": "AltUten uses the camera to photograph products for barcode reports."
         }
       ],
       [

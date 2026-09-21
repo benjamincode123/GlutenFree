@@ -11,7 +11,8 @@ import {
 
 import { Locale, translate, translateFormat, TranslationKey } from './translations';
 
-const LOCALE_KEY = 'gluten_locale';
+const LOCALE_KEY = 'altuten.locale';
+const LEGACY_LOCALE_KEY = 'gluten_locale';
 
 interface I18nContextValue {
   locale: Locale;
@@ -30,9 +31,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const stored = await SecureStore.getItemAsync(LOCALE_KEY);
+        const stored =
+          (await SecureStore.getItemAsync(LOCALE_KEY)) ||
+          (await SecureStore.getItemAsync(LEGACY_LOCALE_KEY));
         if (!cancelled && (stored === 'en' || stored === 'nb')) {
           setLocaleState(stored);
+          void SecureStore.setItemAsync(LOCALE_KEY, stored).catch(() => undefined);
         }
       } catch {
         // Keep default.
