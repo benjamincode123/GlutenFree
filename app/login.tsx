@@ -38,7 +38,7 @@ function looksLikeEmail(value: string): boolean {
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const { colors, isDark } = useTheme();
   const keyboardShift = useSmoothKeyboardShift(200);
 
@@ -99,7 +99,7 @@ export default function LoginScreen() {
       await authApi.forgotPassword(username.trim(), email.trim());
       setInfo(t('login.resetLinkSent'));
     } catch (err) {
-      setError(userFacingError(err, t, 'generic'));
+      setError(userFacingError(err, t, 'generic', tf));
     } finally {
       setSubmitting(false);
     }
@@ -107,7 +107,6 @@ export default function LoginScreen() {
 
   async function openRegisterWebsite() {
     setError(null);
-    setShowIssueImage(false);
     const url = registerWebUrl();
     try {
       const supported = await Linking.canOpenURL(url);
@@ -166,11 +165,7 @@ export default function LoginScreen() {
                     </Text>
                   </Pressable>
 
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>
-                    {t('login.forgotPasswordTitle')}
-                  </Text>
-
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>
+                  <Text style={[styles.label, styles.labelFirst, { color: colors.textSecondary }]}>
                     {t('login.username')}
                   </Text>
                   <AppTextInput

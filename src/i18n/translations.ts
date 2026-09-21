@@ -287,8 +287,6 @@ type TranslationKey =
   | 'login.genericError'
   | 'login.poweredBy'
   | 'login.forgotPassword'
-  | 'login.forgotPasswordTitle'
-  | 'login.forgotPasswordBody'
   | 'login.sendResetLink'
   | 'login.resetLinkSent'
   | 'login.backToSignIn'
@@ -833,12 +831,9 @@ const en: Record<TranslationKey, string> = {
   'login.genericError': 'Something went wrong.',
   'login.poweredBy': 'Powered by AltUten',
   'login.forgotPassword': 'Forgot password?',
-  'login.forgotPasswordTitle': 'Reset password',
-  'login.forgotPasswordBody':
-    'Enter your username and the email on your account. We will send a reset link valid for 30 minutes.',
   'login.sendResetLink': 'Send reset link',
   'login.resetLinkSent':
-    'If the username and email match an account, a reset link has been sent. Check your inbox.',
+    'If that username and email belong to an account, a reset link has been sent. It works once and expires in 10 minutes.',
   'login.backToSignIn': 'Back to sign in',
   'terms.title': 'Terms & Conditions',
   'terms.subtitle':
@@ -1420,12 +1415,9 @@ const nb: Record<TranslationKey, string> = {
   'login.genericError': 'Noe gikk galt.',
   'login.poweredBy': 'Powered by AltUten',
   'login.forgotPassword': 'Glemt passord?',
-  'login.forgotPasswordTitle': 'Tilbakestill passord',
-  'login.forgotPasswordBody':
-    'Skriv inn brukernavn og e-posten på kontoen. Vi sender en lenke som er gyldig i 30 minutter.',
   'login.sendResetLink': 'Send tilbakestillingslenke',
   'login.resetLinkSent':
-    'Hvis brukernavn og e-post matcher en konto, er en lenke sendt. Sjekk innboksen din.',
+    'Hvis brukernavn og e-post hører til en konto, er en tilbakestillingslenke sendt. Den kan brukes én gang og er gyldig i 10 minutter.',
   'login.backToSignIn': 'Tilbake til innlogging',
   'terms.title': 'Vilkår og betingelser',
   'terms.subtitle':

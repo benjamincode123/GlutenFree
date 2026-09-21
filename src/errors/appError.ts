@@ -107,6 +107,23 @@ export function appErrorFromHttp(
   return withStatus(fallback);
 }
 
+function retryAfterSecondsFrom(
+  response: Response,
+  bodySeconds: number | undefined
+): number | undefined {
+  if (typeof bodySeconds === 'number' && bodySeconds > 0) {
+    return Math.ceil(bodySeconds);
+  }
+  const header = response.headers.get('Retry-After')?.trim();
+  if (!header) return undefined;
+  const asNumber = Number(header);
+  if (Number.isFinite(asNumber) && asNumber > 0) return Math.ceil(asNumber);
+  const at = Date.parse(header);
+  if (!Number.isFinite(at)) return undefined;
+  const seconds = Math.ceil((at - Date.now()) / 1000);
+  return seconds > 0 ? seconds : undefined;
+}
+
 export async function readApiErrorBody(
   response: Response
 ): Promise<{ error?: string; retryAfterSeconds?: number }> {
@@ -114,13 +131,15 @@ export async function readApiErrorBody(
     const body = (await response.json()) as {
       error?: string;
       retryAfterSeconds?: number;
+      retryAfter?: number;
     };
+    const fromBody =
+      typeof body?.retryAfterSeconds === 'number'
+        ? body.retryAfterSeconds
+        : body?.retryAfter;
     return {
       error: body?.error?.trim() || undefined,
-      retryAfterSeconds:
-        typeof body?.retryAfterSeconds === 'number' && body.retryAfterSeconds > 0
-          ? Math.ceil(body.retryAfterSeconds)
-          : undefined,
+      retryAfterSeconds: retryAfterSecondsFrom(response, fromBody),
     };
   } catch {
     return {};

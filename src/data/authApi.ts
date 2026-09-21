@@ -137,11 +137,8 @@ export async function login(username: string, password: string): Promise<AuthRes
   return { ...result, user: normalizeAuthUser(result.user) };
 }
 
-/** Request a password-reset email (username + email must match). */
-export async function forgotPassword(
-  username: string,
-  email: string
-): Promise<string> {
+/** Request a one-time password-reset email. The API replies the same whether the account exists. */
+export async function forgotPassword(username: string, email: string): Promise<void> {
   let response: Response;
   try {
     response = await fetch(authUrl('/forgot-password'), {
@@ -154,15 +151,10 @@ export async function forgotPassword(
   }
   if (!response.ok) {
     const body = await readApiErrorBody(response);
-    if (body.error) {
-      throw new Error(body.error);
-    }
-    throw appErrorFromHttp(response.status, body.error, 'generic', body.retryAfterSeconds);
+    const retry =
+      body.retryAfterSeconds ?? (response.status === 429 ? 30 : undefined);
+    throw appErrorFromHttp(response.status, body.error, 'generic', retry);
   }
-  const data = (await response.json()) as { message?: string };
-  return typeof data.message === 'string' && data.message.trim()
-    ? data.message.trim()
-    : 'OK';
 }
 
 export async function fetchMe(token: string): Promise<AuthUser> {
