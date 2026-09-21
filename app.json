@@ -11,6 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.glutenfree.scanner",
       "buildNumber": "7",
+      "deploymentTarget": "16.4",
       "icon": "./assets/icon.png",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan grocery barcodes and photograph products for review.",
