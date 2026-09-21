@@ -49,6 +49,14 @@
       "expo-router",
       "expo-sqlite",
       [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          }
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "AltUten uses the camera to scan grocery barcodes and photograph products for review."
