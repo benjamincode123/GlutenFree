@@ -116,7 +116,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(config.useBackend ? null : LOCAL_ADMIN);
-  const [initializing, setInitializing] = useState(config.useBackend);
+  const [initializing, setInitializing] = useState<boolean>(config.useBackend);
 
   /** Last favorites confirmed with the server (or local baseline). */
   const syncedFavoritesRef = useRef<FavoriteProductRef[]>([]);

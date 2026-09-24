@@ -85,7 +85,10 @@ async function pickProductImageAsset(
   if (source === 'camera') {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Camera access needed', 'Allow camera access to photograph the product.');
+      Alert.alert(
+        'Camera needed',
+        'Photographing a product label requires the camera. You can enable it in Settings.'
+      );
       return null;
     }
   } else {
