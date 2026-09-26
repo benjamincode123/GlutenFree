@@ -86,17 +86,13 @@ export default function LoginScreen() {
   async function handleForgotPassword() {
     setError(null);
     setInfo(null);
-    if (username.trim().length < 3) {
-      setError(t('login.usernameShort'));
-      return;
-    }
     if (!looksLikeEmail(email)) {
       setError(t('login.emailInvalid'));
       return;
     }
     setSubmitting(true);
     try {
-      await authApi.forgotPassword(username.trim(), email.trim());
+      await authApi.forgotPassword(email.trim());
       setInfo(t('login.resetLinkSent'));
     } catch (err) {
       setError(userFacingError(err, t, 'generic', tf));
@@ -166,26 +162,6 @@ export default function LoginScreen() {
                   </Pressable>
 
                   <Text style={[styles.label, styles.labelFirst, { color: colors.textSecondary }]}>
-                    {t('login.username')}
-                  </Text>
-                  <AppTextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.surface,
-                        borderColor: colors.border,
-                        color: colors.text,
-                      },
-                    ]}
-                    placeholder={t('login.usernamePlaceholder')}
-                    placeholderTextColor={colors.textSecondary}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    value={username}
-                    onChangeText={setUsername}
-                  />
-
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>
                     {t('login.email')}
                   </Text>
                   <AppTextInput

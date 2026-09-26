@@ -27,7 +27,7 @@ import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
 void SplashScreen.preventAutoHideAsync();
 
-const ISSUE_IMAGE = require('../assets/allergnom/allergnomen issue.png');
+const ISSUE_IMAGE = require('../assets/allergnom/allergnomen-issue.png');
 
 /** Keep the brand mark on screen long enough to read, then fade it out. */
 const MIN_SPLASH_MS = 900;

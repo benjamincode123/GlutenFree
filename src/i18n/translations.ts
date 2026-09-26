@@ -834,7 +834,7 @@ const en: Record<TranslationKey, string> = {
   'login.forgotPassword': 'Forgot password?',
   'login.sendResetLink': 'Send reset link',
   'login.resetLinkSent':
-    'If that username and email belong to an account, a reset link has been sent. It works once and expires in 10 minutes.',
+    'If that email belongs to an account, a reset link has been sent. It works once and expires in 10 minutes.',
   'login.backToSignIn': 'Back to sign in',
   'terms.title': 'Terms & Conditions',
   'terms.subtitle':
@@ -1419,7 +1419,7 @@ const nb: Record<TranslationKey, string> = {
   'login.forgotPassword': 'Glemt passord?',
   'login.sendResetLink': 'Send tilbakestillingslenke',
   'login.resetLinkSent':
-    'Hvis brukernavn og e-post hører til en konto, er en tilbakestillingslenke sendt. Den kan brukes én gang og er gyldig i 10 minutter.',
+    'Hvis e-posten hører til en konto, er en tilbakestillingslenke sendt. Den kan brukes én gang og er gyldig i 10 minutter.',
   'login.backToSignIn': 'Tilbake til innlogging',
   'terms.title': 'Vilkår og betingelser',
   'terms.subtitle':

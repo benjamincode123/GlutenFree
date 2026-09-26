@@ -34,6 +34,15 @@ yarn-error.*
 .env
 .env*.local
 
+# Android / Play Store signing (never commit)
+credentials/
+*.jks
+*.keystore
+keystore.properties
+
+# Local release artifacts
+dist/
+
 # typescript
 *.tsbuildinfo
 

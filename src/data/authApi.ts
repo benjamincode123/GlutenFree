@@ -138,13 +138,13 @@ export async function login(username: string, password: string): Promise<AuthRes
 }
 
 /** Request a one-time password-reset email. The API replies the same whether the account exists. */
-export async function forgotPassword(username: string, email: string): Promise<void> {
+export async function forgotPassword(email: string): Promise<void> {
   let response: Response;
   try {
     response = await fetch(authUrl('/forgot-password'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ username, email }),
+      body: JSON.stringify({ email }),
     });
   } catch {
     throw new AppError('network');

@@ -4,7 +4,7 @@ import { Image, StyleProp, StyleSheet, Text, TextStyle, View } from 'react-nativ
 import { useI18n } from '../i18n/I18nContext';
 import { useTheme } from '../theme/ThemeContext';
 
-const ISSUE_IMAGE = require('../../assets/allergnom/allergnomen issue.png');
+const ISSUE_IMAGE = require('../../assets/allergnom/allergnomen-issue.png');
 
 interface ErrorTextProps {
   children: ReactNode;
